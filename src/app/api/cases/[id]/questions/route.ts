@@ -1,0 +1,18 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { caseInclude, serializeCase } from "@/lib/case-query";
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const body = (await req.json()) as { text?: string };
+  if (!body.text?.trim()) {
+    return NextResponse.json({ error: "確認事項が空です" }, { status: 400 });
+  }
+
+  const updated = await prisma.case.update({
+    where: { id },
+    data: { questions: { create: [{ text: body.text.trim(), status: "質問中" }] } },
+    include: caseInclude,
+  });
+  return NextResponse.json(serializeCase(updated));
+}

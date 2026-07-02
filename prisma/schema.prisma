@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Case {
+  id           String   @id @default(cuid())
+  caseNumber   String
+  title        String
+  clientName   String
+  caseCategory String // "非訟事件" | "訴訟事件"
+  stage        String // see STAGES in src/lib/constants.ts
+  responseTypes String[] @default([])
+  priority     String   @default("通常") // "通常" | "至急"
+  ballOwner    String   @default("事務所")
+  teamMembers  String[] @default([])
+  deadline     String? // YYYY-MM-DD, optional general deadline
+
+  // litigation-only fields
+  courtCaseNumber           String @default("")
+  opposingCounselName       String @default("")
+  opposingCounselAffiliation String @default("")
+  opposingCounselPhone      String @default("")
+  opposingCounselEmail      String @default("")
+  courtClerkName            String @default("")
+  courtClerkAffiliation     String @default("")
+  courtClerkPhone           String @default("")
+  courtClerkEmail           String @default("")
+
+  // engagement checklist
+  poaStatus      String @default("未発送")
+  contractStatus String @default("未発送")
+  retainerStatus String @default("不要")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hearings  Hearing[]
+  tasks     CaseTask[]
+  questions Question[]
+  documents CaseDocument[]
+  updates   UpdateLog[]
+
+  @@index([stage])
+  @@index([caseNumber])
+}
+
+model Hearing {
+  id       String @id @default(cuid())
+  caseId   String
+  case     Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  date     String // YYYY-MM-DD
+  time     String  @default("")
+  location String  @default("")
+  url      String  @default("")
+  purpose  String
+  notes    String  @default("")
+
+  @@index([caseId])
+  @@index([date])
+}
+
+model CaseTask {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  description String
+  assignee    String   @default("")
+  status      String   @default("未着手") // 未着手 | 対応中 | 完了
+  dueDate     String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([caseId])
+  @@index([status])
+}
+
+model Question {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  text      String
+  status    String   @default("質問中") // 質問中 | 回答済み・未反映 | 反映済み
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+}
+
+model CaseDocument {
+  id     String @id @default(cuid())
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  name   String
+  status String @default("未着手") // 未着手 | 作成中 | 提出済み
+
+  @@index([caseId])
+}
+
+model UpdateLog {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  timestamp DateTime @default(now())
+  author    String
+  note      String
+  auto      Boolean  @default(false)
+
+  @@index([caseId])
+}

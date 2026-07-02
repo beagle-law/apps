@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "next-dev",
+      "runtimeExecutable": "C:\\Users\\taish\\Desktop\\APP\\run-dev.bat",
+      "runtimeArgs": [],
+      "port": 3000
+    }
+  ]
+}
