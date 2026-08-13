@@ -1,14 +1,17 @@
-# 案件進捗管理（法律事務所向け 案件管理アプリ）
+# CenMOZO（法律事務所向け 案件管理アプリ）
 
-Next.js（App Router） + PostgreSQL（Prisma）で構築した、法律事務所向けの案件管理Webアプリです。
-事務所共通の1つのパスワードでログインし、複数人で同じ案件の進捗・タスク・期日を共有できます。
+Next.js（App Router） + PostgreSQL（Prisma）で構築した、法律事務所向けの統合管理Webアプリです。
+個別アカウントでログインし、案件・顧客・タスク・パスワード・請求書・目標・ノウハウ等を一元管理できます。
 
 ## 技術構成
 
 - Next.js 15（App Router / TypeScript）
 - PostgreSQL + Prisma ORM
-- 認証：事務所共通パスワード＋署名付きセッションCookie（個人アカウントなし）
-- UI：プロトタイプ（`legal-case-tracker.jsx`）のデザイン・データ構造を踏襲
+- 認証：個別アカウント（loginId + パスワード、bcryptハッシュ）＋署名付きセッションCookie
+- 暗号化：パスワード管理データ・依頼者/相手方の個人情報はAES-256-GCMで保存時暗号化
+- AI機能：Anthropic APIをサーバー側（APIルート）経由で呼び出し（AI入力・経路自動計算・クライアント報告文作成）
+- 請求書PDF：Puppeteer（ローカルは`puppeteer`、本番は`puppeteer-core`+`@sparticuz/chromium`）でサーバー側生成
+- UI：プロトタイプ（`legal-case-tracker.jsx` v3）のデザイン・データ構造・業務ロジックを踏襲
 
 ## 1. ローカル環境のセットアップ
 
@@ -34,17 +37,27 @@ cp .env.example .env
 | 変数名 | 説明 |
 |---|---|
 | `DATABASE_URL` | PostgreSQLの接続文字列 |
-| `APP_PASSWORD` | 事務所共通のログインパスワード |
 | `SESSION_SECRET` | セッションCookie署名用のランダムな秘密鍵（`openssl rand -hex 32` などで生成） |
+| `ENCRYPTION_KEY` | パスワード管理・個人情報の暗号化鍵（32バイト=64桁の16進数。`openssl rand -hex 32` で生成） |
+| `ANTHROPIC_API_KEY` | AI機能用（任意）。未設定でもAI機能以外は問題なく動作します |
+| `ANTHROPIC_MODEL` | 使用するClaudeモデル（任意、既定値 `claude-sonnet-5`） |
 
 ### 1-4. データベースのマイグレーション
 
 ```bash
 npx prisma migrate dev --name init
+npx prisma db seed
 ```
 
-初回実行時にテーブルが作成され、`prisma/seed.ts` のサンプルデータ（案件2件）が自動投入されます。
-サンプルデータを入れたくない場合は、投入後に「すべてのデータを削除」をアプリ内から実行してください。
+シード実行により、以下の3アカウントが作成されます（**初期パスワードは全員共通で `beagle2026`。必ずログイン後に「設定」画面から各自変更してください**）。
+
+| ログインID | 表示名 | 権限 |
+|---|---|---|
+| `miyamura` | 宮村 | 管理者（ユーザー管理のみ特別権限） |
+| `ozaki` | 尾崎 | 一般 |
+| `iwashita` | 岩下 | 一般 |
+
+デモ用のサンプル顧客・案件も1件投入されます。不要であれば案件詳細から削除してください。
 
 ### 1-5. 開発サーバーの起動
 
@@ -52,24 +65,39 @@ npx prisma migrate dev --name init
 npm run dev
 ```
 
-[http://localhost:3000](http://localhost:3000) にアクセスし、`.env` に設定した `APP_PASSWORD` でログインしてください。
+[http://localhost:3000](http://localhost:3000) にアクセスし、上記アカウントでログインしてください。
 
-## 2. データモデル
+## 2. データモデル・アクセス制御
 
-`prisma/schema.prisma` に定義。要件定義書のデータモデルに対応する形で、`Case` を中心に `Hearing`（期日）・`CaseTask`（タスク）・`Question`（質問）・`CaseDocument`（提出書類）・`UpdateLog`（経過記録）を関連テーブルとして保持しています。
+`prisma/schema.prisma` に17テーブルを定義。主な設計:
+
+- **個人メモ案件（2.3相当）**：`Case.ownerId`/`isPrivate` で表現。本人以外には一覧・詳細・関連する全サブリソースAPIで一切見えないよう、`src/lib/case-access.ts` の `caseVisibilityFilter`/`getAccessibleCaseOrNull` を全Case系ルートで必須経由させています。
+- **個人別タスク画面の閲覧制限（2.2相当）**：`/api/personal/[name]/summary` は本人または管理者（宮村）以外は403を返します。
+- **暗号化対象**：`PasswordEntry.username/password`、`Client`の氏名・電話・メール・住所、`Case.clientName`・`opposingParty`・`opposingCounselName`・相手方代理人連絡先。復号は各APIルートのレスポンス生成時にのみ行われます。
 
 ## 3. 認証について
 
-- ユーザーごとのアカウントは作成せず、事務所で1つのパスワード（`APP_PASSWORD`）を共有します。
-- ログイン後は署名付きセッションCookie（90日間有効）で状態を保持するため、毎回パスワード入力は不要です。
-- 各操作の「記入者」欄は、画面右上の「あなたの名前」欄に入力した名前が使われます（認証情報ではなく、経過記録の記名用です）。
+- 個別アカウント（loginId + パスワード）でログインします。パスワードはbcryptでハッシュ化して保存されます。
+- 管理者（宮村）はアカウント管理（追加・削除・パスワードリセット）が可能です。案件等のデータ閲覧権限自体は管理者・一般ユーザーで差はありません。
+- 各自「設定」画面から自分のパスワードを変更できます。
+- セッションは署名付きCookie（90日間有効）で保持されます。
 - 本番環境ではHTTPS必須です（Vercelにデプロイする場合は自動的にHTTPSになります）。
 
-## 4. Vercelへのデプロイ手順
+## 4. AI機能について
 
-### 4-1. 本番用データベースを用意する
+「AI入力」「経路自動計算」「クライアント報告文作成」はサーバー側APIルート（`src/app/api/ai/*`）経由でAnthropic APIを呼びます。`ANTHROPIC_API_KEY` が未設定の間は、各機能がUI上で「AI機能は現在利用できません」と表示され、他の機能には一切影響しません。
 
-ローカルのPostgresはVercelのサーバーレス環境から直接は使えないため、ホスティング型のPostgresを用意します。小規模利用（3名程度）であれば無料枠で十分です。
+APIキーは [console.anthropic.com](https://console.anthropic.com/) で発行し、`.env`（ローカル）またはVercelの環境変数（本番）に設定してください。
+
+## 5. 請求書PDFについて
+
+案件詳細の「請求書作成」から実際の事務所書式（宛名・登録番号・二重線の請求額枠・第1/第2区分の明細・振込先定型文）でPDFを直接ダウンロードできます。ローカル開発では`puppeteer`の内蔵Chromiumを、Vercel本番では`puppeteer-core`+`@sparticuz/chromium`を自動的に使い分けます。
+
+## 6. Vercelへのデプロイ手順
+
+### 6-1. 本番用データベースを用意する
+
+ローカルのPostgresはVercelのサーバーレス環境から直接は使えないため、ホスティング型のPostgresを用意します。小規模利用であれば無料枠で十分です。
 
 - [Neon](https://neon.tech)（推奨・無料枠あり）
 - [Supabase](https://supabase.com)
@@ -77,43 +105,50 @@ npm run dev
 
 作成後、接続文字列（`postgresql://...`）を控えてください。
 
-### 4-2. GitHubリポジトリにpushする
+### 6-2. GitHubリポジトリにpushする
 
 ```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin <あなたのリポジトリURL>
-git push -u origin main
+git add -A
+git commit -m "v3: CenMOZO 本番化"
+git push
 ```
 
-### 4-3. Vercelでプロジェクトを作成
+### 6-3. Vercelの環境変数を設定
 
-1. [vercel.com](https://vercel.com) で「Add New Project」からこのリポジトリをインポート
-2. Framework Preset は自動で「Next.js」が検出されます
-3. 「Environment Variables」に以下を設定
-   - `DATABASE_URL`：4-1で取得した接続文字列
-   - `APP_PASSWORD`：本番用の事務所共通パスワード（ローカルとは別の値を推奨）
-   - `SESSION_SECRET`：本番用のランダムな秘密鍵（ローカルとは別の値を推奨）
-4. 「Deploy」を実行
+Vercelのプロジェクト設定 → Environment Variables に以下を設定してください（ローカルとは別の値を推奨）。
 
-### 4-4. マイグレーションを本番DBに適用
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `ENCRYPTION_KEY`
+- `ANTHROPIC_API_KEY`（任意）
+- `ANTHROPIC_MODEL`（任意）
 
-初回デプロイ後、ローカルから本番DBに向けてマイグレーションを適用します。
+設定後、再デプロイしてください。
+
+### 6-4. マイグレーションを本番DBに適用
+
+初回・スキーマ変更時は、ローカルから本番DBに向けて明示的にマイグレーションを適用します（安全のため自動化していません）。
 
 ```bash
-# .env.production のような別ファイルに本番のDATABASE_URLを設定し、
 DATABASE_URL="<本番のDATABASE_URL>" npx prisma migrate deploy
 ```
 
-以降、スキーマを変更した場合は `npx prisma migrate dev` でローカルにマイグレーションファイルを作成し、コミット・pushしたうえで、上記コマンドで本番に適用してください（`vercel.json` の buildCommand に組み込んで自動化することも可能です）。
+初回のみ、ユーザーアカウント作成のためシードも実行してください。
 
-### 4-5. 独自ドメイン・バックアップ
+```bash
+DATABASE_URL="<本番のDATABASE_URL>" npx prisma db seed
+```
 
-- 独自ドメインはVercelのプロジェクト設定から追加できます
-- バックアップはNeon/Supabase側の自動バックアップ機能を有効化しておくことを推奨します
+### 6-5. Puppeteer / @sparticuz/chromium に関する注意
 
-## 5. 運用に関する留意点（法的助言ではありません）
+- Vercelの関数サイズ上限に収まるよう、`@sparticuz/chromium` は本番実行時のみ動的importされる設計にしています。
+- 請求書PDF生成は他の処理より時間がかかるため（数秒程度）、Vercelの関数タイムアウト設定が短い場合は延長を検討してください。
 
-依頼者情報・事件情報という機密性の高いデータを扱うため、データの保存場所やアクセス管理について、個人情報保護法や弁護士の守秘義務との関係を事務所内でご確認ください。本書はあくまで技術的な手順の説明であり、法的な適合性の判断は専門家にご確認ください。
+### 6-6. 独自ドメイン・バックアップ
+
+- 独自ドメインはVercelのプロジェクト設定から追加できます。
+- バックアップはNeon/Supabase側の自動バックアップ機能に加え、アプリ内「設定」画面からのJSONエクスポートも利用できます（パスワード管理データが平文で含まれるため取り扱い注意）。
+
+## 7. 運用に関する留意点（法的助言ではありません）
+
+依頼者情報・パスワード・請求情報等の機密性の高いデータを扱うため、データの保存場所やアクセス管理について、個人情報保護法・弁護士の守秘義務との関係を事務所内でご確認ください。本書はあくまで技術要件の整理であり、法的な適合性・セキュリティ実装の妥当性・インボイス制度対応の最終判断は専門家にご確認ください。

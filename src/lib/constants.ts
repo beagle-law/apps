@@ -55,7 +55,6 @@ export const STAGE_SEAL_TEXT: Record<string, string> = {
   "終結": "終結",
 };
 
-export const RESPONSE_TYPES = ["通知書", "任意交渉", "訴状", "その他法律業務"];
 export const BALL_OWNERS = ["事務所", "相手方", "クライアント", "裁判所", "その他"];
 export const BALL_COLOR: Record<string, string> = {
   事務所: COLORS.vermillion,
@@ -65,13 +64,64 @@ export const BALL_COLOR: Record<string, string> = {
   その他: COLORS.slate,
 };
 
-export const POA_STATUSES = ["未発送", "発送済み", "回収済み"];
-export const CONTRACT_STATUSES = ["未発送", "発送済み", "締結済み"];
-export const RETAINER_STATUSES = ["不要", "要（未入金）", "要（入金済み）"];
+export const POA_STATUSES = ["対応不要", "未対応", "発送済", "受領済"];
+export const CONTRACT_STATUSES = ["対応不要", "未対応", "発送済", "締結済"];
+export const RETAINER_STATUSES = ["対応不要", "未対応", "請求済", "受領済"];
 export const QUESTION_STATUSES = ["質問中", "回答済み・未反映", "反映済み"];
 export const DOC_STATUSES = ["未着手", "作成中", "提出済み"];
 export const TASK_STATUSES = ["未着手", "対応中", "完了"];
 export const PRIORITIES = ["通常", "至急"];
+export const STAFF_MEMBERS = ["宮村", "尾崎", "岩下", "石谷", "上田"];
+export const PERSONAL_TASK_TABS = ["宮村", "尾崎", "岩下"];
+export const DAILY_REPORT_STAFF = ["岩下", "尾崎"];
+export const CASE_CLASSIFICATIONS = [
+  "売買代金請求",
+  "損害賠償",
+  "貸金請求",
+  "労働",
+  "相続",
+  "企業法務",
+  "不動産",
+  "離婚・家事",
+  "その他",
+];
+export const EXPENSE_CATEGORIES = ["交通費", "印紙代", "郵送費", "謄写費用", "通信費", "その他"];
+export const PASSWORD_CATEGORIES = ["事務所", "コレカ", "Sherpa", "Beagle", "Samurai"];
+export const GOAL_KEYS = [
+  { key: "company", label: "全社目標" },
+  { key: "ozaki", label: "尾崎目標" },
+  { key: "iwashita", label: "岩下目標" },
+] as const;
+
+export const TASK_LEVEL_TABLE = [
+  { level: "Lv.1", points: "1〜2点", difficulty: "定型・単純事務", examples: "書類の形式確認、資料整理、データ入力、ファイリング、定型書類の作成" },
+  { level: "Lv.2", points: "3〜4点", difficulty: "定型的な法務事務", examples: "契約書の形式チェック、定型契約書の修正、登記・届出書類の準備、基本的な資料収集" },
+  { level: "Lv.3", points: "5〜6点", difficulty: "一定の法務知識を要する業務", examples: "契約書の内容確認、法令・ガイドラインの調査、簡単な判例調査、案件に応じた資料作成" },
+  { level: "Lv.4", points: "7〜8点", difficulty: "専門的な検討を要する業務", examples: "複雑な契約書のレビュー、複数法令にまたがる調査、判例・文献を踏まえた法的調査、紛争案件の準備" },
+  { level: "Lv.5", points: "9〜10点", difficulty: "高度・複雑な法務業務", examples: "複雑な契約・紛争案件の担当弁護士補助、難易度の高い法的調査、複数の論点を整理した調査・資料作成、案件全体を見通した対応" },
+];
+
+export const TASK_POINT_OPTIONS = [
+  { points: 1, level: "Lv.1" }, { points: 2, level: "Lv.1" },
+  { points: 3, level: "Lv.2" }, { points: 4, level: "Lv.2" },
+  { points: 5, level: "Lv.3" }, { points: 6, level: "Lv.3" },
+  { points: 7, level: "Lv.4" }, { points: 8, level: "Lv.4" },
+  { points: 9, level: "Lv.5" }, { points: 10, level: "Lv.5" },
+];
+
+export const EXECUTION_LEVELS = [
+  { score: 1, label: "指示された内容を正確に処理" },
+  { score: 2, label: "定型的な法務知識を使って処理" },
+  { score: 3, label: "自分で調査・判断して処理" },
+  { score: 4, label: "複雑な論点について専門的に検討" },
+  { score: 5, label: "高度・複雑な案件について主体的に対応" },
+];
+
+export const ENGAGEMENT_TASK_META: Record<string, { label: string; taskDesc: string; waitDesc: string }> = {
+  poaStatus: { label: "委任状", taskDesc: "委任状の対応", waitDesc: "委任状：クライアントからの返送待ち" },
+  contractStatus: { label: "委任契約書", taskDesc: "委任契約書の対応", waitDesc: "委任契約書：クライアントからの返送待ち" },
+  retainerStatus: { label: "預り金", taskDesc: "預り金の対応", waitDesc: "預り金：クライアントからの入金待ち" },
+};
 
 export function cycleValue<T>(list: readonly T[], current: T): T {
   const idx = list.indexOf(current);
@@ -83,4 +133,12 @@ export function cycleColor(list: readonly string[], current: string): string {
   if (idx === list.length - 1) return COLORS.moss;
   if (idx <= 0) return COLORS.slate;
   return COLORS.amber;
+}
+
+export function engagementStatusColor(status: string): string {
+  if (status === "対応不要") return COLORS.slate;
+  if (status === "未対応") return COLORS.vermillion;
+  if (status === "発送済" || status === "請求済") return COLORS.amber;
+  if (status === "受領済" || status === "締結済") return COLORS.moss;
+  return COLORS.slate;
 }

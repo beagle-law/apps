@@ -58,3 +58,21 @@ export function relativeDayLabel(dateStr: string) {
   if (diff < 0) return `${Math.abs(diff)}日前`;
   return `${diff}日後`;
 }
+
+export const currentYearMonth = () => new Date().toISOString().slice(0, 7);
+
+export function shiftYearMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function formatYearMonth(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return ym;
+  return new Date(y, m - 1, 1).toLocaleDateString("ja-JP-u-ca-japanese", {
+    era: "long",
+    year: "numeric",
+    month: "long",
+  });
+}

@@ -7,75 +7,187 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Case {
+// ─────────────────────────────────────────────────────────
+// 認証・操作ログ
+// ─────────────────────────────────────────────────────────
+
+model User {
   id           String   @id @default(cuid())
+  loginId      String   @unique
+  email        String   @unique
+  displayName  String // "宮村" | "尾崎" | "岩下"
+  passwordHash String
+  role         String   @default("user") // "admin" | "user"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedCases Case[]     @relation("CaseOwner")
+  auditLogs  AuditLog[]
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String   @default("")
+  targetId   String   @default("")
+  note       String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────
+// 顧客
+// ─────────────────────────────────────────────────────────
+
+model Client {
+  id            String   @id @default(cuid())
+  clientNumber  Int      @unique
+  companyName   String
+  tradeName     String   @default("")
+  address       String   @default("") // 暗号化
+  contactName   String   @default("") // 暗号化
+  phone         String   @default("") // 暗号化
+  email         String   @default("") // 暗号化
+  contactMethod String   @default("")
+  source        String   @default("")
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
+
+  cases Case[]
+}
+
+// ─────────────────────────────────────────────────────────
+// 案件
+// ─────────────────────────────────────────────────────────
+
+model Case {
+  id           String  @id @default(cuid())
   caseNumber   String
   title        String
-  clientName   String
-  caseCategory String // "非訟事件" | "訴訟事件"
-  stage        String // see STAGES in src/lib/constants.ts
-  responseTypes String[] @default([])
-  priority     String   @default("通常") // "通常" | "至急"
+  clientName   String // 暗号化
+  clientId     String?
+  client       Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  stage        String
+  priority     String   @default("通常")
   ballOwner    String   @default("事務所")
+  ballAssignee String   @default("")
+  hidden       Boolean  @default(false)
   teamMembers  String[] @default([])
-  deadline     String? // YYYY-MM-DD, optional general deadline
+  deadline     String   @default("")
 
-  // litigation-only fields
-  courtCaseNumber           String @default("")
-  opposingCounselName       String @default("")
-  opposingCounselAffiliation String @default("")
-  opposingCounselPhone      String @default("")
-  opposingCounselEmail      String @default("")
-  courtClerkName            String @default("")
-  courtClerkAffiliation     String @default("")
-  courtClerkPhone           String @default("")
-  courtClerkEmail           String @default("")
+  ownerId   String?
+  owner     User?   @relation("CaseOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  isPrivate Boolean @default(false)
 
-  // engagement checklist
-  poaStatus      String @default("未発送")
-  contractStatus String @default("未発送")
-  retainerStatus String @default("不要")
+  // 訴訟関係者情報（構造化コンタクト）
+  courtCaseNumber                   String @default("")
+  opposingCounselContactName        String @default("") // 暗号化
+  opposingCounselContactAffiliation String @default("") // 暗号化
+  opposingCounselContactPhone       String @default("") // 暗号化
+  opposingCounselContactFax         String @default("") // 暗号化
+  opposingCounselContactEmail       String @default("") // 暗号化
+  courtClerkName                    String @default("")
+  courtClerkAffiliation             String @default("")
+  courtClerkPhone                   String @default("")
+  courtClerkFax                     String @default("")
+  courtClerkEmail                   String @default("")
+
+  // 受任関連チェック
+  poaStatus      String @default("対応不要")
+  contractStatus String @default("対応不要")
+  retainerStatus String @default("対応不要")
+
+  // 主張予定メモ
+  claimMemo String @default("")
+
+  // 案件分類・財務情報
+  caseClassification      String  @default("")
+  opposingParty            String  @default("") // 暗号化
+  opposingCounselName      String  @default("") // 暗号化（簡易テキスト。opposingCounselContact*とは別項目）
+  engagementDate           String  @default("")
+  litigationEngagementDate String  @default("")
+  noticeSentDate           String  @default("")
+  filingDate               String  @default("")
+  claimAmount              Int?
+  retainerFee              Int?
+  expectedFee              Int?
+  expectedFeeDate          String  @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  hearings  Hearing[]
-  tasks     CaseTask[]
-  questions Question[]
-  documents CaseDocument[]
-  updates   UpdateLog[]
+  hearings    Hearing[]
+  tasks       CaseTask[]
+  expenses    Expense[]
+  questions   Question[]
+  documents   CaseDocument[]
+  updates     UpdateLog[]
+  timeCharges TimeCharge[]
+  invoices    Invoice[]
 
   @@index([stage])
   @@index([caseNumber])
+  @@index([clientId])
+  @@index([ownerId])
 }
 
 model Hearing {
-  id       String @id @default(cuid())
-  caseId   String
-  case     Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  date     String // YYYY-MM-DD
-  time     String  @default("")
-  location String  @default("")
-  url      String  @default("")
-  purpose  String
-  notes    String  @default("")
+  id              String   @id @default(cuid())
+  caseId          String
+  case            Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  date            String // 記録日 YYYY-MM-DD
+  content         String
+  docDeadline     String   @default("")
+  nextHearingDate String   @default("")
+  createdAt       DateTime @default(now())
 
   @@index([caseId])
   @@index([date])
 }
 
 model CaseTask {
-  id          String   @id @default(cuid())
-  caseId      String
-  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  description String
-  assignee    String   @default("")
-  status      String   @default("未着手") // 未着手 | 対応中 | 完了
-  dueDate     String   @default("")
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  caseId         String
+  case           Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  description    String
+  assignee       String   @default("")
+  assignedBy     String   @default("")
+  status         String   @default("未着手")
+  dueDate        String   @default("")
+  kind           String   @default("task") // task | waiting
+  waitingOn      String   @default("")
+  handedBackFrom String   @default("")
+  sourceField    String? // poaStatus | contractStatus | retainerStatus
+  isInstruction  Boolean  @default(false)
+  points         Int?
+  executionScore Int?
+  completedAt    String   @default("")
+  createdAt      DateTime @default(now())
 
   @@index([caseId])
   @@index([status])
+  @@index([assignee])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  date        String
+  amount      Int
+  category    String
+  origin      String   @default("")
+  destination String   @default("")
+  route       String   @default("")
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([caseId])
 }
 
 model Question {
@@ -83,18 +195,19 @@ model Question {
   caseId    String
   case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   text      String
-  status    String   @default("質問中") // 質問中 | 回答済み・未反映 | 反映済み
+  status    String   @default("質問中")
   createdAt DateTime @default(now())
 
   @@index([caseId])
 }
 
 model CaseDocument {
-  id     String @id @default(cuid())
-  caseId String
-  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  name   String
-  status String @default("未着手") // 未着手 | 作成中 | 提出済み
+  id      String @id @default(cuid())
+  caseId  String
+  case    Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  name    String
+  status  String @default("未着手")
+  dueDate String @default("")
 
   @@index([caseId])
 }
@@ -109,4 +222,135 @@ model UpdateLog {
   auto      Boolean  @default(false)
 
   @@index([caseId])
+}
+
+// ─────────────────────────────────────────────────────────
+// タイムチャージ・日報
+// ─────────────────────────────────────────────────────────
+
+model TimeCharge {
+  id         String   @id @default(cuid())
+  personName String
+  date       String
+  caseId     String
+  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  hours      Float
+  content    String   @default("")
+  billed     Boolean  @default(false)
+  invoiceId  String?
+  invoice    Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([personName])
+  @@index([caseId])
+  @@index([invoiceId])
+}
+
+model DailyReport {
+  id         String   @id @default(cuid())
+  personName String
+  date       String
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([personName])
+}
+
+// ─────────────────────────────────────────────────────────
+// パスワード管理
+// ─────────────────────────────────────────────────────────
+
+model PasswordEntry {
+  id        String   @id @default(cuid())
+  category  String
+  service   String
+  url       String   @default("")
+  username  String   @default("") // 暗号化
+  password  String // 暗号化
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([category])
+}
+
+// ─────────────────────────────────────────────────────────
+// 目標
+// ─────────────────────────────────────────────────────────
+
+model GoalRecord {
+  id             String     @id @default(cuid())
+  key            String // company | ozaki | iwashita
+  yearMonth      String // YYYY-MM
+  overallPercent String     @default("")
+  items          GoalItem[]
+
+  @@unique([key, yearMonth])
+}
+
+model GoalItem {
+  id           String     @id @default(cuid())
+  goalRecordId String
+  goalRecord   GoalRecord @relation(fields: [goalRecordId], references: [id], onDelete: Cascade)
+  text         String
+  result       String     @default("") // "" | ○ | △ | ×
+  note         String     @default("")
+
+  @@index([goalRecordId])
+}
+
+// ─────────────────────────────────────────────────────────
+// ノウハウ・ひながた
+// ─────────────────────────────────────────────────────────
+
+model KnowhowEntry {
+  id        String   @id @default(cuid())
+  category  String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([category])
+}
+
+model Template {
+  id        String   @id @default(cuid())
+  name      String
+  content   String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────
+// 請求書
+// ─────────────────────────────────────────────────────────
+
+model Invoice {
+  id               String   @id @default(cuid())
+  invoiceNumber    Int      @unique
+  caseId           String
+  case             Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  clientName       String // 発行時点のスナップショット、暗号化
+  caseTitle        String
+  issueDate        String
+  applyTax         Boolean  @default(true)
+  applyWithholding Boolean  @default(true)
+  expenseAmount    Int      @default(0)
+  notes            String   @default("")
+  paid             Boolean  @default(false)
+  paidAt           String   @default("")
+  createdAt        DateTime @default(now())
+
+  feeItems    FeeItem[]
+  timeCharges TimeCharge[]
+
+  @@index([caseId])
+}
+
+model FeeItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  amount      Int
+
+  @@index([invoiceId])
 }

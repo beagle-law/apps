@@ -14,9 +14,9 @@ export async function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  const valid = await verifySessionToken(token);
+  const session = await verifySessionToken(token);
 
-  if (!valid) {
+  if (!session) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }

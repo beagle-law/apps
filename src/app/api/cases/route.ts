@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
+import { caseVisibilityFilter } from "@/lib/case-access";
+import { computeEngagementTaskChange } from "@/lib/business/engagement";
+import { suggestedCaseNumber, computeCaseNumberForClient } from "@/lib/business/caseNumber";
+import { encryptField } from "@/lib/crypto";
 
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+
   const cases = await prisma.case.findMany({
+    where: caseVisibilityFilter(user.id),
     include: caseInclude,
     orderBy: { createdAt: "desc" },
   });
@@ -14,7 +23,7 @@ interface CreateCaseBody {
   caseNumber?: string;
   title: string;
   clientName: string;
-  caseCategory: string;
+  clientId?: string;
   teamMember?: string;
   deadline?: string;
   priority?: string;
@@ -23,40 +32,61 @@ interface CreateCaseBody {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as CreateCaseBody;
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
 
+  const body = (await req.json()) as CreateCaseBody;
   if (!body.title?.trim() || !body.clientName?.trim()) {
     return NextResponse.json({ error: "案件名と依頼者名は必須です" }, { status: 400 });
   }
 
   let caseNumber = body.caseNumber?.trim();
   if (!caseNumber) {
-    const year = new Date().getFullYear();
-    const count = await prisma.case.count();
-    caseNumber = `${year}-${String(count + 1).padStart(3, "0")}`;
+    if (body.clientId) {
+      const client = await prisma.client.findUnique({ where: { id: body.clientId } });
+      if (client) {
+        const linkedCount = await prisma.case.count({ where: { clientId: client.id } });
+        caseNumber = computeCaseNumberForClient(client.clientNumber, linkedCount);
+      }
+    }
+    if (!caseNumber) {
+      const count = await prisma.case.count();
+      caseNumber = suggestedCaseNumber(count);
+    }
+  }
+
+  const teamMembers = body.teamMember?.trim() ? [body.teamMember.trim()] : [];
+
+  // 受任関連チェックの初期状態（すべて「対応不要」）から、対応タスクを自動生成する
+  const initialTaskCreates: {
+    description: string;
+    kind: string;
+    waitingOn: string;
+    assignee: string;
+    sourceField: string;
+    status: string;
+  }[] = [];
+  for (const field of ["poaStatus", "contractStatus", "retainerStatus"] as const) {
+    const action = computeEngagementTaskChange([], teamMembers, field, "対応不要");
+    if (action.type === "create") {
+      initialTaskCreates.push({ ...action.data, status: "未着手" });
+    }
   }
 
   const created = await prisma.case.create({
     data: {
       caseNumber,
       title: body.title.trim(),
-      clientName: body.clientName.trim(),
-      caseCategory: body.caseCategory || "非訟事件",
+      clientName: encryptField(body.clientName.trim()),
+      clientId: body.clientId || null,
       stage: "新規問合せ・紹介",
       priority: body.priority || "通常",
       deadline: body.deadline || "",
       ballOwner: "事務所",
-      teamMembers: body.teamMember?.trim() ? [body.teamMember.trim()] : [],
+      teamMembers,
+      tasks: initialTaskCreates.length ? { create: initialTaskCreates } : undefined,
       updates: body.initialNote?.trim()
-        ? {
-            create: [
-              {
-                author: body.author?.trim() || "匿名",
-                note: body.initialNote.trim(),
-                auto: false,
-              },
-            ],
-          }
+        ? { create: [{ author: body.author?.trim() || user.displayName, note: body.initialNote.trim(), auto: false }] }
         : undefined,
     },
     include: caseInclude,

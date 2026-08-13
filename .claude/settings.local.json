@@ -1,7 +1,30 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(winget search PostgreSQL --source winget)"
+      "PowerShell(winget search PostgreSQL --source winget)",
+      "Bash(awk '{ print length, NR }' \"C:\\\\Users\\\\taish\\\\Downloads\\\\files\\\\legal-case-tracker.jsx\")",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npx prisma migrate reset --force --skip-seed)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; $env:PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION = \"はい、実行してください\"; npx prisma migrate reset --force --skip-seed)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npx prisma migrate dev --name v3_full_rewrite)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npm install)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npx tsc --noEmit 2>&1 | Select-Object -First 150)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npm view @anthropic-ai/sdk versions --json | node -e \"const v=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); console.log\\(v.slice\\(-10\\).join\\('\\\\n'\\)\\)\")",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npm view @anthropic-ai/sdk version)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npm install @anthropic-ai/sdk@^0.116.0)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npx tsc --noEmit 2>&1 | Select-String \"ai/calculate-route|ai/extract-case|ai/client-report\")",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npx tsc --noEmit 2>&1 | Select-String \"src/app/api|src/lib\")",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npx tsc --noEmit 2>&1 | Select-String -NotMatch \"prisma/seed.ts\" | Select-Object -First 150)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npx tsc --noEmit 2>&1)",
+      "PowerShell($bytes = New-Object byte[] 32; \\(New-Object Security.Cryptography.RNGCryptoServiceProvider\\).GetBytes\\($bytes\\); $key = \\([BitConverter]::ToString\\($bytes\\) -replace '-',''\\).ToLower\\(\\); $key)",
+      "PowerShell($bytes = New-Object byte[] 32; \\(New-Object Security.Cryptography.RNGCryptoServiceProvider\\).GetBytes\\($bytes\\); $key = \\([BitConverter]::ToString\\($bytes\\) -replace '-',''\\).ToLower\\(\\); Write-Output $key; Write-Output $key.Length)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; node -e \"console.log\\(Buffer.from\\('742decb7cacb179d99bfa3b793cfbdc60e7e814641c7f8bc138d7633e8d73267','hex'\\).length\\)\")",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; npx prisma db seed)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\nodejs\"; $env:PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION = \"はい、実行してください\"; npx prisma migrate reset --force --skip-seed; npx prisma db seed)",
+      "PowerShell($env:PGPASSWORD = \"postgres\"; & \"C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql.exe\" -U postgres -h localhost -p 5432 -d legal_case_tracker -c \"SELECT service, username, password FROM \\\\\"PasswordEntry\\\\\" WHERE service='TestService';\")",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(export PGPASSWORD=postgres)",
+      "Bash(\"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h localhost -p 5432 -d legal_case_tracker -f /tmp/check_pw.sql)"
     ]
   }
 }

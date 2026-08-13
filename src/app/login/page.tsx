@@ -4,35 +4,28 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Briefcase, Loader2 } from "lucide-react";
 import { COLORS, FONT_GOTHIC, FONT_MINCHO } from "@/lib/constants";
+import * as api from "@/lib/api-client";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) return;
+    if (!loginId || !password) return;
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || "ログインに失敗しました");
-        return;
-      }
+      await api.login(loginId, password);
       const next = searchParams.get("next") || "/";
       router.push(next);
       router.refresh();
-    } catch {
-      setError("通信エラーが発生しました");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ログインに失敗しました");
     } finally {
       setLoading(false);
     }
@@ -56,18 +49,31 @@ function LoginForm() {
             <Briefcase size={24} />
           </div>
           <h1 className="text-lg mt-1" style={{ fontFamily: FONT_MINCHO, letterSpacing: "0.05em" }}>
-            案件進捗管理
+            CenMOZO
           </h1>
           <p className="text-xs" style={{ color: COLORS.slate }}>
-            事務所共通パスワードでログインしてください
+            ログインIDとパスワードを入力してください
           </p>
         </div>
+
+        <label className="text-xs" style={{ color: COLORS.slate }}>
+          ログインID
+          <input
+            type="text"
+            autoFocus
+            autoComplete="username"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            className="mt-1 w-full text-sm p-2.5 rounded outline-none"
+            style={{ border: `1px solid ${COLORS.brassLight}` }}
+          />
+        </label>
 
         <label className="text-xs" style={{ color: COLORS.slate }}>
           パスワード
           <input
             type="password"
-            autoFocus
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="mt-1 w-full text-sm p-2.5 rounded outline-none"
@@ -83,7 +89,7 @@ function LoginForm() {
 
         <button
           type="submit"
-          disabled={!password || loading}
+          disabled={!loginId || !password || loading}
           className="flex items-center justify-center gap-2 text-sm font-bold py-2.5 rounded transition disabled:opacity-40"
           style={{ backgroundColor: COLORS.navy, color: "#fff" }}
         >

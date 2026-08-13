@@ -6,7 +6,6 @@ import {
   Trash2,
   User,
   Calendar,
-  Users,
   Landmark,
   Phone,
   Mail,
@@ -14,75 +13,143 @@ import {
   HelpCircle,
   ListChecks,
   MapPin,
-  Link2,
   Send,
+  Receipt,
+  Navigation,
+  Wand2,
+  Copy,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
+  Sparkles,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   COLORS,
   FONT_MINCHO,
-  CASE_CATEGORIES,
   STAGES,
-  RESPONSE_TYPES,
+  STAGE_COLOR,
   BALL_OWNERS,
   BALL_COLOR,
-  STAGE_COLOR,
+  STAFF_MEMBERS,
+  CASE_CLASSIFICATIONS,
+  EXPENSE_CATEGORIES,
   POA_STATUSES,
   CONTRACT_STATUSES,
   RETAINER_STATUSES,
   QUESTION_STATUSES,
   DOC_STATUSES,
   TASK_STATUSES,
+  TASK_POINT_OPTIONS,
   cycleValue,
   cycleColor,
+  engagementStatusColor,
 } from "@/lib/constants";
 import { formatDate, formatDateShort, formatDateTime, relativeDayLabel, todayStr } from "@/lib/dates";
-import type { Case, Contact } from "@/lib/types";
+import type { Case, Contact, TimeCharge } from "@/lib/types";
 import { emptyContact } from "@/lib/types";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
+import { invoiceTotal, buildTimeChargeFeeItem } from "@/lib/business/invoice";
 import * as api from "@/lib/api-client";
+import InvoiceListForCase from "@/components/InvoiceListForCase";
 
 interface Props {
   selectedCase: Case;
-  userName: string;
   onCaseUpdated: (c: Case) => void;
   onCaseDeleted: (id: string) => void;
   onError: (msg: string) => void;
 }
 
-export default function CaseDetailPanel({ selectedCase, userName, onCaseUpdated, onCaseDeleted, onError }: Props) {
+export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDeleted, onError }: Props) {
   const [newUpdateText, setNewUpdateText] = useState("");
+  const [claimMemoDraft, setClaimMemoDraft] = useState(selectedCase.claimMemo);
+  const [financeDraft, setFinanceDraft] = useState({
+    caseClassification: selectedCase.caseClassification,
+    opposingParty: selectedCase.opposingParty,
+    opposingCounselName: selectedCase.opposingCounselName,
+    engagementDate: selectedCase.engagementDate,
+    litigationEngagementDate: selectedCase.litigationEngagementDate,
+    noticeSentDate: selectedCase.noticeSentDate,
+    filingDate: selectedCase.filingDate,
+    claimAmount: selectedCase.claimAmount,
+    retainerFee: selectedCase.retainerFee,
+    expectedFee: selectedCase.expectedFee,
+    expectedFeeDate: selectedCase.expectedFeeDate,
+  });
   const [newQuestionText, setNewQuestionText] = useState("");
   const [newDocName, setNewDocName] = useState("");
+  const [newDocDueDate, setNewDocDueDate] = useState("");
   const [newMemberName, setNewMemberName] = useState("");
-  const [newHearing, setNewHearing] = useState({ date: "", time: "", purpose: "", location: "", url: "", notes: "" });
-  const [newTaskForm, setNewTaskForm] = useState({ description: "", assignee: "", dueDate: "" });
-  const [courtInfoDraft, setCourtInfoDraft] = useState<{
-    courtCaseNumber: string;
-    opposingCounsel: Contact;
-    courtClerk: Contact;
-  }>({ courtCaseNumber: "", opposingCounsel: emptyContact(), courtClerk: emptyContact() });
+  const [newHearing, setNewHearing] = useState({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
+  const [clientReportText, setClientReportText] = useState("");
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [newTaskForm, setNewTaskForm] = useState<{ description: string; assignee: string; assignedBy: string; dueDate: string; points: string }>({
+    description: "",
+    assignee: "",
+    assignedBy: "",
+    dueDate: "",
+    points: "",
+  });
+  const [newExpenseForm, setNewExpenseForm] = useState({
+    date: "",
+    amount: "",
+    category: "",
+    origin: "事務所",
+    destination: "",
+    route: "",
+    notes: "",
+  });
+  const [calculatingRoute, setCalculatingRoute] = useState(false);
+  const [courtInfoDraft, setCourtInfoDraft] = useState<{ courtCaseNumber: string; opposingCounsel: Contact; courtClerk: Contact }>({
+    courtCaseNumber: "",
+    opposingCounsel: emptyContact(),
+    courtClerk: emptyContact(),
+  });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // 請求書作成ドラフト
+  const [invoiceForm, setInvoiceForm] = useState({
+    issueDate: todayStr(),
+    applyTax: true,
+    applyWithholding: true,
+    expenseAmount: "",
+    notes: "",
+  });
+  const [feeItems, setFeeItems] = useState<{ description: string; amount: number }[]>([]);
+  const [newFeeItem, setNewFeeItem] = useState({ description: "", unitPrice: "" });
+  const [unbilledTimeCharges, setUnbilledTimeCharges] = useState<TimeCharge[]>([]);
+  const [timeChargeRateDraft, setTimeChargeRateDraft] = useState("");
+  const [billTimeChargeIds, setBillTimeChargeIds] = useState<string[]>([]);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
+
   useEffect(() => {
+    setClaimMemoDraft(selectedCase.claimMemo);
+    setFinanceDraft({
+      caseClassification: selectedCase.caseClassification,
+      opposingParty: selectedCase.opposingParty,
+      opposingCounselName: selectedCase.opposingCounselName,
+      engagementDate: selectedCase.engagementDate,
+      litigationEngagementDate: selectedCase.litigationEngagementDate,
+      noticeSentDate: selectedCase.noticeSentDate,
+      filingDate: selectedCase.filingDate,
+      claimAmount: selectedCase.claimAmount,
+      retainerFee: selectedCase.retainerFee,
+      expectedFee: selectedCase.expectedFee,
+      expectedFeeDate: selectedCase.expectedFeeDate,
+    });
     setCourtInfoDraft({
       courtCaseNumber: selectedCase.courtCaseNumber || "",
-      opposingCounsel: {
-        name: selectedCase.opposingCounselName,
-        affiliation: selectedCase.opposingCounselAffiliation,
-        phone: selectedCase.opposingCounselPhone,
-        email: selectedCase.opposingCounselEmail,
-      },
-      courtClerk: {
-        name: selectedCase.courtClerkName,
-        affiliation: selectedCase.courtClerkAffiliation,
-        phone: selectedCase.courtClerkPhone,
-        email: selectedCase.courtClerkEmail,
-      },
+      opposingCounsel: { ...emptyContact(), ...selectedCase.opposingCounsel },
+      courtClerk: { ...emptyContact(), ...selectedCase.courtClerk },
     });
     setConfirmDelete(false);
-  }, [selectedCase.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const author = () => userName.trim() || "匿名";
+    setFeeItems([]);
+    setBillTimeChargeIds([]);
+    setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: true, expenseAmount: "", notes: "" });
+    api.fetchUnbilledTimeCharges(selectedCase.id).then(setUnbilledTimeCharges).catch(() => setUnbilledTimeCharges([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCase.id]);
 
   const run = async (fn: () => Promise<Case>) => {
     try {
@@ -95,54 +162,30 @@ export default function CaseDetailPanel({ selectedCase, userName, onCaseUpdated,
 
   const changeStage = (stage: string) => {
     if (stage === selectedCase.stage) return;
-    run(() => api.patchCase(selectedCase.id, { stage, autoNote: `ステータスを「${stage}」に変更`, author: author() }));
+    run(() => api.patchCase(selectedCase.id, { stage, autoNote: `ステータスを「${stage}」に変更` }));
   };
-
-  const changeCategory = (category: string) => {
-    if (category === selectedCase.caseCategory) return;
-    const note =
-      selectedCase.caseCategory === "非訟事件" && category === "訴訟事件"
-        ? "非訟事件から訴訟事件に発展（種別を更新）"
-        : `種別を「${selectedCase.caseCategory}」から「${category}」に変更`;
-    run(() => api.patchCase(selectedCase.id, { caseCategory: category, autoNote: note, author: author() }));
-  };
-
-  const toggleResponseType = (type: string) => {
-    const has = selectedCase.responseTypes.includes(type);
-    const next = has
-      ? selectedCase.responseTypes.filter((t) => t !== type)
-      : [...selectedCase.responseTypes, type];
-    run(() =>
-      api.patchCase(selectedCase.id, {
-        responseTypes: next,
-        autoNote: has ? `対応類型「${type}」を解除` : `対応類型に「${type}」を追加`,
-        author: author(),
-      })
-    );
-  };
-
   const changeBallOwner = (owner: string) => {
     if (owner === selectedCase.ballOwner) return;
-    run(() =>
-      api.patchCase(selectedCase.id, {
-        ballOwner: owner,
-        autoNote: `ボール（次のアクション）を「${owner}」に更新`,
-        author: author(),
-      })
-    );
+    run(() => api.patchCase(selectedCase.id, { ballOwner: owner, autoNote: `ボール（次のアクション）を「${owner}」に更新` }));
+  };
+  const changeBallAssignee = (name: string) => {
+    const next = selectedCase.ballAssignee === name ? "" : name;
+    run(() => api.patchCase(selectedCase.id, { ballAssignee: next }));
+  };
+  const toggleHidden = () => {
+    run(() => api.patchCase(selectedCase.id, { hidden: !selectedCase.hidden }));
   };
 
-  const cycleEngagement = (
-    field: "poaStatus" | "contractStatus" | "retainerStatus",
-    list: readonly string[],
-    label: string
-  ) => {
+  const cycleEngagement = (field: "poaStatus" | "contractStatus" | "retainerStatus", list: readonly string[]) => {
     const nextVal = cycleValue(list, selectedCase[field]);
-    run(() =>
-      api.patchCase(selectedCase.id, { [field]: nextVal, autoNote: `${label}を「${nextVal}」に更新`, author: author() })
-    );
+    run(() => api.patchCase(selectedCase.id, { [field]: nextVal } as Partial<Case>));
   };
 
+  const toggleTeamMember = (name: string) => {
+    const has = selectedCase.teamMembers.includes(name);
+    const next = has ? selectedCase.teamMembers.filter((m) => m !== name) : [...selectedCase.teamMembers, name];
+    run(() => api.patchCase(selectedCase.id, { teamMembers: next }));
+  };
   const addTeamMember = () => {
     const name = newMemberName.trim();
     if (!name || selectedCase.teamMembers.includes(name)) {
@@ -166,18 +209,51 @@ export default function CaseDetailPanel({ selectedCase, userName, onCaseUpdated,
     );
   };
 
+  const saveClaimMemo = () => {
+    if (claimMemoDraft === selectedCase.claimMemo) return;
+    api
+      .patchClaimMemo(selectedCase.id, claimMemoDraft)
+      .then(onCaseUpdated)
+      .catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
+  };
+
+  const saveFinance = () => {
+    api
+      .patchFinance(selectedCase.id, financeDraft)
+      .then(onCaseUpdated)
+      .catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
+  };
+
   const addUpdateEntry = () => {
     if (!newUpdateText.trim()) return;
-    run(() => api.addUpdate(selectedCase.id, newUpdateText.trim(), author()));
+    run(() => api.addUpdate(selectedCase.id, newUpdateText.trim()));
     setNewUpdateText("");
   };
 
   const addHearingEntry = () => {
-    if (!newHearing.date || !newHearing.purpose.trim()) return;
+    if (!newHearing.date || !newHearing.content.trim()) return;
     run(() => api.addHearing(selectedCase.id, newHearing));
-    setNewHearing({ date: "", time: "", purpose: "", location: "", url: "", notes: "" });
+    setNewHearing({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   };
   const removeHearing = (hearingId: string) => run(() => api.deleteHearing(selectedCase.id, hearingId));
+
+  const generateClientReport = async () => {
+    setGeneratingReport(true);
+    try {
+      const res = await api.aiClientReport({
+        clientName: selectedCase.clientName,
+        title: selectedCase.title,
+        content: newHearing.content,
+        docDeadline: newHearing.docDeadline,
+        nextHearingDate: newHearing.nextHearingDate,
+      });
+      setClientReportText(res.text);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "報告文の作成に失敗しました");
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
 
   const addQuestionEntry = () => {
     if (!newQuestionText.trim()) return;
@@ -189,8 +265,9 @@ export default function CaseDetailPanel({ selectedCase, userName, onCaseUpdated,
 
   const addDocumentEntry = () => {
     if (!newDocName.trim()) return;
-    run(() => api.addDocument(selectedCase.id, newDocName.trim()));
+    run(() => api.addDocument(selectedCase.id, newDocName.trim(), newDocDueDate));
     setNewDocName("");
+    setNewDocDueDate("");
   };
   const cycleDocument = (docId: string, current: string) =>
     run(() => api.patchDocumentStatus(selectedCase.id, docId, cycleValue(DOC_STATUSES, current)));
@@ -198,12 +275,69 @@ export default function CaseDetailPanel({ selectedCase, userName, onCaseUpdated,
 
   const addTaskEntry = () => {
     if (!newTaskForm.description.trim()) return;
-    run(() => api.addTask(selectedCase.id, newTaskForm));
-    setNewTaskForm({ description: "", assignee: "", dueDate: "" });
+    run(() =>
+      api.addTask(selectedCase.id, {
+        description: newTaskForm.description,
+        assignee: newTaskForm.assignee,
+        assignedBy: newTaskForm.assignedBy,
+        dueDate: newTaskForm.dueDate,
+        points: newTaskForm.points ? Number(newTaskForm.points) : null,
+      })
+    );
+    setNewTaskForm({ description: "", assignee: "", assignedBy: "", dueDate: "", points: "" });
   };
   const cycleTaskStatus = (taskId: string, current: string) =>
     run(() => api.patchTaskStatus(selectedCase.id, taskId, cycleValue(TASK_STATUSES, current)));
+  const doFinishTask = (taskId: string) => run(() => api.finishTask(selectedCase.id, taskId));
+  const doScoreTask = (taskId: string, score: number) => run(() => api.scoreTask(selectedCase.id, taskId, score));
   const removeTask = (taskId: string) => run(() => api.deleteTask(selectedCase.id, taskId));
+
+  const addExpenseEntry = () => {
+    if (!newExpenseForm.date || !newExpenseForm.category || !newExpenseForm.amount) return;
+    run(() =>
+      api.addExpense(selectedCase.id, {
+        date: newExpenseForm.date,
+        amount: Number(newExpenseForm.amount),
+        category: newExpenseForm.category,
+        origin: newExpenseForm.origin,
+        destination: newExpenseForm.destination,
+        route: newExpenseForm.route,
+        notes: newExpenseForm.notes,
+      })
+    );
+    setNewExpenseForm({ date: "", amount: "", category: "", origin: "事務所", destination: "", route: "", notes: "" });
+  };
+  const removeExpense = (expenseId: string) => run(() => api.deleteExpense(selectedCase.id, expenseId));
+
+  const calculateRoute = async () => {
+    if (!newExpenseForm.origin.trim() || !newExpenseForm.destination.trim()) return;
+    setCalculatingRoute(true);
+    try {
+      const res = await api.aiCalculateRoute(newExpenseForm.origin, newExpenseForm.destination);
+      setNewExpenseForm((prev) => ({ ...prev, route: res.route, amount: prev.amount || String(res.fare) }));
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "経路の自動計算に失敗しました");
+    } finally {
+      setCalculatingRoute(false);
+    }
+  };
+
+  const exportExpensesToExcel = () => {
+    const rows: (string | number)[][] = [
+      ["実費一覧"],
+      [`案件No.${selectedCase.caseNumber}`, selectedCase.title, `依頼者：${selectedCase.clientName}`],
+      [],
+      ["日付", "内訳", "金額", "経路", "備考"],
+      ...selectedCase.expenses.map((e) => [formatDateShort(e.date), e.category, e.amount, e.route, e.notes]),
+      [],
+      ["合計", "", selectedCase.expenses.reduce((sum, e) => sum + e.amount, 0), "", ""],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 44 }, { wch: 28 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "実費一覧");
+    XLSX.writeFile(wb, `実費一覧_${selectedCase.caseNumber}.xlsx`);
+  };
 
   const doDeleteCase = async () => {
     try {
@@ -214,600 +348,601 @@ export default function CaseDetailPanel({ selectedCase, userName, onCaseUpdated,
     }
   };
 
+  // ── 請求書作成 ──────────────────────────────────
+  const addFeeItemDraft = () => {
+    if (!newFeeItem.description.trim() || !newFeeItem.unitPrice) return;
+    setFeeItems((prev) => [...prev, { description: newFeeItem.description.trim(), amount: Number(newFeeItem.unitPrice) }]);
+    setNewFeeItem({ description: "", unitPrice: "" });
+  };
+  const removeFeeItemDraft = (idx: number) => setFeeItems((prev) => prev.filter((_, i) => i !== idx));
+
+  const addTimeChargeFeeItemDraft = () => {
+    const totalHours = unbilledTimeCharges.reduce((sum, t) => sum + t.hours, 0);
+    if (!totalHours) return;
+    const item = buildTimeChargeFeeItem(totalHours, Number(timeChargeRateDraft) || 0);
+    setFeeItems((prev) => [...prev, item]);
+    setBillTimeChargeIds(unbilledTimeCharges.map((t) => t.id));
+  };
+
+  const previewTotals = invoiceTotal({
+    feeItems,
+    applyTax: invoiceForm.applyTax,
+    applyWithholding: invoiceForm.applyWithholding,
+    expenseAmount: Number(invoiceForm.expenseAmount) || 0,
+  });
+
+  const submitInvoice = async () => {
+    if (!feeItems.length || !invoiceForm.issueDate) return;
+    setCreatingInvoice(true);
+    try {
+      const inv = await api.createInvoice({
+        caseId: selectedCase.id,
+        issueDate: invoiceForm.issueDate,
+        feeItems,
+        applyTax: invoiceForm.applyTax,
+        applyWithholding: invoiceForm.applyWithholding,
+        expenseAmount: Number(invoiceForm.expenseAmount) || 0,
+        notes: invoiceForm.notes,
+        billTimeChargeIds,
+      });
+      window.open(api.invoicePdfUrl(inv.id), "_blank");
+      setFeeItems([]);
+      setBillTimeChargeIds([]);
+      setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: true, expenseAmount: "", notes: "" });
+      const remaining = await api.fetchUnbilledTimeCharges(selectedCase.id);
+      setUnbilledTimeCharges(remaining);
+      setInvoiceRefreshKey((k) => k + 1);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "請求書の作成に失敗しました");
+    } finally {
+      setCreatingInvoice(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-5">
       {/* Header */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs" style={{ color: COLORS.slate }}>
+            <p className="text-xs flex items-center gap-2" style={{ color: COLORS.slate }}>
               案件No. {selectedCase.caseNumber}
+              {selectedCase.isPrivate && (
+                <Badge color={COLORS.brass}>個人メモ</Badge>
+              )}
             </p>
             <h2 className="text-xl mt-1" style={{ fontFamily: FONT_MINCHO, letterSpacing: "0.02em" }}>
               {selectedCase.title}
             </h2>
           </div>
-          {confirmDelete ? (
-            <div className="flex items-center gap-1 text-xs flex-shrink-0">
-              <button onClick={doDeleteCase} className="underline font-bold" style={{ color: COLORS.vermillion }}>
-                削除確定
-              </button>
-              <button onClick={() => setConfirmDelete(false)} className="underline" style={{ color: COLORS.slate }}>
-                取消
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="p-1.5 rounded hover:opacity-70 flex-shrink-0"
-              style={{ color: COLORS.slate }}
-              title="案件を削除"
-            >
-              <Trash2 size={16} />
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={toggleHidden} className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }} title={selectedCase.hidden ? "一覧に表示する" : "一覧から非表示にする"}>
+              {selectedCase.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-4 mt-4 text-sm" style={{ color: COLORS.slate }}>
-          <span className="flex items-center gap-1.5">
-            <User size={14} /> 依頼者：{selectedCase.clientName}
-          </span>
-          {selectedCase.deadline && (
-            <span className="flex items-center gap-1.5">
-              <Calendar size={14} /> 期限：{formatDate(selectedCase.deadline)}
-            </span>
-          )}
-          {selectedCase.priority === "至急" && (
-            <Badge color={COLORS.vermillion} filled>
-              至急
-            </Badge>
-          )}
-        </div>
-
-        <div className="mt-4">
-          <FieldLabel>種別</FieldLabel>
-          <div className="flex gap-2">
-            {CASE_CATEGORIES.map((cat) => (
-              <Pill
-                key={cat}
-                active={selectedCase.caseCategory === cat}
-                color={cat === "訴訟事件" ? COLORS.navy : COLORS.brass}
-                onClick={() => changeCategory(cat)}
-              >
-                {cat}
-              </Pill>
-            ))}
+            {confirmDelete ? (
+              <div className="flex items-center gap-1 text-xs">
+                <button onClick={doDeleteCase} className="underline font-bold" style={{ color: COLORS.vermillion }}>削除確定</button>
+                <button onClick={() => setConfirmDelete(false)} className="underline" style={{ color: COLORS.slate }}>取消</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)} className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }} title="案件を削除">
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
         </div>
+
+        {!selectedCase.isPrivate && (
+          <div className="flex flex-wrap gap-4 mt-4 text-sm" style={{ color: COLORS.slate }}>
+            <span className="flex items-center gap-1.5"><User size={14} /> 依頼者：{selectedCase.clientName}</span>
+            {selectedCase.deadline && (
+              <span className="flex items-center gap-1.5"><Calendar size={14} /> 期限：{formatDate(selectedCase.deadline)}</span>
+            )}
+            {selectedCase.priority === "至急" && <Badge color={COLORS.vermillion} filled>至急</Badge>}
+          </div>
+        )}
 
         <div className="mt-4">
           <FieldLabel>ステータス</FieldLabel>
           <div className="flex gap-1.5 flex-wrap">
             {STAGES.map((s) => (
-              <Pill key={s} active={selectedCase.stage === s} color={STAGE_COLOR[s]} onClick={() => changeStage(s)}>
-                {s}
-              </Pill>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <FieldLabel>対応類型（複数可）</FieldLabel>
-          <div className="flex gap-1.5 flex-wrap">
-            {RESPONSE_TYPES.map((t) => (
-              <Pill
-                key={t}
-                active={selectedCase.responseTypes.includes(t)}
-                color={COLORS.navy}
-                onClick={() => toggleResponseType(t)}
-              >
-                {t}
-              </Pill>
+              <Pill key={s} active={selectedCase.stage === s} color={STAGE_COLOR[s]} onClick={() => changeStage(s)}>{s}</Pill>
             ))}
           </div>
         </div>
 
         <div className="mt-4">
           <FieldLabel>担当メンバー</FieldLabel>
-          <div className="flex gap-1.5 flex-wrap items-center">
+          <div className="flex gap-1.5 flex-wrap items-center mb-2">
             {selectedCase.teamMembers.map((m) => (
-              <span
-                key={m}
-                className="text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5"
-                style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}`, color: COLORS.ink }}
-              >
+              <span key={m} className="text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}`, color: COLORS.ink }}>
                 {m}
-                <button onClick={() => removeTeamMember(m)} style={{ color: COLORS.slate }}>
-                  <X size={11} />
-                </button>
+                <button onClick={() => removeTeamMember(m)} style={{ color: COLORS.slate }}><X size={11} /></button>
               </span>
             ))}
-            <input
-              type="text"
-              value={newMemberName}
-              onChange={(e) => setNewMemberName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addTeamMember()}
-              placeholder="名前を追加"
-              className="text-xs p-1.5 rounded outline-none"
-              style={{ border: `1px solid ${COLORS.brassLight}`, width: 110 }}
-            />
-            <button onClick={addTeamMember} className="text-xs font-bold px-2 py-1.5 rounded" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
-              追加
-            </button>
+          </div>
+          <div className="flex gap-1.5 flex-wrap items-center">
+            {STAFF_MEMBERS.map((m) => (
+              <Pill key={m} active={selectedCase.teamMembers.includes(m)} color={COLORS.navy} onClick={() => toggleTeamMember(m)}>{m}</Pill>
+            ))}
+            <input type="text" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTeamMember()} placeholder="その他の名前を追加" className="text-xs p-1.5 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}`, width: 130 }} />
+            <button onClick={addTeamMember} className="text-xs font-bold px-2 py-1.5 rounded" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
           </div>
         </div>
 
         <div className="mt-5 p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${BALL_COLOR[selectedCase.ballOwner]}` }}>
-          <p className="text-xs mb-1.5 font-bold" style={{ color: COLORS.ink }}>
-            ボール（次のアクションを持っているのは誰か）
-          </p>
+          <p className="text-xs mb-1.5 font-bold" style={{ color: COLORS.ink }}>ボール（次のアクションを持っているのは誰か）</p>
           <div className="flex gap-1.5 flex-wrap">
             {BALL_OWNERS.map((o) => (
-              <Pill key={o} active={selectedCase.ballOwner === o} color={BALL_COLOR[o]} onClick={() => changeBallOwner(o)}>
-                {o}
-              </Pill>
+              <Pill key={o} active={selectedCase.ballOwner === o} color={BALL_COLOR[o]} onClick={() => changeBallOwner(o)}>{o}</Pill>
             ))}
           </div>
+          {selectedCase.ballOwner === "事務所" && (
+            <div className="flex gap-1.5 flex-wrap mt-2">
+              {selectedCase.teamMembers.map((m) => (
+                <Pill key={m} active={selectedCase.ballAssignee === m} color={COLORS.vermillion} onClick={() => changeBallAssignee(m)}>{m}</Pill>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Tasks */}
+      {/* 経過記録 */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>経過記録</h3>
+        <div className="flex flex-col gap-2 mb-5">
+          <textarea value={newUpdateText} onChange={(e) => setNewUpdateText(e.target.value)} placeholder="進捗・対応内容を記録..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+          <button onClick={addUpdateEntry} disabled={!newUpdateText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+            <Send size={13} /> 記録を追加
+          </button>
+        </div>
+        {selectedCase.updates.length === 0 ? (
+          <p className="text-sm py-6 text-center" style={{ color: COLORS.slate }}>まだ記録がありません。</p>
+        ) : (
+          <div className="flex flex-col gap-4 pl-4" style={{ borderLeft: `2px solid ${COLORS.brassLight}` }}>
+            {selectedCase.updates.map((u) => (
+              <div key={u.id} className="relative">
+                <div className="absolute rounded-full" style={{ width: 9, height: 9, backgroundColor: u.auto ? COLORS.brassLight : COLORS.brass, left: -21, top: 5 }} />
+                <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(u.timestamp)}　<span className="font-bold">{u.author}</span></p>
+                <p className="text-sm mt-0.5 whitespace-pre-wrap" style={u.auto ? { fontStyle: "italic", color: COLORS.slate } : {}}>{u.note}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 主張予定メモ */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
+        <textarea value={claimMemoDraft} onChange={(e) => setClaimMemoDraft(e.target.value)} onBlur={saveClaimMemo} rows={4} placeholder="主張予定のメモを自由に記入..." className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+        <p className="text-xs mt-2" style={{ color: COLORS.slate }}>上書き保存のみです（履歴は残りません）</p>
+      </div>
+
+      {/* 案件分類・財務情報 */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>案件分類・財務情報</h3>
+        <FieldLabel>案件分類</FieldLabel>
+        <input
+          list="case-classifications"
+          type="text"
+          value={financeDraft.caseClassification}
+          onChange={(e) => setFinanceDraft({ ...financeDraft, caseClassification: e.target.value })}
+          onBlur={saveFinance}
+          className="text-sm p-2 rounded outline-none w-full mb-3"
+          style={{ border: `1px solid ${COLORS.brassLight}` }}
+        />
+        <datalist id="case-classifications">
+          {CASE_CLASSIFICATIONS.map((c) => <option key={c} value={c} />)}
+        </datalist>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            相手方
+            <TextInput type="text" value={financeDraft.opposingParty} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingParty: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            相手方代理人氏名
+            <TextInput type="text" value={financeDraft.opposingCounselName} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingCounselName: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            受任日
+            <TextInput type="date" value={financeDraft.engagementDate} onChange={(e) => setFinanceDraft({ ...financeDraft, engagementDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            訴訟受任日
+            <TextInput type="date" value={financeDraft.litigationEngagementDate} onChange={(e) => setFinanceDraft({ ...financeDraft, litigationEngagementDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            通知書発送日
+            <TextInput type="date" value={financeDraft.noticeSentDate} onChange={(e) => setFinanceDraft({ ...financeDraft, noticeSentDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            提訴日
+            <TextInput type="date" value={financeDraft.filingDate} onChange={(e) => setFinanceDraft({ ...financeDraft, filingDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            請求額
+            <TextInput type="number" value={financeDraft.claimAmount} onChange={(e) => setFinanceDraft({ ...financeDraft, claimAmount: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            着手金
+            <TextInput type="number" value={financeDraft.retainerFee} onChange={(e) => setFinanceDraft({ ...financeDraft, retainerFee: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            見込報酬額
+            <TextInput type="number" value={financeDraft.expectedFee} onChange={(e) => setFinanceDraft({ ...financeDraft, expectedFee: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            報酬見込日
+            <TextInput type="date" value={financeDraft.expectedFeeDate} onChange={(e) => setFinanceDraft({ ...financeDraft, expectedFeeDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+        </div>
+      </div>
+
+      {/* タスク */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
           <ClipboardList size={15} /> タスク
         </h3>
-        {selectedCase.teamMembers.length === 0 && (
-          <p className="text-xs mb-2" style={{ color: COLORS.slate }}>
-            担当メンバーを追加すると、タスクの割り当て先として選べるようになります。
-          </p>
-        )}
         <div className="mb-2">
-          <TextInput
-            type="text"
-            placeholder="タスク内容（例：証拠説明書の作成）"
-            value={newTaskForm.description}
-            onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })}
-            className="w-full"
-          />
+          <TextInput type="text" placeholder="タスク内容" value={newTaskForm.description} onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })} className="w-full" />
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <select
-            value={newTaskForm.assignee}
-            onChange={(e) => setNewTaskForm({ ...newTaskForm, assignee: e.target.value })}
-            className="text-sm p-2 rounded outline-none flex-1"
-            style={{ border: `1px solid ${COLORS.brassLight}` }}
-          >
-            <option value="">担当者（未割当）</option>
-            {selectedCase.teamMembers.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+          <select value={newTaskForm.assignee} onChange={(e) => setNewTaskForm({ ...newTaskForm, assignee: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+            <option value="">担当者</option>
+            {STAFF_MEMBERS.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={newTaskForm.assignedBy} onChange={(e) => setNewTaskForm({ ...newTaskForm, assignedBy: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+            <option value="">依頼者（任意）</option>
+            {STAFF_MEMBERS.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
           <TextInput type="date" value={newTaskForm.dueDate} onChange={(e) => setNewTaskForm({ ...newTaskForm, dueDate: e.target.value })} />
-          <button
-            onClick={addTaskEntry}
-            disabled={!newTaskForm.description.trim()}
-            className="text-sm font-bold px-3 rounded disabled:opacity-40"
-            style={{ backgroundColor: COLORS.navy, color: "#fff" }}
-          >
-            追加
-          </button>
+          <select value={newTaskForm.points} onChange={(e) => setNewTaskForm({ ...newTaskForm, points: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+            <option value="">難易度点（任意）</option>
+            {TASK_POINT_OPTIONS.map((o) => <option key={o.points} value={o.points}>{o.points}点（{o.level}）</option>)}
+          </select>
         </div>
+        <button onClick={addTaskEntry} disabled={!newTaskForm.description.trim()} className="text-sm font-bold px-3 py-1.5 rounded disabled:opacity-40 mb-3" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>タスクを追加</button>
+
         {selectedCase.tasks.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: COLORS.slate }}>
-            タスクはありません。
-          </p>
+          <p className="text-sm py-2" style={{ color: COLORS.slate }}>タスクはありません。</p>
         ) : (
           <div className="flex flex-col gap-2">
             {selectedCase.tasks.map((t) => (
-              <div key={t.id} className="flex items-center justify-between gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
-                <div className="flex-1">
-                  <p style={t.status === "完了" ? { textDecoration: "line-through", color: COLORS.slate } : {}}>{t.description}</p>
-                  <div className="flex items-center gap-2 flex-wrap mt-1">
-                    <span className="text-xs font-bold flex items-center gap-1" style={{ color: t.assignee ? COLORS.navy : COLORS.slate }}>
-                      <User size={11} /> {t.assignee || "未割当"}
+              <div key={t.id} className="flex flex-col gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex-1" style={t.status === "完了" ? { textDecoration: "line-through", color: COLORS.slate } : {}}>{t.description}</p>
+                  {!(t.handedBackFrom && t.status !== "完了") && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => cycleTaskStatus(t.id, t.status)} className="text-xs font-bold px-2 py-1 rounded-full" style={{ color: "#fff", backgroundColor: cycleColor(TASK_STATUSES, t.status) }}>{t.status}</button>
+                      {t.status !== "完了" && (
+                        <button onClick={() => doFinishTask(t.id)} className="text-xs font-bold px-2 py-1 rounded-full" style={{ color: "#fff", backgroundColor: COLORS.moss }}>終了</button>
+                      )}
+                      <button onClick={() => removeTask(t.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {t.assignee && <span className="text-xs font-bold flex items-center gap-1" style={{ color: COLORS.navy }}><User size={11} /> {t.assignee}</span>}
+                  {t.assignedBy && <span className="text-xs" style={{ color: COLORS.slate }}>依頼者：{t.assignedBy}</span>}
+                  {t.points != null && <Badge color={COLORS.amber}>{t.points}点</Badge>}
+                  {t.executionScore != null && <Badge color={COLORS.moss}>評価{t.executionScore}点</Badge>}
+                  {t.kind === "waiting" && <Badge color={COLORS.slate}>待ち：{t.waitingOn}</Badge>}
+                  {t.handedBackFrom && t.status !== "完了" && <Badge color={COLORS.vermillion}>差し戻し：{t.handedBackFrom}</Badge>}
+                  {t.dueDate && (
+                    <span className="text-xs flex items-center gap-1" style={{ color: t.status !== "完了" && t.dueDate < todayStr() ? COLORS.vermillion : COLORS.slate }}>
+                      <Calendar size={11} /> {formatDateShort(t.dueDate)}まで
                     </span>
-                    {t.dueDate && (
-                      <span
-                        className="text-xs flex items-center gap-1"
-                        style={{ color: t.status !== "完了" && t.dueDate < todayStr() ? COLORS.vermillion : COLORS.slate }}
-                      >
-                        <Calendar size={11} /> {formatDateShort(t.dueDate)}まで
-                      </span>
-                    )}
+                  )}
+                </div>
+                {t.handedBackFrom && t.status !== "完了" && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs" style={{ color: COLORS.slate }}>対応レベル評価：</span>
+                    {[1, 2, 3, 4, 5].map((score) => (
+                      <button key={score} onClick={() => doScoreTask(t.id, score)} className="text-xs font-bold w-6 h-6 rounded-full" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>{score}</button>
+                    ))}
                   </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => cycleTaskStatus(t.id, t.status)}
-                    className="text-xs font-bold px-2 py-1 rounded-full"
-                    style={{ color: "#fff", backgroundColor: cycleColor(TASK_STATUSES, t.status) }}
-                  >
-                    {t.status}
-                  </button>
-                  <button onClick={() => removeTask(t.id)} style={{ color: COLORS.slate }}>
-                    <X size={14} />
-                  </button>
-                </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Litigation-specific: court info */}
-      {selectedCase.caseCategory === "訴訟事件" && (
-        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
-            <Landmark size={15} /> 訴訟関係者情報
-          </h3>
-          <FieldLabel>事件番号</FieldLabel>
-          <TextInput
-            type="text"
-            value={courtInfoDraft.courtCaseNumber}
-            onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtCaseNumber: e.target.value })}
-            onBlur={saveCourtInfo}
-            placeholder="例：東京地方裁判所 令和8年(ワ)第1234号"
-            className="w-full mb-4"
-          />
+      {/* 訴訟関係者情報 */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
+          <Landmark size={15} /> 訴訟関係者情報
+        </h3>
+        <FieldLabel>事件番号</FieldLabel>
+        <TextInput type="text" value={courtInfoDraft.courtCaseNumber} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtCaseNumber: e.target.value })} onBlur={saveCourtInfo} placeholder="例：東京地方裁判所 令和8年(ワ)第1234号" className="w-full mb-4" />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>
-                相手方代理人
-              </p>
-              <div className="flex flex-col gap-2">
-                <TextInput
-                  type="text"
-                  placeholder="氏名"
-                  value={courtInfoDraft.opposingCounsel.name}
-                  onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, name: e.target.value } })}
-                  onBlur={saveCourtInfo}
-                  className="w-full"
-                />
-                <TextInput
-                  type="text"
-                  placeholder="事務所名"
-                  value={courtInfoDraft.opposingCounsel.affiliation}
-                  onChange={(e) =>
-                    setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, affiliation: e.target.value } })
-                  }
-                  onBlur={saveCourtInfo}
-                  className="w-full"
-                />
-                <div className="flex items-center gap-1.5">
-                  <Phone size={13} color={COLORS.slate} />
-                  <TextInput
-                    type="text"
-                    placeholder="電話番号"
-                    value={courtInfoDraft.opposingCounsel.phone}
-                    onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, phone: e.target.value } })}
-                    onBlur={saveCourtInfo}
-                    className="w-full"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Mail size={13} color={COLORS.slate} />
-                  <TextInput
-                    type="text"
-                    placeholder="メールアドレス"
-                    value={courtInfoDraft.opposingCounsel.email}
-                    onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, email: e.target.value } })}
-                    onBlur={saveCourtInfo}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>相手方代理人</p>
+            <div className="flex flex-col gap-2">
+              <TextInput type="text" placeholder="氏名" value={courtInfoDraft.opposingCounsel.name} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, name: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
+              <TextInput type="text" placeholder="事務所名" value={courtInfoDraft.opposingCounsel.affiliation} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, affiliation: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
+              <div className="flex items-center gap-1.5"><Phone size={13} color={COLORS.slate} /><TextInput type="text" placeholder="電話番号" value={courtInfoDraft.opposingCounsel.phone} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, phone: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
+              <div className="flex items-center gap-1.5"><span className="text-xs" style={{ color: COLORS.slate, width: 13 }}>FAX</span><TextInput type="text" placeholder="FAX番号" value={courtInfoDraft.opposingCounsel.fax} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, fax: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
+              <div className="flex items-center gap-1.5"><Mail size={13} color={COLORS.slate} /><TextInput type="text" placeholder="メールアドレス" value={courtInfoDraft.opposingCounsel.email} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, email: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
             </div>
-            <div>
-              <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>
-                担当書記官
-              </p>
-              <div className="flex flex-col gap-2">
-                <TextInput
-                  type="text"
-                  placeholder="氏名"
-                  value={courtInfoDraft.courtClerk.name}
-                  onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, name: e.target.value } })}
-                  onBlur={saveCourtInfo}
-                  className="w-full"
-                />
-                <TextInput
-                  type="text"
-                  placeholder="所属（部・係）"
-                  value={courtInfoDraft.courtClerk.affiliation}
-                  onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, affiliation: e.target.value } })}
-                  onBlur={saveCourtInfo}
-                  className="w-full"
-                />
-                <div className="flex items-center gap-1.5">
-                  <Phone size={13} color={COLORS.slate} />
-                  <TextInput
-                    type="text"
-                    placeholder="電話番号"
-                    value={courtInfoDraft.courtClerk.phone}
-                    onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, phone: e.target.value } })}
-                    onBlur={saveCourtInfo}
-                    className="w-full"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Mail size={13} color={COLORS.slate} />
-                  <TextInput
-                    type="text"
-                    placeholder="メールアドレス"
-                    value={courtInfoDraft.courtClerk.email}
-                    onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, email: e.target.value } })}
-                    onBlur={saveCourtInfo}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+          </div>
+          <div>
+            <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>担当書記官</p>
+            <div className="flex flex-col gap-2">
+              <TextInput type="text" placeholder="氏名" value={courtInfoDraft.courtClerk.name} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, name: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
+              <TextInput type="text" placeholder="所属（部・係）" value={courtInfoDraft.courtClerk.affiliation} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, affiliation: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
+              <div className="flex items-center gap-1.5"><Phone size={13} color={COLORS.slate} /><TextInput type="text" placeholder="電話番号" value={courtInfoDraft.courtClerk.phone} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, phone: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
+              <div className="flex items-center gap-1.5"><span className="text-xs" style={{ color: COLORS.slate, width: 13 }}>FAX</span><TextInput type="text" placeholder="FAX番号" value={courtInfoDraft.courtClerk.fax} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, fax: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
+              <div className="flex items-center gap-1.5"><Mail size={13} color={COLORS.slate} /><TextInput type="text" placeholder="メールアドレス" value={courtInfoDraft.courtClerk.email} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, email: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Hearings */}
+      {/* 期日 */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
           <Calendar size={15} /> 期日
         </h3>
         <div className="flex flex-col sm:flex-row gap-2 mb-2">
           <TextInput type="date" value={newHearing.date} onChange={(e) => setNewHearing({ ...newHearing, date: e.target.value })} />
-          <TextInput type="time" value={newHearing.time} onChange={(e) => setNewHearing({ ...newHearing, time: e.target.value })} />
-          <TextInput
-            type="text"
-            placeholder="用件（例：第2回口頭弁論期日）"
-            value={newHearing.purpose}
-            onChange={(e) => setNewHearing({ ...newHearing, purpose: e.target.value })}
-            className="flex-1"
-          />
+          <TextInput type="text" placeholder="内容（例：第2回口頭弁論期日）" value={newHearing.content} onChange={(e) => setNewHearing({ ...newHearing, content: e.target.value })} className="flex-1" />
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 mb-2">
-          <TextInput
-            type="text"
-            placeholder="場所（例：東京地裁705号法廷）"
-            value={newHearing.location}
-            onChange={(e) => setNewHearing({ ...newHearing, location: e.target.value })}
-            className="flex-1"
-          />
-          <TextInput
-            type="text"
-            placeholder="WEB期日URL（任意）"
-            value={newHearing.url}
-            onChange={(e) => setNewHearing({ ...newHearing, url: e.target.value })}
-            className="flex-1"
-          />
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+          <label className="flex-1 text-xs" style={{ color: COLORS.slate }}>
+            書面提出期限
+            <TextInput type="date" value={newHearing.docDeadline} onChange={(e) => setNewHearing({ ...newHearing, docDeadline: e.target.value })} className="mt-1 w-full" />
+          </label>
+          <label className="flex-1 text-xs" style={{ color: COLORS.slate }}>
+            次回裁判期日
+            <TextInput type="date" value={newHearing.nextHearingDate} onChange={(e) => setNewHearing({ ...newHearing, nextHearingDate: e.target.value })} className="mt-1 w-full" />
+          </label>
         </div>
-        <div className="flex gap-2 mb-3">
-          <TextInput
-            type="text"
-            placeholder="準備・提出物のメモ（任意）"
-            value={newHearing.notes}
-            onChange={(e) => setNewHearing({ ...newHearing, notes: e.target.value })}
-            className="flex-1"
-          />
-          <button
-            onClick={addHearingEntry}
-            disabled={!newHearing.date || !newHearing.purpose.trim()}
-            className="text-sm font-bold px-3 rounded disabled:opacity-40"
-            style={{ backgroundColor: COLORS.navy, color: "#fff" }}
-          >
-            追加
+        <div className="flex gap-2 mb-4">
+          <button onClick={addHearingEntry} disabled={!newHearing.date || !newHearing.content.trim()} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>期日を追加</button>
+          <button onClick={generateClientReport} disabled={generatingReport || !newHearing.content.trim()} className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.brass, color: "#fff" }}>
+            <Wand2 size={14} /> クライアント報告文の作成
           </button>
         </div>
+
+        {clientReportText && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <FieldLabel>クライアント報告文（編集可）</FieldLabel>
+              <button onClick={() => navigator.clipboard.writeText(clientReportText)} className="text-xs flex items-center gap-1" style={{ color: COLORS.navy }}><Copy size={12} /> コピー</button>
+            </div>
+            <textarea value={clientReportText} onChange={(e) => setClientReportText(e.target.value)} rows={6} className="w-full text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+          </div>
+        )}
+
         {selectedCase.hearings.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: COLORS.slate }}>
-            登録された期日はありません。
-          </p>
+          <p className="text-sm py-2" style={{ color: COLORS.slate }}>登録された期日はありません。</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {[...selectedCase.hearings]
-              .sort((a, b) => (a.date < b.date ? -1 : 1))
-              .map((h) => (
-                <div key={h.id} className="flex items-start justify-between gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
-                  <div>
-                    <p className="font-bold" style={{ color: h.date >= todayStr() ? COLORS.vermillion : COLORS.slate }}>
-                      {formatDate(h.date)}（{relativeDayLabel(h.date)}）{h.time && ` ${h.time}〜`}
-                    </p>
-                    <p className="mt-0.5">{h.purpose}</p>
-                    {h.location && (
-                      <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: COLORS.slate }}>
-                        <MapPin size={11} /> {h.location}
-                      </p>
-                    )}
-                    {h.url && (
-                      <a href={h.url} target="_blank" rel="noopener noreferrer" className="text-xs mt-0.5 flex items-center gap-1 underline" style={{ color: COLORS.navy }}>
-                        <Link2 size={11} /> WEB期日リンク
-                      </a>
-                    )}
-                    {h.notes && (
-                      <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>
-                        {h.notes}
-                      </p>
-                    )}
-                  </div>
-                  <button onClick={() => removeHearing(h.id)} style={{ color: COLORS.slate }} className="flex-shrink-0">
-                    <X size={14} />
-                  </button>
+            {[...selectedCase.hearings].sort((a, b) => (a.date < b.date ? 1 : -1)).map((h) => (
+              <div key={h.id} className="flex items-start justify-between gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
+                <div>
+                  <p className="font-bold" style={{ color: COLORS.slate }}>{formatDate(h.date)}（{relativeDayLabel(h.date)}）記録</p>
+                  <p className="mt-0.5">{h.content}</p>
+                  {h.docDeadline && (
+                    <p className="text-xs mt-0.5" style={{ color: h.docDeadline < todayStr() ? COLORS.vermillion : COLORS.slate }}>書面提出期限：{formatDate(h.docDeadline)}</p>
+                  )}
+                  {h.nextHearingDate && (
+                    <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: COLORS.vermillion }}><Calendar size={11} /> 次回裁判期日：{formatDate(h.nextHearingDate)}</p>
+                  )}
                 </div>
-              ))}
+                <button onClick={() => removeHearing(h.id)} style={{ color: COLORS.slate }} className="flex-shrink-0"><X size={14} /></button>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Engagement checklist */}
+      {/* 受任関連チェック */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
-          受任関連チェック
-        </h3>
+        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>受任関連チェック</h3>
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <span className="text-sm">委任状</span>
-            <button
-              onClick={() => cycleEngagement("poaStatus", POA_STATUSES, "委任状")}
-              className="text-xs font-bold px-3 py-1 rounded-full"
-              style={{ color: "#fff", backgroundColor: cycleColor(POA_STATUSES, selectedCase.poaStatus) }}
-            >
-              {selectedCase.poaStatus}
-            </button>
+            <button onClick={() => cycleEngagement("poaStatus", POA_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.poaStatus) }}>{selectedCase.poaStatus}</button>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">委任契約書</span>
-            <button
-              onClick={() => cycleEngagement("contractStatus", CONTRACT_STATUSES, "委任契約書")}
-              className="text-xs font-bold px-3 py-1 rounded-full"
-              style={{ color: "#fff", backgroundColor: cycleColor(CONTRACT_STATUSES, selectedCase.contractStatus) }}
-            >
-              {selectedCase.contractStatus}
-            </button>
+            <button onClick={() => cycleEngagement("contractStatus", CONTRACT_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.contractStatus) }}>{selectedCase.contractStatus}</button>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm">預り金</span>
-            <button
-              onClick={() => cycleEngagement("retainerStatus", RETAINER_STATUSES, "預り金")}
-              className="text-xs font-bold px-3 py-1 rounded-full"
-              style={{ color: "#fff", backgroundColor: cycleColor(RETAINER_STATUSES, selectedCase.retainerStatus) }}
-            >
-              {selectedCase.retainerStatus}
-            </button>
+            <button onClick={() => cycleEngagement("retainerStatus", RETAINER_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.retainerStatus) }}>{selectedCase.retainerStatus}</button>
           </div>
         </div>
-        <p className="text-xs mt-3" style={{ color: COLORS.slate }}>
-          クリックで状態を切り替えます
-        </p>
+        <p className="text-xs mt-3" style={{ color: COLORS.slate }}>クリックで状態を切り替えます。ステータスに応じてタスクが自動生成されます。</p>
       </div>
 
-      {/* Client questions */}
+      {/* クライアントへの質問 */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
-          <HelpCircle size={15} /> クライアントへの質問・確認事項
-        </h3>
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><HelpCircle size={15} /> クライアントへの質問・確認事項</h3>
         <div className="flex gap-2 mb-3">
           <TextInput type="text" value={newQuestionText} onChange={(e) => setNewQuestionText(e.target.value)} placeholder="確認事項を入力..." className="flex-1" />
-          <button
-            onClick={addQuestionEntry}
-            disabled={!newQuestionText.trim()}
-            className="text-sm font-bold px-3 rounded disabled:opacity-40"
-            style={{ backgroundColor: COLORS.navy, color: "#fff" }}
-          >
-            追加
-          </button>
+          <button onClick={addQuestionEntry} disabled={!newQuestionText.trim()} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
         </div>
         {selectedCase.questions.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: COLORS.slate }}>
-            確認事項はありません。
-          </p>
+          <p className="text-sm py-2" style={{ color: COLORS.slate }}>確認事項はありません。</p>
         ) : (
           <div className="flex flex-col gap-2">
             {selectedCase.questions.map((q) => (
               <div key={q.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
                 <span className="flex-1">{q.text}</span>
-                <button
-                  onClick={() => cycleQuestion(q.id, q.status)}
-                  className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0"
-                  style={{ color: "#fff", backgroundColor: cycleColor(QUESTION_STATUSES, q.status) }}
-                >
-                  {q.status}
-                </button>
+                <button onClick={() => cycleQuestion(q.id, q.status)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ color: "#fff", backgroundColor: cycleColor(QUESTION_STATUSES, q.status) }}>{q.status}</button>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Litigation document checklist */}
-      {selectedCase.caseCategory === "訴訟事件" && (
-        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
-            <ListChecks size={15} /> 提出書類チェックリスト
-          </h3>
-          <div className="flex gap-2 mb-3">
-            <TextInput type="text" value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="書類名を入力（例：準備書面(2)）" className="flex-1" />
-            <button
-              onClick={addDocumentEntry}
-              disabled={!newDocName.trim()}
-              className="text-sm font-bold px-3 rounded disabled:opacity-40"
-              style={{ backgroundColor: COLORS.navy, color: "#fff" }}
-            >
-              追加
-            </button>
-          </div>
-          {selectedCase.documents.length === 0 ? (
-            <p className="text-sm py-2" style={{ color: COLORS.slate }}>
-              書類が登録されていません。
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {selectedCase.documents.map((d) => (
-                <div key={d.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                  <span className="flex-1">{d.name}</span>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => cycleDocument(d.id, d.status)}
-                      className="text-xs font-bold px-2 py-1 rounded-full"
-                      style={{ color: "#fff", backgroundColor: cycleColor(DOC_STATUSES, d.status) }}
-                    >
-                      {d.status}
-                    </button>
-                    <button onClick={() => removeDocument(d.id)} style={{ color: COLORS.slate }}>
-                      <X size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Timeline */}
+      {/* 提出書類チェックリスト */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
-          経過記録
-        </h3>
-        <div className="flex flex-col gap-2 mb-5">
-          <textarea
-            value={newUpdateText}
-            onChange={(e) => setNewUpdateText(e.target.value)}
-            placeholder="進捗・対応内容を記録..."
-            rows={3}
-            className="text-sm p-2 rounded outline-none resize-none"
-            style={{ border: `1px solid ${COLORS.brassLight}` }}
-          />
-          <button
-            onClick={addUpdateEntry}
-            disabled={!newUpdateText.trim()}
-            className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40"
-            style={{ backgroundColor: COLORS.navy, color: "#fff" }}
-          >
-            <Send size={13} /> 記録を追加
-          </button>
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><ListChecks size={15} /> 提出書類チェックリスト</h3>
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+          <TextInput type="text" value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="書類名を入力（例：準備書面(2)）" className="flex-1" />
+          <TextInput type="date" value={newDocDueDate} onChange={(e) => setNewDocDueDate(e.target.value)} />
+          <button onClick={addDocumentEntry} disabled={!newDocName.trim()} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
         </div>
-        {selectedCase.updates.length === 0 ? (
-          <p className="text-sm py-6 text-center" style={{ color: COLORS.slate }}>
-            まだ記録がありません。
-          </p>
+        {selectedCase.documents.length === 0 ? (
+          <p className="text-sm py-2" style={{ color: COLORS.slate }}>書類が登録されていません。</p>
         ) : (
-          <div className="flex flex-col gap-4 pl-4" style={{ borderLeft: `2px solid ${COLORS.brassLight}` }}>
-            {selectedCase.updates.map((u) => (
-              <div key={u.id} className="relative">
-                <div
-                  className="absolute rounded-full"
-                  style={{ width: 9, height: 9, backgroundColor: u.auto ? COLORS.brassLight : COLORS.brass, left: -21, top: 5 }}
-                />
-                <p className="text-xs" style={{ color: COLORS.slate }}>
-                  {formatDateTime(u.timestamp)}　<span className="font-bold">{u.author}</span>
-                </p>
-                <p className="text-sm mt-0.5 whitespace-pre-wrap" style={u.auto ? { fontStyle: "italic", color: COLORS.slate } : {}}>
-                  {u.note}
-                </p>
+          <div className="flex flex-col gap-2">
+            {selectedCase.documents.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                <div className="flex-1">
+                  <span>{d.name}</span>
+                  {d.dueDate && (
+                    <span className="text-xs ml-2" style={{ color: d.status !== "提出済み" && d.dueDate < todayStr() ? COLORS.vermillion : COLORS.slate }}>期限：{formatDateShort(d.dueDate)}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => cycleDocument(d.id, d.status)} className="text-xs font-bold px-2 py-1 rounded-full" style={{ color: "#fff", backgroundColor: cycleColor(DOC_STATUSES, d.status) }}>{d.status}</button>
+                  <button onClick={() => removeDocument(d.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                </div>
               </div>
             ))}
           </div>
         )}
+      </div>
+
+      {/* 実費 */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><Receipt size={15} /> 実費</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
+          <TextInput type="date" value={newExpenseForm.date} onChange={(e) => setNewExpenseForm({ ...newExpenseForm, date: e.target.value })} />
+          <input list="expense-categories" type="text" placeholder="内訳" value={newExpenseForm.category} onChange={(e) => setNewExpenseForm({ ...newExpenseForm, category: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+          <datalist id="expense-categories">{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
+          <TextInput type="number" placeholder="金額" value={newExpenseForm.amount} onChange={(e) => setNewExpenseForm({ ...newExpenseForm, amount: e.target.value })} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+          <TextInput type="text" placeholder="出発地" value={newExpenseForm.origin} onChange={(e) => setNewExpenseForm({ ...newExpenseForm, origin: e.target.value })} />
+          <TextInput type="text" placeholder="到着地" value={newExpenseForm.destination} onChange={(e) => setNewExpenseForm({ ...newExpenseForm, destination: e.target.value })} />
+        </div>
+        <div className="flex gap-2 mb-2">
+          <button onClick={calculateRoute} disabled={calculatingRoute || !newExpenseForm.origin.trim() || !newExpenseForm.destination.trim()} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.brass, color: "#fff" }}>
+            <Navigation size={13} /> 経路を自動計算
+          </button>
+          <TextInput type="text" placeholder="経路" value={newExpenseForm.route} onChange={(e) => setNewExpenseForm({ ...newExpenseForm, route: e.target.value })} className="flex-1" />
+        </div>
+        <div className="flex gap-2 mb-3">
+          <TextInput type="text" placeholder="備考" value={newExpenseForm.notes} onChange={(e) => setNewExpenseForm({ ...newExpenseForm, notes: e.target.value })} className="flex-1" />
+          <button onClick={addExpenseEntry} disabled={!newExpenseForm.date || !newExpenseForm.category || !newExpenseForm.amount} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+        </div>
+
+        {selectedCase.expenses.length === 0 ? (
+          <p className="text-sm py-2" style={{ color: COLORS.slate }}>実費はありません。</p>
+        ) : (
+          <>
+            <div className="flex flex-col gap-2 mb-3">
+              {selectedCase.expenses.map((e) => (
+                <div key={e.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs" style={{ color: COLORS.slate }}>{formatDateShort(e.date)}</span>
+                      <Badge color={COLORS.brass}>{e.category}</Badge>
+                      <span className="font-bold">¥{e.amount.toLocaleString("ja-JP")}</span>
+                    </div>
+                    {e.route && <p className="text-xs mt-1" style={{ color: COLORS.slate }}>{e.route}</p>}
+                    {e.notes && <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{e.notes}</p>}
+                  </div>
+                  <button onClick={() => removeExpense(e.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold">合計：¥{selectedCase.expenses.reduce((s, e) => s + e.amount, 0).toLocaleString("ja-JP")}</p>
+              <button onClick={exportExpensesToExcel} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>
+                <FileSpreadsheet size={13} /> Excelで出力
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 請求書作成 */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><Sparkles size={15} /> 請求書作成</h3>
+
+        <label className="text-xs" style={{ color: COLORS.slate }}>
+          発行日
+          <TextInput type="date" value={invoiceForm.issueDate} onChange={(e) => setInvoiceForm({ ...invoiceForm, issueDate: e.target.value })} className="mt-1 w-full sm:w-48" />
+        </label>
+
+        <p className="text-xs font-bold mt-4 mb-2" style={{ color: COLORS.slate }}>第1　弁護士報酬</p>
+        <div className="flex flex-col sm:flex-row gap-2 mb-2">
+          <TextInput type="text" placeholder="摘要" value={newFeeItem.description} onChange={(e) => setNewFeeItem({ ...newFeeItem, description: e.target.value })} className="flex-1" />
+          <TextInput type="number" placeholder="金額" value={newFeeItem.unitPrice} onChange={(e) => setNewFeeItem({ ...newFeeItem, unitPrice: e.target.value })} className="sm:w-32" />
+          <button onClick={addFeeItemDraft} disabled={!newFeeItem.description.trim() || !newFeeItem.unitPrice} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+        </div>
+
+        {unbilledTimeCharges.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-3 p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
+            <span className="text-xs flex-1" style={{ color: COLORS.slate }}>
+              未請求のタイムチャージ {unbilledTimeCharges.length}件（合計{unbilledTimeCharges.reduce((s, t) => s + t.hours, 0)}時間）
+            </span>
+            <TextInput type="number" placeholder="時間単価" value={timeChargeRateDraft} onChange={(e) => setTimeChargeRateDraft(e.target.value)} className="w-28" />
+            <button onClick={addTimeChargeFeeItemDraft} disabled={!timeChargeRateDraft} className="text-xs font-bold px-3 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.brass, color: "#fff" }}>
+              タイムチャージから計算して追加
+            </button>
+          </div>
+        )}
+
+        {feeItems.length > 0 && (
+          <div className="flex flex-col gap-1.5 mb-3">
+            {feeItems.map((f, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                <span className="flex-1">{f.description}</span>
+                <span className="font-bold">¥{f.amount.toLocaleString("ja-JP")}</span>
+                <button onClick={() => removeFeeItemDraft(i)} style={{ color: COLORS.slate }}><X size={14} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-4 mb-3">
+          <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
+            <input type="checkbox" checked={invoiceForm.applyTax} onChange={(e) => setInvoiceForm({ ...invoiceForm, applyTax: e.target.checked })} /> 消費税10%を加算
+          </label>
+          <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
+            <input type="checkbox" checked={invoiceForm.applyWithholding} onChange={(e) => setInvoiceForm({ ...invoiceForm, applyWithholding: e.target.checked })} /> 源泉所得税10.21%を控除
+          </label>
+        </div>
+
+        <label className="text-xs" style={{ color: COLORS.slate }}>
+          第2　実費預り金
+          <TextInput type="number" value={invoiceForm.expenseAmount} onChange={(e) => setInvoiceForm({ ...invoiceForm, expenseAmount: e.target.value })} className="mt-1 w-full sm:w-48" />
+        </label>
+
+        <label className="text-xs block mt-3" style={{ color: COLORS.slate }}>
+          備考
+          <textarea value={invoiceForm.notes} onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+        </label>
+
+        <div className="mt-4 p-3 rounded text-sm flex flex-col gap-1" style={{ backgroundColor: COLORS.paper }}>
+          <div className="flex justify-between"><span>弁護士報酬小計</span><span>¥{previewTotals.feeSubtotal.toLocaleString("ja-JP")}</span></div>
+          {invoiceForm.applyTax && <div className="flex justify-between"><span>消費税（10%）</span><span>¥{previewTotals.tax.toLocaleString("ja-JP")}</span></div>}
+          {invoiceForm.applyWithholding && <div className="flex justify-between"><span>源泉所得税</span><span>-¥{previewTotals.withholding.toLocaleString("ja-JP")}</span></div>}
+          <div className="flex justify-between"><span>実費預り金</span><span>¥{previewTotals.section2.toLocaleString("ja-JP")}</span></div>
+          <div className="flex justify-between font-bold text-base pt-1" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}><span>税込ご請求額</span><span>¥{previewTotals.total.toLocaleString("ja-JP")}</span></div>
+        </div>
+
+        <button onClick={submitInvoice} disabled={!feeItems.length || creatingInvoice} className="mt-4 w-full text-sm font-bold py-2.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
+          請求書PDFを作成
+        </button>
+
+        <InvoiceListForCase caseId={selectedCase.id} refreshKey={invoiceRefreshKey} onError={onError} />
       </div>
     </div>
   );
