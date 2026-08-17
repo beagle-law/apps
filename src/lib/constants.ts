@@ -17,8 +17,6 @@ export const COLORS = {
   moss: "#5B7A5B",
 } as const;
 
-export const CASE_CATEGORIES = ["非訟事件", "訴訟事件"] as const;
-
 export const STAGES = [
   "新規問合せ・紹介",
   "初回面談調整中",
@@ -55,11 +53,11 @@ export const STAGE_SEAL_TEXT: Record<string, string> = {
   "終結": "終結",
 };
 
-export const BALL_OWNERS = ["事務所", "相手方", "クライアント", "裁判所", "その他"];
+export const BALL_OWNERS = ["事務所", "相手方", "顧客", "裁判所", "その他"];
 export const BALL_COLOR: Record<string, string> = {
   事務所: COLORS.vermillion,
   相手方: COLORS.slate,
-  クライアント: COLORS.amber,
+  顧客: COLORS.amber,
   裁判所: COLORS.navy,
   その他: COLORS.slate,
 };
@@ -67,8 +65,6 @@ export const BALL_COLOR: Record<string, string> = {
 export const POA_STATUSES = ["対応不要", "未対応", "発送済", "受領済"];
 export const CONTRACT_STATUSES = ["対応不要", "未対応", "発送済", "締結済"];
 export const RETAINER_STATUSES = ["対応不要", "未対応", "請求済", "受領済"];
-export const QUESTION_STATUSES = ["質問中", "回答済み・未反映", "反映済み"];
-export const DOC_STATUSES = ["未着手", "作成中", "提出済み"];
 export const TASK_STATUSES = ["未着手", "対応中", "完了"];
 export const PRIORITIES = ["通常", "至急"];
 export const STAFF_MEMBERS = ["宮村", "尾崎", "岩下", "石谷", "上田"];
@@ -93,22 +89,19 @@ export const GOAL_KEYS = [
   { key: "iwashita", label: "岩下目標" },
 ] as const;
 
+// v4：レベル表記(Lv.)は使わず、点数・難易度・具体例の3列のみ表示
 export const TASK_LEVEL_TABLE = [
-  { level: "Lv.1", points: "1〜2点", difficulty: "定型・単純事務", examples: "書類の形式確認、資料整理、データ入力、ファイリング、定型書類の作成" },
-  { level: "Lv.2", points: "3〜4点", difficulty: "定型的な法務事務", examples: "契約書の形式チェック、定型契約書の修正、登記・届出書類の準備、基本的な資料収集" },
-  { level: "Lv.3", points: "5〜6点", difficulty: "一定の法務知識を要する業務", examples: "契約書の内容確認、法令・ガイドラインの調査、簡単な判例調査、案件に応じた資料作成" },
-  { level: "Lv.4", points: "7〜8点", difficulty: "専門的な検討を要する業務", examples: "複雑な契約書のレビュー、複数法令にまたがる調査、判例・文献を踏まえた法的調査、紛争案件の準備" },
-  { level: "Lv.5", points: "9〜10点", difficulty: "高度・複雑な法務業務", examples: "複雑な契約・紛争案件の担当弁護士補助、難易度の高い法的調査、複数の論点を整理した調査・資料作成、案件全体を見通した対応" },
+  { points: "1〜2点", difficulty: "定型・単純事務", examples: "書類の形式確認、資料整理、データ入力、ファイリング、定型書類の作成" },
+  { points: "3〜4点", difficulty: "定型的な法務事務", examples: "契約書の形式チェック、定型契約書の修正、登記・届出書類の準備、基本的な資料収集" },
+  { points: "5〜6点", difficulty: "一定の法務知識を要する業務", examples: "契約書の内容確認、法令・ガイドラインの調査、簡単な判例調査、案件に応じた資料作成" },
+  { points: "7〜8点", difficulty: "専門的な検討を要する業務", examples: "複雑な契約書のレビュー、複数法令にまたがる調査、判例・文献を踏まえた法的調査、紛争案件の準備" },
+  { points: "9〜10点", difficulty: "高度・複雑な法務業務", examples: "複雑な契約・紛争案件の担当弁護士補助、難易度の高い法的調査、複数の論点を整理した調査・資料作成、案件全体を見通した対応" },
 ];
 
-export const TASK_POINT_OPTIONS = [
-  { points: 1, level: "Lv.1" }, { points: 2, level: "Lv.1" },
-  { points: 3, level: "Lv.2" }, { points: 4, level: "Lv.2" },
-  { points: 5, level: "Lv.3" }, { points: 6, level: "Lv.3" },
-  { points: 7, level: "Lv.4" }, { points: 8, level: "Lv.4" },
-  { points: 9, level: "Lv.5" }, { points: 10, level: "Lv.5" },
-];
+// v4：選択肢の表記は「1点」〜「10点」のみ（Lv.表記なし）
+export const TASK_POINT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
+// v4：「1点」〜「5点」のみで表示（Lv.表記なし）
 export const EXECUTION_LEVELS = [
   { score: 1, label: "指示された内容を正確に処理" },
   { score: 2, label: "定型的な法務知識を使って処理" },
@@ -118,9 +111,9 @@ export const EXECUTION_LEVELS = [
 ];
 
 export const ENGAGEMENT_TASK_META: Record<string, { label: string; taskDesc: string; waitDesc: string }> = {
-  poaStatus: { label: "委任状", taskDesc: "委任状の対応", waitDesc: "委任状：クライアントからの返送待ち" },
-  contractStatus: { label: "委任契約書", taskDesc: "委任契約書の対応", waitDesc: "委任契約書：クライアントからの返送待ち" },
-  retainerStatus: { label: "預り金", taskDesc: "預り金の対応", waitDesc: "預り金：クライアントからの入金待ち" },
+  poaStatus: { label: "委任状", taskDesc: "委任状の対応", waitDesc: "委任状：顧客からの返送待ち" },
+  contractStatus: { label: "委任契約書", taskDesc: "委任契約書の対応", waitDesc: "委任契約書：顧客からの返送待ち" },
+  retainerStatus: { label: "預り金", taskDesc: "預り金の対応", waitDesc: "預り金：顧客からの入金待ち" },
 };
 
 export function cycleValue<T>(list: readonly T[], current: T): T {

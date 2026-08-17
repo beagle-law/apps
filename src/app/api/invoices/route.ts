@@ -37,10 +37,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "案件・発行日・弁護士報酬項目は必須です" }, { status: 400 });
   }
 
-  const targetCase = await getAccessibleCaseOrNull(body.caseId, user.id);
+  const [targetCase, last] = await Promise.all([
+    getAccessibleCaseOrNull(body.caseId, user.id),
+    prisma.invoice.findFirst({ orderBy: { invoiceNumber: "desc" } }),
+  ]);
   if (!targetCase) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
 
-  const last = await prisma.invoice.findFirst({ orderBy: { invoiceNumber: "desc" } });
   const invoiceNumber = (last?.invoiceNumber ?? 0) + 1;
 
   const created = await prisma.$transaction(async (tx) => {

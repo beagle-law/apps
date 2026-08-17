@@ -66,7 +66,6 @@ export const patchCase = (
     teamMembers: string[];
     deadline: string;
     courtCaseNumber: string;
-    opposingCounsel: Partial<Contact>;
     courtClerk: Partial<Contact>;
     poaStatus: string;
     contractStatus: string;
@@ -83,7 +82,14 @@ export const patchFinance = (
   payload: Partial<{
     caseClassification: string;
     opposingParty: string;
-    opposingCounselName: string;
+    opposingPartyPhone: string;
+    opposingPartyContactMethod: string;
+    opposingCounselOffice: string;
+    opposingCounselPersonName: string;
+    opposingCounselPhone: string;
+    opposingCounselFax: string;
+    opposingCounselEmail: string;
+    opposingCounselContactMethod: string;
     engagementDate: string;
     litigationEngagementDate: string;
     noticeSentDate: string;
@@ -117,6 +123,12 @@ export const addTask = (
 export const patchTaskStatus = (caseId: string, taskId: string, status: string) =>
   request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ status }) });
 
+export const patchTask = (
+  caseId: string,
+  taskId: string,
+  payload: Partial<{ description: string; assignee: string; dueDate: string; points: number | null }>
+) => request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(payload) });
+
 export const finishTask = (caseId: string, taskId: string) =>
   request<Case>(`/api/cases/${caseId}/tasks/${taskId}/finish`, { method: "POST" });
 
@@ -130,21 +142,6 @@ export const issueInstruction = (
   caseId: string,
   payload: { assignee: string; content: string; dueDate?: string; points?: number | null }
 ) => request<Case>(`/api/cases/${caseId}/instructions`, { method: "POST", body: JSON.stringify(payload) });
-
-export const addQuestion = (id: string, text: string) =>
-  request<Case>(`/api/cases/${id}/questions`, { method: "POST", body: JSON.stringify({ text }) });
-
-export const patchQuestionStatus = (caseId: string, questionId: string, status: string) =>
-  request<Case>(`/api/cases/${caseId}/questions/${questionId}`, { method: "PATCH", body: JSON.stringify({ status }) });
-
-export const addDocument = (id: string, name: string, dueDate?: string) =>
-  request<Case>(`/api/cases/${id}/documents`, { method: "POST", body: JSON.stringify({ name, dueDate }) });
-
-export const patchDocumentStatus = (caseId: string, documentId: string, status: string) =>
-  request<Case>(`/api/cases/${caseId}/documents/${documentId}`, { method: "PATCH", body: JSON.stringify({ status }) });
-
-export const deleteDocument = (caseId: string, documentId: string) =>
-  request<Case>(`/api/cases/${caseId}/documents/${documentId}`, { method: "DELETE" });
 
 export const addExpense = (
   id: string,
@@ -210,7 +207,6 @@ export const createInvoice = (payload: {
 export const deleteInvoice = (id: string) => request<{ ok: true }>(`/api/invoices/${id}`, { method: "DELETE" });
 export const markInvoicePaid = (id: string, paid: boolean) =>
   request<Invoice>(`/api/invoices/${id}/mark-paid`, { method: "POST", body: JSON.stringify({ paid }) });
-export const invoicePdfUrl = (id: string) => `/api/invoices/${id}/pdf`;
 
 // ── 目標 ──────────────────────────────────────────
 export const fetchGoalRecords = () => request<GoalRecord[]>("/api/goals");

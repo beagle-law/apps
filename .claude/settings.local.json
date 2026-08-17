@@ -24,7 +24,16 @@
       "Bash(cat)",
       "Read(//tmp/**)",
       "Bash(export PGPASSWORD=postgres)",
-      "Bash(\"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h localhost -p 5432 -d legal_case_tracker -f /tmp/check_pw.sql)"
+      "Bash(\"/c/Program Files/PostgreSQL/17/bin/psql.exe\" -U postgres -h localhost -p 5432 -d legal_case_tracker -f /tmp/check_pw.sql)",
+      "Bash(mkdir -p \"/c/Users/taish/AppData/Local/Temp/claude/C--Users-taish-Desktop-APP/017e8d1a-8d21-4f0b-9507-32b935407788/scratchpad\")",
+      "Bash(sed -n '153,6736p' \"/c/Users/taish/Downloads/legal-case-tracker.jsx\")",
+      "Read(//c/Users/taish/AppData/Local/Temp/claude/C--Users-taish-Desktop-APP/017e8d1a-8d21-4f0b-9507-32b935407788/scratchpad/**)",
+      "Bash(cd \"/c/Users/taish/AppData/Local/Temp/claude/C--Users-taish-Desktop-APP/017e8d1a-8d21-4f0b-9507-32b935407788/scratchpad\" *)",
+      "Bash(grep -c '^\"id\": \"imp-[a-z0-9]*\",$' excel_import_cases_raw.js)",
+      "Bash(rm -rf \"/c/Users/taish/Desktop/APP/src/app/api/cases/[id]/questions\" \"/c/Users/taish/Desktop/APP/src/app/api/cases/[id]/documents\" && echo done)",
+      "Bash(rm -rf \"/c/Users/taish/Desktop/APP/src/lib/pdf\" \"/c/Users/taish/Desktop/APP/src/app/api/invoices/[id]/pdf\" && echo done)",
+      "Bash(git check-ignore *)",
+      "Bash(git add *)"
     ]
   }
 }

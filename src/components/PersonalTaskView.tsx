@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Calendar, ClipboardList, Clock, Send } from "lucide-react";
-import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, TASK_POINT_OPTIONS } from "@/lib/constants";
-import { formatDateShort, formatDateTime, todayStr } from "@/lib/dates";
+import { User, Calendar, ClipboardList, Clock, Send, X } from "lucide-react";
+import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, STAFF_MEMBERS, TASK_POINT_OPTIONS } from "@/lib/constants";
+import { formatDateShort, formatDateTime, plusDaysStr, todayStr } from "@/lib/dates";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
 import type { PersonalSummary } from "@/lib/api-client";
 import type { Case } from "@/lib/types";
+
+type PersonalTask = PersonalSummary["tasks"][number];
 
 interface Props {
   personName: string;
@@ -19,9 +21,11 @@ interface Props {
 
 export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCase, onError }: Props) {
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
-  const [instructionForm, setInstructionForm] = useState({ caseId: "", assignee: "尾崎", content: "", dueDate: "", points: "" });
+  const [instructionForm, setInstructionForm] = useState({ caseId: "", assignee: "尾崎", content: "", dueDate: plusDaysStr(7), points: "" });
   const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", hours: "", content: "" });
   const [reportForm, setReportForm] = useState({ date: todayStr(), content: "" });
+  const [editingTask, setEditingTask] = useState<PersonalTask | null>(null);
+  const [taskEditDraft, setTaskEditDraft] = useState({ assignee: "", description: "", dueDate: "", points: "" });
 
   const load = () => {
     api.fetchPersonalSummary(personName).then(setSummary).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -59,6 +63,31 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
     }
   };
 
+  const openTaskEdit = (t: PersonalTask) => {
+    setEditingTask(t);
+    setTaskEditDraft({
+      assignee: t.assignee || "",
+      description: t.description || "",
+      dueDate: t.dueDate || "",
+      points: t.points != null ? String(t.points) : "",
+    });
+  };
+  const saveTaskEdit = async () => {
+    if (!editingTask) return;
+    try {
+      await api.patchTask(editingTask.case.id, editingTask.id, {
+        assignee: taskEditDraft.assignee,
+        description: taskEditDraft.description.trim() || editingTask.description,
+        dueDate: taskEditDraft.dueDate,
+        points: taskEditDraft.points ? Number(taskEditDraft.points) : null,
+      });
+      setEditingTask(null);
+      load();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "保存に失敗しました");
+    }
+  };
+
   const issueInstruction = async () => {
     if (!instructionForm.caseId || !instructionForm.content.trim()) return;
     try {
@@ -68,7 +97,7 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
         dueDate: instructionForm.dueDate,
         points: instructionForm.points ? Number(instructionForm.points) : null,
       });
-      setInstructionForm({ caseId: "", assignee: "尾崎", content: "", dueDate: "", points: "" });
+      setInstructionForm({ caseId: "", assignee: "尾崎", content: "", dueDate: plusDaysStr(7), points: "" });
       load();
     } catch (e) {
       onError(e instanceof Error ? e.message : "指示の送信に失敗しました");
@@ -120,12 +149,12 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
 
   if (!summary) return null;
 
-  const renderTaskRow = (t: PersonalSummary["tasks"][number]) => (
-    <div key={t.id} className="flex flex-col gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
-      <button onClick={() => onOpenCase(t.case.id)} className="text-left">
+  const renderTaskRow = (t: PersonalTask) => (
+    <button key={t.id} onClick={() => openTaskEdit(t)} className="w-full text-left flex flex-col gap-2 text-sm p-2.5 rounded transition hover:opacity-90" style={{ backgroundColor: COLORS.paper }}>
+      <div>
         <p>{t.description}</p>
         <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{t.case.title}（No. {t.case.caseNumber}）</p>
-      </button>
+      </div>
       <div className="flex items-center gap-2 flex-wrap">
         {t.points != null && <span className="text-xs" style={{ color: COLORS.amber }}>{t.points}点</span>}
         {t.dueDate && (
@@ -136,19 +165,47 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
         {t.handedBackFrom && t.status !== "完了" ? (
           <div className="flex items-center gap-1 ml-auto">
             {[1, 2, 3, 4, 5].map((score) => (
-              <button key={score} onClick={() => doScore(t.case.id, t.id, score)} className="text-xs font-bold w-6 h-6 rounded-full" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>{score}</button>
+              <span
+                key={score}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  doScore(t.case.id, t.id, score);
+                }}
+                className="text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center cursor-pointer"
+                style={{ backgroundColor: COLORS.navy, color: "#fff" }}
+              >
+                {score}
+              </span>
             ))}
           </div>
         ) : (
           <div className="flex items-center gap-2 ml-auto">
-            <button onClick={() => cycleStatus(t.case.id, t.id, t.status)} className="text-xs font-bold px-2 py-1 rounded-full" style={{ backgroundColor: COLORS.slate, color: "#fff" }}>{t.status}</button>
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                cycleStatus(t.case.id, t.id, t.status);
+              }}
+              className="text-xs font-bold px-2 py-1 rounded-full cursor-pointer"
+              style={{ backgroundColor: COLORS.slate, color: "#fff" }}
+            >
+              {t.status}
+            </span>
             {t.status !== "完了" && (
-              <button onClick={() => doFinish(t.case.id, t.id)} className="text-xs font-bold px-2 py-1 rounded-full" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>終了</button>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  doFinish(t.case.id, t.id);
+                }}
+                className="text-xs font-bold px-2 py-1 rounded-full cursor-pointer"
+                style={{ backgroundColor: COLORS.moss, color: "#fff" }}
+              >
+                終了
+              </span>
             )}
           </div>
         )}
       </div>
-    </div>
+    </button>
   );
 
   return (
@@ -158,8 +215,8 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
           <h2 className="text-lg mb-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{personName}</h2>
           <p className="text-xs" style={{ color: COLORS.slate }}>
             {personName === "宮村"
-              ? "未完了のタスクのうち、宮村さんに割り当てられているもの、および誰にも割り当てられていないものを表示しています。"
-              : "あなたに割り当てられている未完了のタスクを表示しています。"}
+              ? "未完了のタスクのうち、宮村さんに割り当てられているもの、および誰にも割り当てられていないものを表示しています。行をクリックすると編集できます。"
+              : "あなたに割り当てられている未完了のタスクを表示しています。行をクリックすると編集できます。"}
           </p>
         </div>
 
@@ -181,7 +238,7 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
                 <TextInput type="date" value={instructionForm.dueDate} onChange={(e) => setInstructionForm({ ...instructionForm, dueDate: e.target.value })} />
                 <select value={instructionForm.points} onChange={(e) => setInstructionForm({ ...instructionForm, points: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
                   <option value="">難易度点（任意）</option>
-                  {TASK_POINT_OPTIONS.map((o) => <option key={o.points} value={o.points}>{o.points}点（{o.level}）</option>)}
+                  {TASK_POINT_OPTIONS.map((p) => <option key={p} value={p}>{p}点</option>)}
                 </select>
               </div>
               <button onClick={issueInstruction} disabled={!instructionForm.caseId || !instructionForm.content.trim()} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>指示を送信</button>
@@ -273,6 +330,66 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
           </div>
         )}
       </div>
+
+      {editingTask && (
+        <div className="fixed inset-0 flex items-start md:items-center justify-center p-4 overflow-y-auto z-20" style={{ backgroundColor: "rgba(27,42,74,0.55)" }}>
+          <div className="w-full max-w-md rounded p-5 my-8" style={{ backgroundColor: COLORS.card }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>タスクを編集</h3>
+              <button onClick={() => setEditingTask(null)}><X size={18} color={COLORS.slate} /></button>
+            </div>
+            <p className="text-xs mb-4" style={{ color: COLORS.slate }}>{editingTask.case.title}（No. {editingTask.case.caseNumber}）</p>
+            <div className="flex flex-col gap-3">
+              <label className="text-xs" style={{ color: COLORS.slate }}>
+                指示内容
+                <textarea value={taskEditDraft.description} onChange={(e) => setTaskEditDraft({ ...taskEditDraft, description: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+              </label>
+              <label className="text-xs" style={{ color: COLORS.slate }}>
+                担当者
+                <select value={taskEditDraft.assignee} onChange={(e) => setTaskEditDraft({ ...taskEditDraft, assignee: e.target.value })} className="mt-1 w-full text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                  <option value="">未割当</option>
+                  {(cases.find((c) => c.id === editingTask.case.id)?.teamMembers.length
+                    ? cases.find((c) => c.id === editingTask.case.id)!.teamMembers
+                    : STAFF_MEMBERS
+                  ).map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex gap-3">
+                <label className="flex-1 text-xs" style={{ color: COLORS.slate }}>
+                  納期
+                  <TextInput type="date" value={taskEditDraft.dueDate} onChange={(e) => setTaskEditDraft({ ...taskEditDraft, dueDate: e.target.value })} className="mt-1 w-full" />
+                </label>
+                <label className="flex-1 text-xs" style={{ color: COLORS.slate }}>
+                  難易度点
+                  <select value={taskEditDraft.points} onChange={(e) => setTaskEditDraft({ ...taskEditDraft, points: e.target.value })} className="mt-1 w-full text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                    <option value="">点数（任意）</option>
+                    {TASK_POINT_OPTIONS.map((p) => <option key={p} value={p}>{p}点</option>)}
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-5">
+              <button
+                onClick={() => {
+                  const caseId = editingTask.case.id;
+                  setEditingTask(null);
+                  onOpenCase(caseId);
+                }}
+                className="text-xs underline"
+                style={{ color: COLORS.slate }}
+              >
+                案件を開く
+              </button>
+              <div className="flex gap-2">
+                <button onClick={() => setEditingTask(null)} className="text-sm px-4 py-2 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
+                <button onClick={saveTaskEdit} className="text-sm font-bold px-4 py-2 rounded" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>保存する</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

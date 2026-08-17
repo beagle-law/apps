@@ -34,7 +34,7 @@ export function computeEngagementTaskChange(
   if (status === "対応不要" || status === "未対応") {
     desired = { kind: "task", waitingOn: "", description: meta.taskDesc };
   } else if (status === "発送済" || status === "請求済") {
-    desired = { kind: "waiting", waitingOn: "クライアント", description: meta.waitDesc };
+    desired = { kind: "waiting", waitingOn: "顧客", description: meta.waitDesc };
   }
   // "受領済" / "締結済" -> desired stays null
 

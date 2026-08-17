@@ -13,7 +13,7 @@ interface Props {
   onError: (msg: string) => void;
 }
 
-const emptyForm = { companyName: "", tradeName: "", address: "", contactName: "", phone: "", email: "", contactMethod: "", source: "", notes: "" };
+const emptyForm = { companyName: "", address: "", contactName: "", phone: "", email: "", contactMethod: "", source: "", notes: "" };
 
 export default function ClientsView({ cases, onOpenCase, onError }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
@@ -38,7 +38,6 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
     const q = searchQuery.trim().toLowerCase();
     return (
       c.companyName.toLowerCase().includes(q) ||
-      c.tradeName.toLowerCase().includes(q) ||
       c.contactName.toLowerCase().includes(q) ||
       String(c.clientNumber).includes(q)
     );
@@ -88,7 +87,7 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
         <div className="p-3 flex flex-col gap-2">
           <div className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <Search size={15} color={COLORS.slate} />
-            <input type="text" placeholder="企業名・屋号・担当者・No.で検索" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="text-sm outline-none flex-1 bg-transparent" />
+            <input type="text" placeholder="企業名・担当者・No.で検索" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="text-sm outline-none flex-1 bg-transparent" />
           </div>
           <button onClick={() => setShowNewModal(true)} className="flex items-center justify-center gap-1 text-sm font-bold py-2 rounded" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
             <Plus size={15} /> 新規顧客を登録
@@ -98,10 +97,11 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
           {filtered.length === 0 && <p className="text-sm text-center py-8" style={{ color: COLORS.slate }}>該当する顧客がいません</p>}
           {filtered.map((c) => (
             <button key={c.id} onClick={() => setSelectedId(c.id)} className="text-left p-3 rounded flex flex-col gap-1" style={{ backgroundColor: COLORS.card, border: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}` }}>
-              <span className="text-xs" style={{ color: COLORS.slate }}>No. {c.clientNumber}</span>
-              <p className="text-sm font-semibold" style={{ fontFamily: FONT_MINCHO }}>{c.tradeName || c.companyName}</p>
-              {c.tradeName && <p className="text-xs" style={{ color: COLORS.slate }}>{c.companyName}</p>}
-              {c.contactName && <p className="text-xs" style={{ color: COLORS.slate }}>{c.contactName}</p>}
+              <p className="text-sm font-semibold" style={{ fontFamily: FONT_MINCHO }}>{c.companyName}</p>
+              <div className="flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>
+                <span>{c.contactName ? `${c.contactName}様` : ""}</span>
+                <span>{c.phone}</span>
+              </div>
             </button>
           ))}
         </div>
@@ -128,13 +128,9 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
                 )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="text-xs" style={{ color: COLORS.slate }}>
-                  企業名 *
+                <label className="text-xs sm:col-span-2" style={{ color: COLORS.slate }}>
+                  企業名又は屋号 *
                   <TextInput type="text" value={draft.companyName} onChange={(e) => setDraft({ ...draft, companyName: e.target.value })} onBlur={saveDraft} className="mt-1 w-full" />
-                </label>
-                <label className="text-xs" style={{ color: COLORS.slate }}>
-                  屋号
-                  <TextInput type="text" value={draft.tradeName} onChange={(e) => setDraft({ ...draft, tradeName: e.target.value })} onBlur={saveDraft} className="mt-1 w-full" />
                 </label>
                 <label className="text-xs sm:col-span-2" style={{ color: COLORS.slate }}>
                   所在地
@@ -194,12 +190,8 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
             </div>
             <div className="flex flex-col gap-3">
               <label className="text-xs" style={{ color: COLORS.slate }}>
-                企業名 *
+                企業名又は屋号 *
                 <TextInput type="text" value={newForm.companyName} onChange={(e) => setNewForm({ ...newForm, companyName: e.target.value })} className="mt-1 w-full" />
-              </label>
-              <label className="text-xs" style={{ color: COLORS.slate }}>
-                屋号
-                <TextInput type="text" value={newForm.tradeName} onChange={(e) => setNewForm({ ...newForm, tradeName: e.target.value })} className="mt-1 w-full" />
               </label>
               <label className="text-xs" style={{ color: COLORS.slate }}>
                 担当者名

@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Briefcase, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { COLORS, FONT_GOTHIC, FONT_MINCHO } from "@/lib/constants";
 import * as api from "@/lib/api-client";
 
@@ -42,14 +42,10 @@ function LoginForm() {
         style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}
       >
         <div className="flex flex-col items-center gap-2 mb-2">
-          <div
-            className="w-14 h-14 rounded-full border-2 flex items-center justify-center"
-            style={{ borderColor: COLORS.brass, color: COLORS.brass, transform: "rotate(-6deg)" }}
-          >
-            <Briefcase size={24} />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="" className="w-14 h-14" style={{ opacity: 0.9 }} />
           <h1 className="text-lg mt-1" style={{ fontFamily: FONT_MINCHO, letterSpacing: "0.05em" }}>
-            CenMOZO
+            Beagle総合法律事務所
           </h1>
           <p className="text-xs" style={{ color: COLORS.slate }}>
             ログインIDとパスワードを入力してください

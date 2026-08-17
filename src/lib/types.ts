@@ -37,20 +37,6 @@ export interface Expense {
   createdAt: string;
 }
 
-export interface Question {
-  id: string;
-  text: string;
-  status: string;
-  createdAt: string;
-}
-
-export interface CaseDocument {
-  id: string;
-  name: string;
-  status: string;
-  dueDate: string;
-}
-
 export interface UpdateLog {
   id: string;
   timestamp: string;
@@ -86,7 +72,6 @@ export interface Case {
   isPrivate: boolean;
 
   courtCaseNumber: string;
-  opposingCounsel: Contact;
   courtClerk: Contact;
 
   poaStatus: string;
@@ -97,7 +82,14 @@ export interface Case {
 
   caseClassification: string;
   opposingParty: string;
-  opposingCounselName: string;
+  opposingPartyPhone: string;
+  opposingPartyContactMethod: string;
+  opposingCounselOffice: string;
+  opposingCounselPersonName: string;
+  opposingCounselPhone: string;
+  opposingCounselFax: string;
+  opposingCounselEmail: string;
+  opposingCounselContactMethod: string;
   engagementDate: string;
   litigationEngagementDate: string;
   noticeSentDate: string;
@@ -113,8 +105,6 @@ export interface Case {
   hearings: Hearing[];
   tasks: CaseTask[];
   expenses: Expense[];
-  questions: Question[];
-  documents: CaseDocument[];
   updates: UpdateLog[];
 }
 
@@ -124,7 +114,6 @@ export interface Client {
   id: string;
   clientNumber: number;
   companyName: string;
-  tradeName: string;
   address: string;
   contactName: string;
   phone: string;

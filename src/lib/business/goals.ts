@@ -40,3 +40,25 @@ export function monthlyExecutionAverages(allTasks: CaseTask[]): Record<string, n
   }
   return averages;
 }
+
+/**
+ * 人事評価点（v4追加、賞与の基礎点）：タスクごとに 難易度点 × 対応評価点 × 2 × 0.1 を算出し、
+ * 当月に完了し、かつ難易度点・対応評価点の両方が設定されているタスク分を、handedBackFrom
+ * （実際に対応した人）に紐づけて合算する。宮村を除く担当者ごとに表示。
+ */
+export function monthlyPersonnelScores(allTasks: CaseTask[]): Record<string, number> {
+  const cm = currentYearMonth();
+  const totals: Record<string, number> = {};
+  for (const name of PERSONAL_TASK_TABS) {
+    if (name === "宮村") continue;
+    totals[name] = 0;
+  }
+
+  for (const t of allTasks) {
+    if (t.points == null || t.executionScore == null || !t.handedBackFrom || !t.completedAt) continue;
+    if (t.completedAt.slice(0, 7) !== cm) continue;
+    if (!(t.handedBackFrom in totals)) continue;
+    totals[t.handedBackFrom] += Number(t.points) * Number(t.executionScore) * 2 * 0.1;
+  }
+  return totals;
+}

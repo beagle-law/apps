@@ -10,8 +10,6 @@ import {
   Phone,
   Mail,
   ClipboardList,
-  HelpCircle,
-  ListChecks,
   MapPin,
   Send,
   Receipt,
@@ -21,7 +19,7 @@ import {
   Eye,
   EyeOff,
   FileSpreadsheet,
-  Sparkles,
+  Download,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -37,19 +35,18 @@ import {
   POA_STATUSES,
   CONTRACT_STATUSES,
   RETAINER_STATUSES,
-  QUESTION_STATUSES,
-  DOC_STATUSES,
   TASK_STATUSES,
   TASK_POINT_OPTIONS,
   cycleValue,
   cycleColor,
   engagementStatusColor,
 } from "@/lib/constants";
-import { formatDate, formatDateShort, formatDateTime, relativeDayLabel, todayStr } from "@/lib/dates";
+import { formatDate, formatDateShort, formatDateTime, plusDaysStr, relativeDayLabel, todayStr } from "@/lib/dates";
 import type { Case, Contact, TimeCharge } from "@/lib/types";
 import { emptyContact } from "@/lib/types";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
 import { invoiceTotal, buildTimeChargeFeeItem } from "@/lib/business/invoice";
+import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
 import InvoiceListForCase from "@/components/InvoiceListForCase";
 
@@ -60,25 +57,33 @@ interface Props {
   onError: (msg: string) => void;
 }
 
+function financeDraftFromCase(c: Case) {
+  return {
+    caseClassification: c.caseClassification,
+    opposingParty: c.opposingParty,
+    opposingPartyPhone: c.opposingPartyPhone,
+    opposingPartyContactMethod: c.opposingPartyContactMethod,
+    opposingCounselOffice: c.opposingCounselOffice,
+    opposingCounselPersonName: c.opposingCounselPersonName,
+    opposingCounselPhone: c.opposingCounselPhone,
+    opposingCounselFax: c.opposingCounselFax,
+    opposingCounselEmail: c.opposingCounselEmail,
+    opposingCounselContactMethod: c.opposingCounselContactMethod,
+    engagementDate: c.engagementDate,
+    litigationEngagementDate: c.litigationEngagementDate,
+    noticeSentDate: c.noticeSentDate,
+    filingDate: c.filingDate,
+    claimAmount: c.claimAmount,
+    retainerFee: c.retainerFee,
+    expectedFee: c.expectedFee,
+    expectedFeeDate: c.expectedFeeDate,
+  };
+}
+
 export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDeleted, onError }: Props) {
   const [newUpdateText, setNewUpdateText] = useState("");
   const [claimMemoDraft, setClaimMemoDraft] = useState(selectedCase.claimMemo);
-  const [financeDraft, setFinanceDraft] = useState({
-    caseClassification: selectedCase.caseClassification,
-    opposingParty: selectedCase.opposingParty,
-    opposingCounselName: selectedCase.opposingCounselName,
-    engagementDate: selectedCase.engagementDate,
-    litigationEngagementDate: selectedCase.litigationEngagementDate,
-    noticeSentDate: selectedCase.noticeSentDate,
-    filingDate: selectedCase.filingDate,
-    claimAmount: selectedCase.claimAmount,
-    retainerFee: selectedCase.retainerFee,
-    expectedFee: selectedCase.expectedFee,
-    expectedFeeDate: selectedCase.expectedFeeDate,
-  });
-  const [newQuestionText, setNewQuestionText] = useState("");
-  const [newDocName, setNewDocName] = useState("");
-  const [newDocDueDate, setNewDocDueDate] = useState("");
+  const [financeDraft, setFinanceDraft] = useState(financeDraftFromCase(selectedCase));
   const [newMemberName, setNewMemberName] = useState("");
   const [newHearing, setNewHearing] = useState({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   const [clientReportText, setClientReportText] = useState("");
@@ -87,7 +92,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     description: "",
     assignee: "",
     assignedBy: "",
-    dueDate: "",
+    dueDate: plusDaysStr(7),
     points: "",
   });
   const [newExpenseForm, setNewExpenseForm] = useState({
@@ -100,9 +105,8 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     notes: "",
   });
   const [calculatingRoute, setCalculatingRoute] = useState(false);
-  const [courtInfoDraft, setCourtInfoDraft] = useState<{ courtCaseNumber: string; opposingCounsel: Contact; courtClerk: Contact }>({
+  const [courtInfoDraft, setCourtInfoDraft] = useState<{ courtCaseNumber: string; courtClerk: Contact }>({
     courtCaseNumber: "",
-    opposingCounsel: emptyContact(),
     courtClerk: emptyContact(),
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -125,28 +129,16 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
 
   useEffect(() => {
     setClaimMemoDraft(selectedCase.claimMemo);
-    setFinanceDraft({
-      caseClassification: selectedCase.caseClassification,
-      opposingParty: selectedCase.opposingParty,
-      opposingCounselName: selectedCase.opposingCounselName,
-      engagementDate: selectedCase.engagementDate,
-      litigationEngagementDate: selectedCase.litigationEngagementDate,
-      noticeSentDate: selectedCase.noticeSentDate,
-      filingDate: selectedCase.filingDate,
-      claimAmount: selectedCase.claimAmount,
-      retainerFee: selectedCase.retainerFee,
-      expectedFee: selectedCase.expectedFee,
-      expectedFeeDate: selectedCase.expectedFeeDate,
-    });
+    setFinanceDraft(financeDraftFromCase(selectedCase));
     setCourtInfoDraft({
       courtCaseNumber: selectedCase.courtCaseNumber || "",
-      opposingCounsel: { ...emptyContact(), ...selectedCase.opposingCounsel },
       courtClerk: { ...emptyContact(), ...selectedCase.courtClerk },
     });
     setConfirmDelete(false);
     setFeeItems([]);
     setBillTimeChargeIds([]);
     setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: true, expenseAmount: "", notes: "" });
+    setNewTaskForm({ description: "", assignee: "", assignedBy: "", dueDate: plusDaysStr(7), points: "" });
     api.fetchUnbilledTimeCharges(selectedCase.id).then(setUnbilledTimeCharges).catch(() => setUnbilledTimeCharges([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCase.id]);
@@ -203,7 +195,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     run(() =>
       api.patchCase(selectedCase.id, {
         courtCaseNumber: courtInfoDraft.courtCaseNumber,
-        opposingCounsel: courtInfoDraft.opposingCounsel,
         courtClerk: courtInfoDraft.courtClerk,
       })
     );
@@ -255,24 +246,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     }
   };
 
-  const addQuestionEntry = () => {
-    if (!newQuestionText.trim()) return;
-    run(() => api.addQuestion(selectedCase.id, newQuestionText.trim()));
-    setNewQuestionText("");
-  };
-  const cycleQuestion = (qId: string, current: string) =>
-    run(() => api.patchQuestionStatus(selectedCase.id, qId, cycleValue(QUESTION_STATUSES, current)));
-
-  const addDocumentEntry = () => {
-    if (!newDocName.trim()) return;
-    run(() => api.addDocument(selectedCase.id, newDocName.trim(), newDocDueDate));
-    setNewDocName("");
-    setNewDocDueDate("");
-  };
-  const cycleDocument = (docId: string, current: string) =>
-    run(() => api.patchDocumentStatus(selectedCase.id, docId, cycleValue(DOC_STATUSES, current)));
-  const removeDocument = (docId: string) => run(() => api.deleteDocument(selectedCase.id, docId));
-
   const addTaskEntry = () => {
     if (!newTaskForm.description.trim()) return;
     run(() =>
@@ -284,7 +257,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         points: newTaskForm.points ? Number(newTaskForm.points) : null,
       })
     );
-    setNewTaskForm({ description: "", assignee: "", assignedBy: "", dueDate: "", points: "" });
+    setNewTaskForm({ description: "", assignee: "", assignedBy: "", dueDate: plusDaysStr(7), points: "" });
   };
   const cycleTaskStatus = (taskId: string, current: string) =>
     run(() => api.patchTaskStatus(selectedCase.id, taskId, cycleValue(TASK_STATUSES, current)));
@@ -385,7 +358,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         notes: invoiceForm.notes,
         billTimeChargeIds,
       });
-      window.open(api.invoicePdfUrl(inv.id), "_blank");
+      await downloadInvoicePdf(inv);
       setFeeItems([]);
       setBillTimeChargeIds([]);
       setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: true, expenseAmount: "", notes: "" });
@@ -417,7 +390,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={toggleHidden} className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }} title={selectedCase.hidden ? "一覧に表示する" : "一覧から非表示にする"}>
-              {selectedCase.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
+              {selectedCase.hidden ? <Eye size={16} /> : <EyeOff size={16} />}
             </button>
             {confirmDelete ? (
               <div className="flex items-center gap-1 text-xs">
@@ -487,104 +460,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         </div>
       </div>
 
-      {/* 経過記録 */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>経過記録</h3>
-        <div className="flex flex-col gap-2 mb-5">
-          <textarea value={newUpdateText} onChange={(e) => setNewUpdateText(e.target.value)} placeholder="進捗・対応内容を記録..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-          <button onClick={addUpdateEntry} disabled={!newUpdateText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
-            <Send size={13} /> 記録を追加
-          </button>
-        </div>
-        {selectedCase.updates.length === 0 ? (
-          <p className="text-sm py-6 text-center" style={{ color: COLORS.slate }}>まだ記録がありません。</p>
-        ) : (
-          <div className="flex flex-col gap-4 pl-4" style={{ borderLeft: `2px solid ${COLORS.brassLight}` }}>
-            {selectedCase.updates.map((u) => (
-              <div key={u.id} className="relative">
-                <div className="absolute rounded-full" style={{ width: 9, height: 9, backgroundColor: u.auto ? COLORS.brassLight : COLORS.brass, left: -21, top: 5 }} />
-                <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(u.timestamp)}　<span className="font-bold">{u.author}</span></p>
-                <p className="text-sm mt-0.5 whitespace-pre-wrap" style={u.auto ? { fontStyle: "italic", color: COLORS.slate } : {}}>{u.note}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 主張予定メモ */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
-        <textarea value={claimMemoDraft} onChange={(e) => setClaimMemoDraft(e.target.value)} onBlur={saveClaimMemo} rows={4} placeholder="主張予定のメモを自由に記入..." className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-        <p className="text-xs mt-2" style={{ color: COLORS.slate }}>上書き保存のみです（履歴は残りません）</p>
-      </div>
-
-      {/* 案件分類・財務情報 */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>案件分類・財務情報</h3>
-        <FieldLabel>案件分類</FieldLabel>
-        <input
-          list="case-classifications"
-          type="text"
-          value={financeDraft.caseClassification}
-          onChange={(e) => setFinanceDraft({ ...financeDraft, caseClassification: e.target.value })}
-          onBlur={saveFinance}
-          className="text-sm p-2 rounded outline-none w-full mb-3"
-          style={{ border: `1px solid ${COLORS.brassLight}` }}
-        />
-        <datalist id="case-classifications">
-          {CASE_CLASSIFICATIONS.map((c) => <option key={c} value={c} />)}
-        </datalist>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            相手方
-            <TextInput type="text" value={financeDraft.opposingParty} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingParty: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            相手方代理人氏名
-            <TextInput type="text" value={financeDraft.opposingCounselName} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingCounselName: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            受任日
-            <TextInput type="date" value={financeDraft.engagementDate} onChange={(e) => setFinanceDraft({ ...financeDraft, engagementDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            訴訟受任日
-            <TextInput type="date" value={financeDraft.litigationEngagementDate} onChange={(e) => setFinanceDraft({ ...financeDraft, litigationEngagementDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            通知書発送日
-            <TextInput type="date" value={financeDraft.noticeSentDate} onChange={(e) => setFinanceDraft({ ...financeDraft, noticeSentDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            提訴日
-            <TextInput type="date" value={financeDraft.filingDate} onChange={(e) => setFinanceDraft({ ...financeDraft, filingDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            請求額
-            <TextInput type="number" value={financeDraft.claimAmount} onChange={(e) => setFinanceDraft({ ...financeDraft, claimAmount: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            着手金
-            <TextInput type="number" value={financeDraft.retainerFee} onChange={(e) => setFinanceDraft({ ...financeDraft, retainerFee: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            見込報酬額
-            <TextInput type="number" value={financeDraft.expectedFee} onChange={(e) => setFinanceDraft({ ...financeDraft, expectedFee: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            報酬見込日
-            <TextInput type="date" value={financeDraft.expectedFeeDate} onChange={(e) => setFinanceDraft({ ...financeDraft, expectedFeeDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
-          </label>
-        </div>
-      </div>
-
       {/* タスク */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
@@ -605,7 +480,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <TextInput type="date" value={newTaskForm.dueDate} onChange={(e) => setNewTaskForm({ ...newTaskForm, dueDate: e.target.value })} />
           <select value={newTaskForm.points} onChange={(e) => setNewTaskForm({ ...newTaskForm, points: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
             <option value="">難易度点（任意）</option>
-            {TASK_POINT_OPTIONS.map((o) => <option key={o.points} value={o.points}>{o.points}点（{o.level}）</option>)}
+            {TASK_POINT_OPTIONS.map((p) => <option key={p} value={p}>{p}点</option>)}
           </select>
         </div>
         <button onClick={addTaskEntry} disabled={!newTaskForm.description.trim()} className="text-sm font-bold px-3 py-1.5 rounded disabled:opacity-40 mb-3" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>タスクを追加</button>
@@ -655,6 +530,136 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         )}
       </div>
 
+      {/* 経過記録 */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>経過記録</h3>
+        <div className="flex flex-col gap-2 mb-5">
+          <textarea value={newUpdateText} onChange={(e) => setNewUpdateText(e.target.value)} placeholder="進捗・対応内容を記録..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+          <button onClick={addUpdateEntry} disabled={!newUpdateText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+            <Send size={13} /> 記録を追加
+          </button>
+        </div>
+        {selectedCase.updates.length === 0 ? (
+          <p className="text-sm py-6 text-center" style={{ color: COLORS.slate }}>まだ記録がありません。</p>
+        ) : (
+          <div className="flex flex-col gap-4 pl-4" style={{ borderLeft: `2px solid ${COLORS.brassLight}` }}>
+            {selectedCase.updates.map((u) => (
+              <div key={u.id} className="relative">
+                <div className="absolute rounded-full" style={{ width: 9, height: 9, backgroundColor: u.auto ? COLORS.brassLight : COLORS.brass, left: -21, top: 5 }} />
+                <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(u.timestamp)}　<span className="font-bold">{u.author}</span></p>
+                <p className="text-sm mt-0.5 whitespace-pre-wrap" style={u.auto ? { fontStyle: "italic", color: COLORS.slate } : {}}>{u.note}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 主張予定メモ */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
+        <textarea value={claimMemoDraft} onChange={(e) => setClaimMemoDraft(e.target.value)} onBlur={saveClaimMemo} rows={4} placeholder="主張予定のメモを自由に記入..." className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+        <p className="text-xs mt-2" style={{ color: COLORS.slate }}>上書き保存のみです（履歴は残りません）</p>
+      </div>
+
+      {/* 案件情報 */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>案件情報</h3>
+
+        <FieldLabel>相手方（会社名・屋号・氏名）</FieldLabel>
+        <TextInput type="text" value={financeDraft.opposingParty} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingParty: e.target.value })} onBlur={saveFinance} className="w-full mb-3" />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            相手方電話番号
+            <TextInput type="text" value={financeDraft.opposingPartyPhone} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingPartyPhone: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            相手方連絡方法
+            <TextInput type="text" placeholder="例：メール／電話" value={financeDraft.opposingPartyContactMethod} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingPartyContactMethod: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+        </div>
+
+        <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>相手方代理人</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            事務所
+            <TextInput type="text" value={financeDraft.opposingCounselOffice} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingCounselOffice: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            氏名
+            <TextInput type="text" value={financeDraft.opposingCounselPersonName} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingCounselPersonName: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            電話番号
+            <TextInput type="text" value={financeDraft.opposingCounselPhone} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingCounselPhone: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            連絡方法
+            <TextInput type="text" value={financeDraft.opposingCounselContactMethod} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingCounselContactMethod: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            FAX
+            <TextInput type="text" value={financeDraft.opposingCounselFax} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingCounselFax: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            メールアドレス
+            <TextInput type="text" value={financeDraft.opposingCounselEmail} onChange={(e) => setFinanceDraft({ ...financeDraft, opposingCounselEmail: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            受任日
+            <TextInput type="date" value={financeDraft.engagementDate} onChange={(e) => setFinanceDraft({ ...financeDraft, engagementDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            訴訟受任日
+            <TextInput type="date" value={financeDraft.litigationEngagementDate} onChange={(e) => setFinanceDraft({ ...financeDraft, litigationEngagementDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            通知書発送日
+            <TextInput type="date" value={financeDraft.noticeSentDate} onChange={(e) => setFinanceDraft({ ...financeDraft, noticeSentDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            提訴日
+            <TextInput type="date" value={financeDraft.filingDate} onChange={(e) => setFinanceDraft({ ...financeDraft, filingDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            請求額(税込)
+            <TextInput type="number" value={financeDraft.claimAmount} onChange={(e) => setFinanceDraft({ ...financeDraft, claimAmount: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            着手金(税込)
+            <TextInput type="number" value={financeDraft.retainerFee} onChange={(e) => setFinanceDraft({ ...financeDraft, retainerFee: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            見込報酬額(税込)
+            <TextInput type="number" value={financeDraft.expectedFee} onChange={(e) => setFinanceDraft({ ...financeDraft, expectedFee: e.target.value === "" ? "" : Number(e.target.value) })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            報酬見込日
+            <TextInput type="date" value={financeDraft.expectedFeeDate} onChange={(e) => setFinanceDraft({ ...financeDraft, expectedFeeDate: e.target.value })} onBlur={saveFinance} className="mt-1 w-full" />
+          </label>
+        </div>
+
+        <FieldLabel>案件分類</FieldLabel>
+        <input
+          list="case-classifications"
+          type="text"
+          value={financeDraft.caseClassification}
+          onChange={(e) => setFinanceDraft({ ...financeDraft, caseClassification: e.target.value })}
+          onBlur={saveFinance}
+          className="text-sm p-2 rounded outline-none w-full"
+          style={{ border: `1px solid ${COLORS.brassLight}` }}
+        />
+        <datalist id="case-classifications">
+          {CASE_CLASSIFICATIONS.map((c) => <option key={c} value={c} />)}
+        </datalist>
+      </div>
+
       {/* 訴訟関係者情報 */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
@@ -663,27 +668,13 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         <FieldLabel>事件番号</FieldLabel>
         <TextInput type="text" value={courtInfoDraft.courtCaseNumber} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtCaseNumber: e.target.value })} onBlur={saveCourtInfo} placeholder="例：東京地方裁判所 令和8年(ワ)第1234号" className="w-full mb-4" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>相手方代理人</p>
-            <div className="flex flex-col gap-2">
-              <TextInput type="text" placeholder="氏名" value={courtInfoDraft.opposingCounsel.name} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, name: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
-              <TextInput type="text" placeholder="事務所名" value={courtInfoDraft.opposingCounsel.affiliation} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, affiliation: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
-              <div className="flex items-center gap-1.5"><Phone size={13} color={COLORS.slate} /><TextInput type="text" placeholder="電話番号" value={courtInfoDraft.opposingCounsel.phone} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, phone: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
-              <div className="flex items-center gap-1.5"><span className="text-xs" style={{ color: COLORS.slate, width: 13 }}>FAX</span><TextInput type="text" placeholder="FAX番号" value={courtInfoDraft.opposingCounsel.fax} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, fax: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
-              <div className="flex items-center gap-1.5"><Mail size={13} color={COLORS.slate} /><TextInput type="text" placeholder="メールアドレス" value={courtInfoDraft.opposingCounsel.email} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, opposingCounsel: { ...courtInfoDraft.opposingCounsel, email: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>担当書記官</p>
-            <div className="flex flex-col gap-2">
-              <TextInput type="text" placeholder="氏名" value={courtInfoDraft.courtClerk.name} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, name: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
-              <TextInput type="text" placeholder="所属（部・係）" value={courtInfoDraft.courtClerk.affiliation} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, affiliation: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
-              <div className="flex items-center gap-1.5"><Phone size={13} color={COLORS.slate} /><TextInput type="text" placeholder="電話番号" value={courtInfoDraft.courtClerk.phone} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, phone: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
-              <div className="flex items-center gap-1.5"><span className="text-xs" style={{ color: COLORS.slate, width: 13 }}>FAX</span><TextInput type="text" placeholder="FAX番号" value={courtInfoDraft.courtClerk.fax} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, fax: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
-              <div className="flex items-center gap-1.5"><Mail size={13} color={COLORS.slate} /><TextInput type="text" placeholder="メールアドレス" value={courtInfoDraft.courtClerk.email} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, email: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
-            </div>
-          </div>
+        <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>担当書記官</p>
+        <div className="flex flex-col gap-2 max-w-sm">
+          <TextInput type="text" placeholder="氏名" value={courtInfoDraft.courtClerk.name} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, name: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
+          <TextInput type="text" placeholder="所属（部・係）" value={courtInfoDraft.courtClerk.affiliation} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, affiliation: e.target.value } })} onBlur={saveCourtInfo} className="w-full" />
+          <div className="flex items-center gap-1.5"><Phone size={13} color={COLORS.slate} /><TextInput type="text" placeholder="電話番号" value={courtInfoDraft.courtClerk.phone} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, phone: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
+          <div className="flex items-center gap-1.5"><span className="text-xs" style={{ color: COLORS.slate, width: 30 }}>FAX</span><TextInput type="text" placeholder="FAX番号" value={courtInfoDraft.courtClerk.fax} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, fax: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
+          <div className="flex items-center gap-1.5"><Mail size={13} color={COLORS.slate} /><TextInput type="text" placeholder="メールアドレス" value={courtInfoDraft.courtClerk.email} onChange={(e) => setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, email: e.target.value } })} onBlur={saveCourtInfo} className="w-full" /></div>
         </div>
       </div>
 
@@ -766,57 +757,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         <p className="text-xs mt-3" style={{ color: COLORS.slate }}>クリックで状態を切り替えます。ステータスに応じてタスクが自動生成されます。</p>
       </div>
 
-      {/* クライアントへの質問 */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><HelpCircle size={15} /> クライアントへの質問・確認事項</h3>
-        <div className="flex gap-2 mb-3">
-          <TextInput type="text" value={newQuestionText} onChange={(e) => setNewQuestionText(e.target.value)} placeholder="確認事項を入力..." className="flex-1" />
-          <button onClick={addQuestionEntry} disabled={!newQuestionText.trim()} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
-        </div>
-        {selectedCase.questions.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: COLORS.slate }}>確認事項はありません。</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {selectedCase.questions.map((q) => (
-              <div key={q.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                <span className="flex-1">{q.text}</span>
-                <button onClick={() => cycleQuestion(q.id, q.status)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ color: "#fff", backgroundColor: cycleColor(QUESTION_STATUSES, q.status) }}>{q.status}</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 提出書類チェックリスト */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><ListChecks size={15} /> 提出書類チェックリスト</h3>
-        <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <TextInput type="text" value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="書類名を入力（例：準備書面(2)）" className="flex-1" />
-          <TextInput type="date" value={newDocDueDate} onChange={(e) => setNewDocDueDate(e.target.value)} />
-          <button onClick={addDocumentEntry} disabled={!newDocName.trim()} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
-        </div>
-        {selectedCase.documents.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: COLORS.slate }}>書類が登録されていません。</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {selectedCase.documents.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                <div className="flex-1">
-                  <span>{d.name}</span>
-                  {d.dueDate && (
-                    <span className="text-xs ml-2" style={{ color: d.status !== "提出済み" && d.dueDate < todayStr() ? COLORS.vermillion : COLORS.slate }}>期限：{formatDateShort(d.dueDate)}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => cycleDocument(d.id, d.status)} className="text-xs font-bold px-2 py-1 rounded-full" style={{ color: "#fff", backgroundColor: cycleColor(DOC_STATUSES, d.status) }}>{d.status}</button>
-                  <button onClick={() => removeDocument(d.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* 実費 */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><Receipt size={15} /> 実費</h3>
@@ -873,7 +813,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
 
       {/* 請求書作成 */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><Sparkles size={15} /> 請求書作成</h3>
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><Download size={15} /> 請求書作成</h3>
 
         <label className="text-xs" style={{ color: COLORS.slate }}>
           発行日
@@ -938,8 +878,8 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <div className="flex justify-between font-bold text-base pt-1" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}><span>税込ご請求額</span><span>¥{previewTotals.total.toLocaleString("ja-JP")}</span></div>
         </div>
 
-        <button onClick={submitInvoice} disabled={!feeItems.length || creatingInvoice} className="mt-4 w-full text-sm font-bold py-2.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
-          請求書PDFを作成
+        <button onClick={submitInvoice} disabled={!feeItems.length || creatingInvoice} className="mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
+          <Download size={15} /> 請求書PDFを作成
         </button>
 
         <InvoiceListForCase caseId={selectedCase.id} refreshKey={invoiceRefreshKey} onError={onError} />

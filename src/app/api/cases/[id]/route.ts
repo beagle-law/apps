@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { caseInclude, serializeCase, encryptOpposingCounselContact, type ContactInput } from "@/lib/case-query";
+import { caseInclude, serializeCase } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
 import { computeEngagementTaskChange, type EngagementField } from "@/lib/business/engagement";
 import { ENGAGEMENT_TASK_META } from "@/lib/constants";
@@ -16,7 +16,6 @@ interface PatchCaseBody {
   teamMembers?: string[];
   deadline?: string;
   courtCaseNumber?: string;
-  opposingCounsel?: ContactInput;
   courtClerk?: { name?: string; affiliation?: string; phone?: string; fax?: string; email?: string };
   poaStatus?: string;
   contractStatus?: string;
@@ -57,7 +56,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.teamMembers !== undefined) data.teamMembers = body.teamMembers;
   if (body.deadline !== undefined) data.deadline = body.deadline;
   if (body.courtCaseNumber !== undefined) data.courtCaseNumber = body.courtCaseNumber;
-  if (body.opposingCounsel) Object.assign(data, encryptOpposingCounselContact(body.opposingCounsel));
   if (body.courtClerk) {
     const cc = body.courtClerk;
     if (cc.name !== undefined) data.courtClerkName = cc.name;

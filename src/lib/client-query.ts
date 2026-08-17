@@ -4,7 +4,6 @@ interface RawClient {
   id: string;
   clientNumber: number;
   companyName: string;
-  tradeName: string;
   address: string;
   contactName: string;
   phone: string;
@@ -20,7 +19,6 @@ export function serializeClient(c: RawClient) {
     id: c.id,
     clientNumber: c.clientNumber,
     companyName: c.companyName,
-    tradeName: c.tradeName,
     address: decryptField(c.address),
     contactName: decryptField(c.contactName),
     phone: decryptField(c.phone),

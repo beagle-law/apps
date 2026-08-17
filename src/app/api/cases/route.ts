@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
 import { caseVisibilityFilter } from "@/lib/case-access";
 import { computeEngagementTaskChange } from "@/lib/business/engagement";
-import { suggestedCaseNumber, computeCaseNumberForClient } from "@/lib/business/caseNumber";
+import { suggestedCaseNumber } from "@/lib/business/caseNumber";
 import { encryptField } from "@/lib/crypto";
 
 export async function GET() {
@@ -42,17 +42,8 @@ export async function POST(req: NextRequest) {
 
   let caseNumber = body.caseNumber?.trim();
   if (!caseNumber) {
-    if (body.clientId) {
-      const client = await prisma.client.findUnique({ where: { id: body.clientId } });
-      if (client) {
-        const linkedCount = await prisma.case.count({ where: { clientId: client.id } });
-        caseNumber = computeCaseNumberForClient(client.clientNumber, linkedCount);
-      }
-    }
-    if (!caseNumber) {
-      const count = await prisma.case.count();
-      caseNumber = suggestedCaseNumber(count);
-    }
+    const existing = await prisma.case.findMany({ select: { caseNumber: true } });
+    caseNumber = suggestedCaseNumber(existing.map((c) => c.caseNumber));
   }
 
   const teamMembers = body.teamMember?.trim() ? [body.teamMember.trim()] : [];

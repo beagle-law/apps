@@ -10,17 +10,18 @@ import {
   Building2,
   Lock,
   StickyNote,
-  User as UserIcon,
+  ClipboardList,
   Clock,
   LayoutDashboard,
   Target,
   BookOpen,
-  Receipt,
+  FileSpreadsheet,
   Settings as SettingsIcon,
-  Sparkles,
+  Wand2,
 } from "lucide-react";
-import { COLORS, FONT_MINCHO, FONT_GOTHIC, STAGE_GROUP, PERSONAL_TASK_TABS } from "@/lib/constants";
+import { COLORS, FONT_MINCHO, FONT_GOTHIC, PERSONAL_TASK_TABS } from "@/lib/constants";
 import { nextHearing } from "@/lib/business/hearings";
+import { suggestedCaseNumber } from "@/lib/business/caseNumber";
 import type { Case, User } from "@/lib/types";
 import * as api from "@/lib/api-client";
 import CaseListSidebar from "@/components/CaseListSidebar";
@@ -50,6 +51,19 @@ type View =
   | "billing"
   | "settings";
 
+const MAIN_TABS: { key: View; label: string; icon: typeof Briefcase }[] = [
+  { key: "ai-input", label: "AI入力", icon: Wand2 },
+  { key: "list", label: "案件一覧", icon: Briefcase },
+  { key: "clients", label: "顧客一覧", icon: Building2 },
+  { key: "passwords", label: "パスワード管理", icon: Lock },
+  { key: "upcoming", label: "今後の期日", icon: Clock },
+  { key: "dashboard", label: "ダッシュボード", icon: LayoutDashboard },
+  { key: "goals", label: "目標", icon: Target },
+  { key: "knowledge", label: "ノウハウ・ひながた", icon: BookOpen },
+  { key: "billing", label: "請求管理", icon: FileSpreadsheet },
+  { key: "settings", label: "設定", icon: SettingsIcon },
+];
+
 export default function CaseTrackerApp() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -59,7 +73,8 @@ export default function CaseTrackerApp() {
   const [view, setView] = useState<View>("list");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [groupFilter, setGroupFilter] = useState("すべて");
+  const [ballFilter, setBallFilter] = useState("");
+  const [showHiddenCases, setShowHiddenCases] = useState(false);
   const [showNewCaseModal, setShowNewCaseModal] = useState(false);
 
   useEffect(() => {
@@ -90,14 +105,20 @@ export default function CaseTrackerApp() {
     setView("list");
   };
 
-  const filteredCases = useMemo(() => {
-    let list = cases;
-    if (groupFilter === "非表示") {
-      list = list.filter((c) => c.hidden);
-    } else {
-      list = list.filter((c) => !c.hidden);
-      if (groupFilter !== "すべて") list = list.filter((c) => STAGE_GROUP[c.stage] === groupFilter);
+  const toggleCaseHidden = async (id: string) => {
+    const target = cases.find((c) => c.id === id);
+    if (!target) return;
+    try {
+      const updated = await api.patchCase(id, { hidden: !target.hidden });
+      updateCaseInState(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "更新に失敗しました");
     }
+  };
+
+  const filteredCases = useMemo(() => {
+    let list = showHiddenCases ? cases.filter((c) => c.hidden) : cases.filter((c) => !c.hidden);
+    if (ballFilter) list = list.filter((c) => c.ballOwner === ballFilter);
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(
@@ -124,15 +145,11 @@ export default function CaseTrackerApp() {
       if (!aDate && bDate) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [cases, groupFilter, searchQuery]);
-
-  const suggestedCaseNumber = () => {
-    const year = new Date().getFullYear();
-    return `${year}-${String(cases.length + 1).padStart(3, "0")}`;
-  };
+  }, [cases, ballFilter, showHiddenCases, searchQuery]);
 
   const openCaseFromElsewhere = (id: string) => {
     setSelectedId(id);
+    setShowHiddenCases(false);
     setView("list");
   };
 
@@ -146,7 +163,7 @@ export default function CaseTrackerApp() {
     try {
       const memoCase = await api.fetchOrCreateMemoCase();
       setCases((prev) => (prev.some((c) => c.id === memoCase.id) ? prev : [memoCase, ...prev]));
-      setGroupFilter("すべて");
+      setShowHiddenCases(false);
       setSelectedId(memoCase.id);
       setView("list");
     } catch (e) {
@@ -157,38 +174,23 @@ export default function CaseTrackerApp() {
   if (loading || !currentUser) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3" style={{ backgroundColor: COLORS.paper, fontFamily: FONT_GOTHIC }}>
-        <Loader2 className="animate-spin" size={28} color={COLORS.navy} />
+        <img src="/logo-mark.png" alt="" style={{ width: 64, height: 64 }} />
+        <Loader2 className="animate-spin" size={20} color={COLORS.navy} />
         <p className="text-sm" style={{ color: COLORS.slate }}>読み込み中...</p>
       </div>
     );
   }
 
-  const TABS: { key: View; label: string; icon: typeof Briefcase }[] = [
-    { key: "ai-input", label: "AI入力", icon: Sparkles },
-    { key: "list", label: "案件一覧", icon: Briefcase },
-    { key: "clients", label: "顧客一覧", icon: Building2 },
-    { key: "passwords", label: "パスワード管理", icon: Lock },
-    ...PERSONAL_TASK_TABS.filter((name) => isAdmin || currentUser.displayName === name).map((name) => ({
-      key: `person:${name}` as View,
-      label: name,
-      icon: UserIcon,
-    })),
-    { key: "upcoming", label: "今後の期日", icon: Clock },
-    { key: "dashboard", label: "ダッシュボード", icon: LayoutDashboard },
-    { key: "goals", label: "目標", icon: Target },
-    { key: "knowledge", label: "ノウハウ・ひながた", icon: BookOpen },
-    { key: "billing", label: "請求管理", icon: Receipt },
-    { key: "settings", label: "設定", icon: SettingsIcon },
-  ];
+  const personTabs = PERSONAL_TASK_TABS.filter((name) => isAdmin || currentUser.displayName === name);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: COLORS.paper, fontFamily: FONT_GOTHIC, color: COLORS.ink }}>
-      <header className="flex items-center justify-between px-5 py-3 gap-4 sticky top-0 z-10" style={{ backgroundColor: COLORS.navy }}>
+    <div className="flex flex-col" style={{ height: "100vh", overflow: "hidden", backgroundColor: COLORS.paper, fontFamily: FONT_GOTHIC, color: COLORS.ink }}>
+      <header className="flex items-center justify-between px-5 py-3 gap-4 flex-shrink-0" style={{ backgroundColor: COLORS.navy }}>
         <div className="flex items-center gap-3">
-          <Briefcase size={22} color={COLORS.brassLight} />
-          <div>
-            <h1 className="text-lg leading-tight" style={{ fontFamily: FONT_MINCHO, color: "#fff", letterSpacing: "0.05em" }}>CenMOZO</h1>
-            <p className="text-xs" style={{ color: COLORS.brassLight, opacity: 0.8 }}>Matter Progress Tracker</p>
+          <img src="/logo-mark.png" alt="Beagle総合法律事務所" style={{ height: 38, width: 38 }} />
+          <div className="hidden sm:block" style={{ borderLeft: `1px solid ${COLORS.brass}`, paddingLeft: 12 }}>
+            <h1 className="text-sm leading-tight" style={{ fontFamily: FONT_MINCHO, color: "#fff", letterSpacing: "0.05em" }}>Beagle総合法律事務所</h1>
+            <p className="text-xs" style={{ color: COLORS.brassLight, opacity: 0.8 }}>案件進捗管理</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -202,8 +204,28 @@ export default function CaseTrackerApp() {
         </div>
       </header>
 
-      <nav className="flex items-center gap-1 px-5 overflow-x-auto" style={{ backgroundColor: COLORS.navyLight }}>
-        {TABS.map((t) => {
+      <nav className="flex items-center gap-1 px-5 flex-shrink-0 overflow-x-auto" style={{ backgroundColor: COLORS.brass }}>
+        {personTabs.map((name) => {
+          const active = view === `person:${name}`;
+          return (
+            <button
+              key={name}
+              onClick={() => setView(`person:${name}`)}
+              className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 transition whitespace-nowrap"
+              style={{
+                backgroundColor: active ? "#fff" : "transparent",
+                color: active ? COLORS.navy : "#fff",
+                borderRadius: "6px 6px 0 0",
+              }}
+            >
+              <ClipboardList size={14} /> {name}
+            </button>
+          );
+        })}
+      </nav>
+
+      <nav className="flex items-center gap-1 px-5 flex-shrink-0 overflow-x-auto" style={{ backgroundColor: COLORS.navyLight }}>
+        {MAIN_TABS.map((t) => {
           const Icon = t.icon;
           const active = view === t.key;
           return (
@@ -227,7 +249,7 @@ export default function CaseTrackerApp() {
       </nav>
 
       {error && (
-        <div className="flex items-center gap-2 px-4 py-2 text-sm" style={{ backgroundColor: "#F3DEDC", color: COLORS.vermillion }}>
+        <div className="flex items-center gap-2 px-4 py-2 text-sm flex-shrink-0" style={{ backgroundColor: "#F3DEDC", color: COLORS.vermillion }}>
           <AlertTriangle size={16} />
           {error}
           <button onClick={() => setError("")} className="ml-auto underline text-xs">閉じる</button>
@@ -237,23 +259,23 @@ export default function CaseTrackerApp() {
       {view === "list" && (
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           <CaseListSidebar
+            allCases={cases}
             cases={filteredCases}
             selectedId={selectedId}
             searchQuery={searchQuery}
-            groupFilter={groupFilter}
+            ballFilter={ballFilter}
+            showHiddenCases={showHiddenCases}
             onSearchChange={setSearchQuery}
-            onGroupFilterChange={setGroupFilter}
+            onBallFilterChange={setBallFilter}
+            onToggleShowHidden={() => setShowHiddenCases((v) => !v)}
             onSelect={setSelectedId}
+            onToggleHidden={toggleCaseHidden}
             onNewCase={() => setShowNewCaseModal(true)}
           />
           <main className="flex-1 overflow-y-auto p-6">
             {!selectedCase ? (
               <div className="h-full flex flex-col items-center justify-center gap-4 text-center py-20">
-                <div style={{ transform: "rotate(-6deg)" }}>
-                  <div className="w-20 h-20 rounded-full border-2 flex items-center justify-center" style={{ borderColor: COLORS.brass, color: COLORS.brass }}>
-                    <Briefcase size={28} />
-                  </div>
-                </div>
+                <img src="/logo-mark.png" alt="" style={{ width: 96, height: 96, opacity: 0.9 }} />
                 <p style={{ color: COLORS.slate }} className="text-sm max-w-xs">左の一覧から案件を選択するか、「新規案件を登録」から案件を追加してください。</p>
               </div>
             ) : (
@@ -289,8 +311,8 @@ export default function CaseTrackerApp() {
         <DashboardView
           cases={cases}
           onGoToActiveCases={() => {
-            setGroupFilter("対応中");
             setSelectedId(null);
+            setShowHiddenCases(false);
             setView("list");
           }}
           onOpenCase={openCaseFromElsewhere}
@@ -306,7 +328,12 @@ export default function CaseTrackerApp() {
       {view === "settings" && <SettingsView currentUser={currentUser} onError={setError} />}
 
       {showNewCaseModal && (
-        <NewCaseModal suggestedCaseNumber={suggestedCaseNumber()} onClose={() => setShowNewCaseModal(false)} onCreated={addCaseToState} onError={setError} />
+        <NewCaseModal
+          suggestedCaseNumber={suggestedCaseNumber(cases.map((c) => c.caseNumber))}
+          onClose={() => setShowNewCaseModal(false)}
+          onCreated={addCaseToState}
+          onError={setError}
+        />
       )}
     </div>
   );

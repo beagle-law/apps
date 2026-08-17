@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Briefcase, Download, Trash2 } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { COLORS, FONT_MINCHO, STAFF_MEMBERS } from "@/lib/constants";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
@@ -78,12 +78,11 @@ export default function SettingsView({ currentUser, onError }: Props) {
         <h2 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>設定</h2>
 
         <div className="rounded p-5 flex items-center gap-3" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <div className="w-12 h-12 rounded-full border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: COLORS.brass, color: COLORS.brass }}>
-            <Briefcase size={20} />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="" className="w-12 h-12 flex-shrink-0" style={{ opacity: 0.9 }} />
           <div>
-            <p className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO }}>CenMOZO</p>
-            <p className="text-xs" style={{ color: COLORS.slate }}>Beagle総合法律事務所 内製ツール</p>
+            <p className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO }}>Beagle総合法律事務所</p>
+            <p className="text-xs" style={{ color: COLORS.slate }}>案件進捗管理 内製ツール</p>
           </div>
         </div>
 

@@ -1,8 +1,17 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
+
+interface PatchTaskBody {
+  status?: string; // クライアントが「次のステータス」（サイクル後の値）を送ってくる
+  description?: string;
+  assignee?: string;
+  dueDate?: string;
+  points?: number | null;
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -15,15 +24,22 @@ export async function PATCH(
   const existing = await getAccessibleCaseOrNull(id, user.id);
   if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
 
-  // クライアントが「次のステータス」（サイクル後の値）を送ってくる
-  const body = (await req.json()) as { status?: string };
-  if (!body.status) {
-    return NextResponse.json({ error: "statusが必要です" }, { status: 400 });
+  const body = (await req.json()) as PatchTaskBody;
+  const data: Prisma.CaseTaskUpdateInput = {};
+  if (body.status !== undefined) {
+    data.status = body.status;
+    data.completedAt = body.status === "完了" ? new Date().toISOString() : "";
   }
-  await prisma.caseTask.update({
-    where: { id: taskId, caseId: id },
-    data: { status: body.status, completedAt: body.status === "完了" ? new Date().toISOString() : "" },
-  });
+  if (body.description !== undefined && body.description.trim()) data.description = body.description.trim();
+  if (body.assignee !== undefined) data.assignee = body.assignee;
+  if (body.dueDate !== undefined) data.dueDate = body.dueDate;
+  if (body.points !== undefined) data.points = body.points;
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "更新する項目がありません" }, { status: 400 });
+  }
+
+  await prisma.caseTask.update({ where: { id: taskId, caseId: id }, data });
   const c = await prisma.case.findUnique({ where: { id }, include: caseInclude });
   return NextResponse.json(serializeCase(c!));
 }

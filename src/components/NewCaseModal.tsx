@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { COLORS, FONT_MINCHO, PRIORITIES, STAFF_MEMBERS } from "@/lib/constants";
+import { plusDaysStr } from "@/lib/dates";
 import { TextInput, Pill } from "@/components/ui";
 import * as api from "@/lib/api-client";
 import type { Case, Client } from "@/lib/types";
@@ -22,7 +23,7 @@ export default function NewCaseModal({ suggestedCaseNumber, onClose, onCreated, 
     clientId: "",
     caseNumber: suggestedCaseNumber,
     teamMember: "",
-    deadline: "",
+    deadline: plusDaysStr(7),
     priority: "通常",
     initialNote: "",
   });
@@ -32,18 +33,15 @@ export default function NewCaseModal({ suggestedCaseNumber, onClose, onCreated, 
     api.fetchClients().then(setClients).catch(() => setClients([]));
   }, []);
 
-  const selectClient = async (clientId: string) => {
+  const selectClient = (clientId: string) => {
     if (!clientId) {
-      setForm((f) => ({ ...f, clientId: "", caseNumber: suggestedCaseNumber }));
+      setForm((f) => ({ ...f, clientId: "" }));
       return;
     }
     const client = clients.find((c) => c.id === clientId);
     if (!client) return;
-    setForm((f) => ({
-      ...f,
-      clientId,
-      clientName: client.tradeName || client.companyName,
-    }));
+    // v4：顧客を選択しても案件番号は連動させない（案件番号は共通の単純連番ルールのみ）
+    setForm((f) => ({ ...f, clientId, clientName: client.companyName }));
   };
 
   const submit = async () => {
@@ -72,13 +70,14 @@ export default function NewCaseModal({ suggestedCaseNumber, onClose, onCreated, 
   return (
     <div className="fixed inset-0 flex items-start md:items-center justify-center p-4 overflow-y-auto z-20" style={{ backgroundColor: "rgba(27,42,74,0.55)" }}>
       <div className="w-full max-w-md rounded p-5 my-8" style={{ backgroundColor: COLORS.card }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>新規案件の登録</h3>
+        <div className="flex items-center gap-2 mb-4">
+          <img src="/logo-mark.png" alt="" style={{ width: 22, height: 22 }} />
+          <h3 className="text-lg flex-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>新規案件の登録</h3>
           <button onClick={onClose}><X size={18} color={COLORS.slate} /></button>
         </div>
         <div className="flex flex-col gap-3">
           <label className="text-xs" style={{ color: COLORS.slate }}>
-            顧客（任意・選択すると案件Noが自動採番されます）
+            顧客（任意）
             <select
               value={form.clientId}
               onChange={(e) => selectClient(e.target.value)}
@@ -87,7 +86,7 @@ export default function NewCaseModal({ suggestedCaseNumber, onClose, onCreated, 
             >
               <option value="">選択しない</option>
               {clients.map((c) => (
-                <option key={c.id} value={c.id}>No.{c.clientNumber}　{c.tradeName || c.companyName}</option>
+                <option key={c.id} value={c.id}>No.{c.clientNumber}　{c.companyName}</option>
               ))}
             </select>
           </label>
@@ -112,7 +111,7 @@ export default function NewCaseModal({ suggestedCaseNumber, onClose, onCreated, 
             </div>
           </div>
           <label className="text-xs" style={{ color: COLORS.slate }}>
-            期限（任意）
+            期限
             <TextInput type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="mt-1 w-full" />
           </label>
           <label className="text-xs" style={{ color: COLORS.slate }}>

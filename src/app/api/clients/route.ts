@@ -18,7 +18,6 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as {
     companyName?: string;
-    tradeName?: string;
     address?: string;
     contactName?: string;
     phone?: string;
@@ -38,7 +37,6 @@ export async function POST(req: NextRequest) {
     data: {
       clientNumber,
       companyName: body.companyName.trim(),
-      tradeName: body.tradeName?.trim() || "",
       address: encryptField(body.address?.trim() || ""),
       contactName: encryptField(body.contactName?.trim() || ""),
       phone: encryptField(body.phone?.trim() || ""),

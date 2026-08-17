@@ -6,3 +6,13 @@ html,
 body {
   height: 100%;
 }
+
+/* v4：数値入力欄のスピナーをアプリ全体で非表示にする */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}

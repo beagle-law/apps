@@ -1,5 +1,5 @@
 import { todayStr, plusDaysStr } from "@/lib/dates";
-import type { Case, Hearing, CaseDocument } from "@/lib/types";
+import type { Case, Hearing } from "@/lib/types";
 
 /**
  * Mirrors the prototype's nextHearing(): among hearings whose
@@ -12,13 +12,6 @@ export function nextHearing(c: Pick<Case, "hearings">): Hearing | null {
   const future = (c.hearings || []).filter((h) => h.nextHearingDate && h.nextHearingDate >= t);
   if (future.length === 0) return null;
   return future.reduce((latest, h) => (h.createdAt > latest.createdAt ? h : latest));
-}
-
-export function nextDocDeadline(c: Pick<Case, "documents">): CaseDocument | null {
-  const withDeadline = (c.documents || [])
-    .filter((d) => d.status !== "提出済み" && d.dueDate)
-    .sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1));
-  return withDeadline.length ? withDeadline[0] : null;
 }
 
 export function upcomingHearings<T extends { hearings: Case["hearings"] }>(cases: T[]) {

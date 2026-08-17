@@ -8,7 +8,8 @@ export async function middleware(req: NextRequest) {
     pathname === "/login" ||
     pathname === "/api/auth/login" ||
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname === "/logo-mark.png"
   ) {
     return NextResponse.next();
   }

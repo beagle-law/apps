@@ -46,8 +46,7 @@ model AuditLog {
 model Client {
   id            String   @id @default(cuid())
   clientNumber  Int      @unique
-  companyName   String
-  tradeName     String   @default("")
+  companyName   String // 企業名又は屋号（v4でtradeNameを統合）
   address       String   @default("") // 暗号化
   contactName   String   @default("") // 暗号化
   phone         String   @default("") // 暗号化
@@ -84,18 +83,13 @@ model Case {
   owner     User?   @relation("CaseOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   isPrivate Boolean @default(false)
 
-  // 訴訟関係者情報（構造化コンタクト）
-  courtCaseNumber                   String @default("")
-  opposingCounselContactName        String @default("") // 暗号化
-  opposingCounselContactAffiliation String @default("") // 暗号化
-  opposingCounselContactPhone       String @default("") // 暗号化
-  opposingCounselContactFax         String @default("") // 暗号化
-  opposingCounselContactEmail       String @default("") // 暗号化
-  courtClerkName                    String @default("")
-  courtClerkAffiliation             String @default("")
-  courtClerkPhone                   String @default("")
-  courtClerkFax                     String @default("")
-  courtClerkEmail                   String @default("")
+  // 訴訟関係者情報（v4：相手方代理人は「案件情報」側の1セットに統合。ここには裁判所書記官のみ残す）
+  courtCaseNumber       String @default("")
+  courtClerkName        String @default("")
+  courtClerkAffiliation String @default("")
+  courtClerkPhone       String @default("")
+  courtClerkFax         String @default("")
+  courtClerkEmail       String @default("")
 
   // 受任関連チェック
   poaStatus      String @default("対応不要")
@@ -105,10 +99,17 @@ model Case {
   // 主張予定メモ
   claimMemo String @default("")
 
-  // 案件分類・財務情報
-  caseClassification      String  @default("")
-  opposingParty            String  @default("") // 暗号化
-  opposingCounselName      String  @default("") // 暗号化（簡易テキスト。opposingCounselContact*とは別項目）
+  // 案件情報（v4：相手方代理人情報はここに一本化。旧opposingCounselName/opposingCounselContact*は廃止）
+  caseClassification         String  @default("")
+  opposingParty               String  @default("") // 暗号化
+  opposingPartyPhone           String  @default("") // 暗号化
+  opposingPartyContactMethod   String  @default("")
+  opposingCounselOffice        String  @default("") // 暗号化（相手方代理人の事務所名）
+  opposingCounselPersonName    String  @default("") // 暗号化（相手方代理人の氏名）
+  opposingCounselPhone         String  @default("") // 暗号化
+  opposingCounselFax            String  @default("") // 暗号化
+  opposingCounselEmail          String  @default("") // 暗号化
+  opposingCounselContactMethod  String  @default("")
   engagementDate           String  @default("")
   litigationEngagementDate String  @default("")
   noticeSentDate           String  @default("")
@@ -124,8 +125,6 @@ model Case {
   hearings    Hearing[]
   tasks       CaseTask[]
   expenses    Expense[]
-  questions   Question[]
-  documents   CaseDocument[]
   updates     UpdateLog[]
   timeCharges TimeCharge[]
   invoices    Invoice[]
@@ -186,28 +185,6 @@ model Expense {
   route       String   @default("")
   notes       String   @default("")
   createdAt   DateTime @default(now())
-
-  @@index([caseId])
-}
-
-model Question {
-  id        String   @id @default(cuid())
-  caseId    String
-  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  text      String
-  status    String   @default("質問中")
-  createdAt DateTime @default(now())
-
-  @@index([caseId])
-}
-
-model CaseDocument {
-  id      String @id @default(cuid())
-  caseId  String
-  case    Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  name    String
-  status  String @default("未着手")
-  dueDate String @default("")
 
   @@index([caseId])
 }

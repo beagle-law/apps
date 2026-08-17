@@ -1,35 +1,43 @@
 "use client";
 
-import { Search, Plus, Users, Calendar } from "lucide-react";
-import { COLORS, FONT_MINCHO, BALL_COLOR } from "@/lib/constants";
+import { Search, Plus, Users, Calendar, Eye, EyeOff } from "lucide-react";
+import { COLORS, FONT_MINCHO, BALL_OWNERS, BALL_COLOR } from "@/lib/constants";
 import { formatDateShort } from "@/lib/dates";
 import { nextHearing } from "@/lib/business/hearings";
 import { Badge, Seal } from "@/components/ui";
 import type { Case } from "@/lib/types";
 
-const GROUP_FILTERS = ["すべて", "対応前", "対応中", "終了", "非表示"];
-
 interface Props {
+  allCases: Case[];
   cases: Case[];
   selectedId: string | null;
   searchQuery: string;
-  groupFilter: string;
+  ballFilter: string;
+  showHiddenCases: boolean;
   onSearchChange: (v: string) => void;
-  onGroupFilterChange: (v: string) => void;
+  onBallFilterChange: (v: string) => void;
+  onToggleShowHidden: () => void;
   onSelect: (id: string) => void;
+  onToggleHidden: (id: string) => void;
   onNewCase: () => void;
 }
 
 export default function CaseListSidebar({
+  allCases,
   cases,
   selectedId,
   searchQuery,
-  groupFilter,
+  ballFilter,
+  showHiddenCases,
   onSearchChange,
-  onGroupFilterChange,
+  onBallFilterChange,
+  onToggleShowHidden,
   onSelect,
+  onToggleHidden,
   onNewCase,
 }: Props) {
+  const hiddenCount = allCases.filter((c) => c.hidden).length;
+
   return (
     <aside
       className="w-full md:w-80 flex flex-col border-b md:border-b-0 md:border-r"
@@ -40,90 +48,106 @@ export default function CaseListSidebar({
           <Search size={15} color={COLORS.slate} />
           <input
             type="text"
-            placeholder="案件番号・依頼者・タイトル・担当者で検索"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="text-sm outline-none flex-1 bg-transparent"
           />
         </div>
         <div className="flex gap-1 flex-wrap">
-          {GROUP_FILTERS.map((s) => (
+          {BALL_OWNERS.map((b) => (
             <button
-              key={s}
-              onClick={() => onGroupFilterChange(s)}
+              key={b}
+              onClick={() => onBallFilterChange(ballFilter === b ? "" : b)}
               className="text-xs px-2 py-1 rounded-full transition"
               style={{
-                backgroundColor: groupFilter === s ? COLORS.navy : "transparent",
-                color: groupFilter === s ? "#fff" : COLORS.slate,
-                border: `1px solid ${groupFilter === s ? COLORS.navy : COLORS.brassLight}`,
+                backgroundColor: ballFilter === b ? COLORS.navy : "transparent",
+                color: ballFilter === b ? "#fff" : COLORS.slate,
+                border: `1px solid ${ballFilter === b ? COLORS.navy : COLORS.brassLight}`,
               }}
             >
-              {s === "終了" ? "終件" : s}
+              {b}
             </button>
           ))}
         </div>
-        <button
-          onClick={onNewCase}
-          className="flex items-center justify-center gap-1 text-sm font-bold py-2 rounded transition hover:opacity-90"
-          style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}
-        >
-          <Plus size={15} /> 新規案件を登録
+        <button onClick={onToggleShowHidden} className="text-xs self-start underline" style={{ color: showHiddenCases ? COLORS.vermillion : COLORS.slate }}>
+          {showHiddenCases ? "通常の一覧に戻る" : `非表示の案件を表示${hiddenCount > 0 ? `（${hiddenCount}）` : ""}`}
         </button>
+        {!showHiddenCases && (
+          <button
+            onClick={onNewCase}
+            className="flex items-center justify-center gap-1 text-sm font-bold py-2 rounded transition hover:opacity-90"
+            style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}
+          >
+            <Plus size={15} /> 新規案件を登録
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-2">
         {cases.length === 0 && (
           <p className="text-sm text-center py-8" style={{ color: COLORS.slate }}>
-            該当する案件がありません
+            {showHiddenCases ? "非表示の案件はありません" : "該当する案件がありません"}
           </p>
         )}
         {cases.map((c) => {
           const nh = nextHearing(c);
           return (
-            <button
-              key={c.id}
-              onClick={() => onSelect(c.id)}
-              className="text-left p-2.5 rounded flex flex-col gap-1 transition relative"
-              style={{
-                backgroundColor: COLORS.card,
-                borderTop: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                borderRight: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                borderBottom: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                borderLeft: c.priority === "至急" ? `4px solid ${COLORS.vermillion}` : `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                boxShadow: selectedId === c.id ? "0 1px 4px rgba(0,0,0,0.12)" : "none",
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs truncate" style={{ color: COLORS.slate }}>
-                  No. {c.caseNumber}{c.isPrivate && "　個人メモ"}
-                </span>
-                <Seal stage={c.stage} size="sm" />
-              </div>
-              <p className="text-sm font-semibold leading-snug truncate" style={{ fontFamily: FONT_MINCHO }}>
-                {c.title}
-              </p>
-              <div className="flex items-center justify-between gap-2 text-xs" style={{ color: COLORS.slate }}>
-                <span className="truncate">{c.clientName}</span>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {c.caseClassification && <Badge color={COLORS.brass}>{c.caseClassification}</Badge>}
-                  <span className="font-bold" style={{ color: BALL_COLOR[c.ballOwner] }}>{c.ballOwner}{c.ballAssignee ? `：${c.ballAssignee}` : ""}</span>
+            <div key={c.id} className="relative group">
+              <button
+                onClick={() => onSelect(c.id)}
+                className="w-full text-left p-2.5 rounded flex flex-col gap-1 transition"
+                style={{
+                  backgroundColor: COLORS.card,
+                  borderTop: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                  borderRight: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                  borderBottom: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                  borderLeft: c.priority === "至急" ? `4px solid ${COLORS.vermillion}` : `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                  boxShadow: selectedId === c.id ? "0 1px 4px rgba(0,0,0,0.12)" : "none",
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs truncate" style={{ color: COLORS.slate }}>
+                    No. {c.caseNumber}{c.isPrivate && "　個人メモ"}
+                  </span>
+                  <Seal stage={c.stage} size="sm" />
                 </div>
-              </div>
-              {(nh || c.teamMembers.length > 0) && (
-                <div className="flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>
-                  {c.teamMembers.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <Users size={11} /> {c.teamMembers[0]}{c.teamMembers.length > 1 ? ` ほか${c.teamMembers.length - 1}名` : ""}
-                    </span>
-                  )}
-                  {nh && (
-                    <span className="flex items-center gap-1" style={{ color: COLORS.vermillion }}>
-                      <Calendar size={11} /> {formatDateShort(nh.nextHearingDate)}
-                    </span>
-                  )}
+                <p className="text-sm font-semibold leading-snug truncate" style={{ fontFamily: FONT_MINCHO }}>
+                  {c.title}
+                </p>
+                <div className="flex items-center justify-between gap-2 text-xs" style={{ color: COLORS.slate }}>
+                  <span className="truncate">{c.clientName}</span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {c.caseClassification && <Badge color={COLORS.brass}>{c.caseClassification}</Badge>}
+                    <span className="font-bold" style={{ color: BALL_COLOR[c.ballOwner] }}>{c.ballOwner}{c.ballAssignee ? `：${c.ballAssignee}` : ""}</span>
+                  </div>
                 </div>
-              )}
-            </button>
+                {(nh || c.teamMembers.length > 0) && (
+                  <div className="flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>
+                    {c.teamMembers.length > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Users size={11} /> {c.teamMembers.join("・")}
+                      </span>
+                    )}
+                    {nh && (
+                      <span className="flex items-center gap-1" style={{ color: COLORS.vermillion }}>
+                        <Calendar size={11} /> {formatDateShort(nh.nextHearingDate)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleHidden(c.id);
+                }}
+                className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition"
+                style={{ color: COLORS.slate }}
+                title={c.hidden ? "表示に戻す" : "案件を非表示にする"}
+              >
+                {c.hidden ? <Eye size={13} /> : <EyeOff size={13} />}
+              </button>
+            </div>
           );
         })}
       </div>

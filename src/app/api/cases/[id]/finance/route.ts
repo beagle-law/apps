@@ -2,14 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { caseInclude, serializeCase } from "@/lib/case-query";
+import { caseInclude, serializeCase, encryptOpposingCounsel } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
 import { encryptField } from "@/lib/crypto";
 
 interface FinanceBody {
   caseClassification?: string;
   opposingParty?: string;
-  opposingCounselName?: string;
+  opposingPartyPhone?: string;
+  opposingPartyContactMethod?: string;
+  opposingCounselOffice?: string;
+  opposingCounselPersonName?: string;
+  opposingCounselPhone?: string;
+  opposingCounselFax?: string;
+  opposingCounselEmail?: string;
+  opposingCounselContactMethod?: string;
   engagementDate?: string;
   litigationEngagementDate?: string;
   noticeSentDate?: string;
@@ -38,7 +45,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const data: Prisma.CaseUpdateInput = {};
   if (body.caseClassification !== undefined) data.caseClassification = body.caseClassification;
   if (body.opposingParty !== undefined) data.opposingParty = encryptField(body.opposingParty);
-  if (body.opposingCounselName !== undefined) data.opposingCounselName = encryptField(body.opposingCounselName);
+  if (body.opposingPartyPhone !== undefined) data.opposingPartyPhone = encryptField(body.opposingPartyPhone);
+  if (body.opposingPartyContactMethod !== undefined) data.opposingPartyContactMethod = body.opposingPartyContactMethod;
+  Object.assign(
+    data,
+    encryptOpposingCounsel({
+      office: body.opposingCounselOffice,
+      personName: body.opposingCounselPersonName,
+      phone: body.opposingCounselPhone,
+      fax: body.opposingCounselFax,
+      email: body.opposingCounselEmail,
+      contactMethod: body.opposingCounselContactMethod,
+    })
+  );
   if (body.engagementDate !== undefined) data.engagementDate = body.engagementDate;
   if (body.litigationEngagementDate !== undefined) data.litigationEngagementDate = body.litigationEngagementDate;
   if (body.noticeSentDate !== undefined) data.noticeSentDate = body.noticeSentDate;

@@ -16,11 +16,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
     return NextResponse.json({ error: "他のメンバーの画面は閲覧できません" }, { status: 403 });
   }
 
-  const allTasks = await prisma.caseTask.findMany({
-    where: { case: caseVisibilityFilter(user.id) },
-    include: { case: { select: { id: true, title: true, caseNumber: true } } },
-    orderBy: { dueDate: "asc" },
-  });
+  const [allTasks, timeCharges, dailyReports] = await Promise.all([
+    prisma.caseTask.findMany({
+      where: { case: caseVisibilityFilter(user.id) },
+      include: { case: { select: { id: true, title: true, caseNumber: true } } },
+      orderBy: { dueDate: "asc" },
+    }),
+    prisma.timeCharge.findMany({
+      where: { personName: name, case: caseVisibilityFilter(user.id) },
+      include: { case: { select: { id: true, title: true, caseNumber: true } } },
+      orderBy: { date: "desc" },
+    }),
+    DAILY_REPORT_STAFF.includes(name)
+      ? prisma.dailyReport.findMany({ where: { personName: name }, orderBy: { date: "desc" } })
+      : Promise.resolve(null),
+  ]);
 
   const includeUnassigned = name === "宮村";
   const ownOpen = allTasks.filter(
@@ -38,16 +48,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
           .filter((t) => t.isInstruction)
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       : [];
-
-  const timeCharges = await prisma.timeCharge.findMany({
-    where: { personName: name, case: caseVisibilityFilter(user.id) },
-    include: { case: { select: { id: true, title: true, caseNumber: true } } },
-    orderBy: { date: "desc" },
-  });
-
-  const dailyReports = DAILY_REPORT_STAFF.includes(name)
-    ? await prisma.dailyReport.findMany({ where: { personName: name }, orderBy: { date: "desc" } })
-    : null;
 
   const serializeTask = (t: (typeof allTasks)[number]) => ({
     ...t,

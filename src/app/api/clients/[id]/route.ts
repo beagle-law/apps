@@ -7,7 +7,6 @@ import { serializeClient } from "@/lib/client-query";
 
 interface PatchClientBody {
   companyName?: string;
-  tradeName?: string;
   address?: string;
   contactName?: string;
   phone?: string;
@@ -26,7 +25,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const data: Prisma.ClientUpdateInput = {};
   if (body.companyName !== undefined) data.companyName = body.companyName;
-  if (body.tradeName !== undefined) data.tradeName = body.tradeName;
   if (body.address !== undefined) data.address = encryptField(body.address);
   if (body.contactName !== undefined) data.contactName = encryptField(body.contactName);
   if (body.phone !== undefined) data.phone = encryptField(body.phone);

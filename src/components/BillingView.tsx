@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { COLORS, FONT_MINCHO } from "@/lib/constants";
 import { formatDate } from "@/lib/dates";
 import { invoiceTotal } from "@/lib/business/invoice";
+import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
 import type { Invoice } from "@/lib/types";
 
@@ -28,6 +29,14 @@ export default function BillingView({ onOpenCase, onError }: Props) {
       setInvoices((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
     } catch (e) {
       onError(e instanceof Error ? e.message : "更新に失敗しました");
+    }
+  };
+
+  const downloadPdf = async (inv: Invoice) => {
+    try {
+      await downloadInvoicePdf(inv);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "PDFの作成に失敗しました");
     }
   };
 
@@ -75,7 +84,7 @@ export default function BillingView({ onOpenCase, onError }: Props) {
                         <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: inv.paid ? COLORS.moss : COLORS.slate, color: "#fff" }}>
                           {inv.paid ? "入金済み" : "未入金"}
                         </button>
-                        <a href={api.invoicePdfUrl(inv.id)} target="_blank" rel="noopener noreferrer" className="flex-shrink-0" style={{ color: COLORS.navy }}><Download size={14} /></a>
+                        <button onClick={() => downloadPdf(inv)} className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFをダウンロード"><Download size={14} /></button>
                       </div>
                     ))}
                   </div>

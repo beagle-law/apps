@@ -6,6 +6,7 @@ import { COLORS } from "@/lib/constants";
 import { formatDate } from "@/lib/dates";
 import type { Invoice } from "@/lib/types";
 import { invoiceTotal } from "@/lib/business/invoice";
+import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
 
 interface Props {
@@ -28,6 +29,14 @@ export default function InvoiceListForCase({ caseId, refreshKey, onError }: Prop
       setInvoices((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
     } catch (e) {
       onError(e instanceof Error ? e.message : "更新に失敗しました");
+    }
+  };
+
+  const downloadPdf = async (inv: Invoice) => {
+    try {
+      await downloadInvoicePdf(inv);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "PDFの作成に失敗しました");
     }
   };
 
@@ -56,9 +65,9 @@ export default function InvoiceListForCase({ caseId, refreshKey, onError }: Prop
               <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ color: "#fff", backgroundColor: inv.paid ? COLORS.moss : COLORS.slate }}>
                 {inv.paid ? "入金済み" : "未入金"}
               </button>
-              <a href={api.invoicePdfUrl(inv.id)} target="_blank" rel="noopener noreferrer" className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFを開く">
+              <button onClick={() => downloadPdf(inv)} className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFをダウンロード">
                 <Download size={14} />
-              </a>
+              </button>
               <button onClick={() => removeInvoice(inv.id)} style={{ color: COLORS.slate }} className="flex-shrink-0"><X size={14} /></button>
             </div>
           );

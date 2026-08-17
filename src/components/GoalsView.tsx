@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { COLORS, FONT_MINCHO, GOAL_KEYS, TASK_LEVEL_TABLE, EXECUTION_LEVELS, PERSONAL_TASK_TABS } from "@/lib/constants";
 import { currentYearMonth, shiftYearMonth, formatYearMonth } from "@/lib/dates";
-import { monthlyPointTotals, monthlyExecutionAverages } from "@/lib/business/goals";
+import { monthlyPointTotals, monthlyExecutionAverages, monthlyPersonnelScores } from "@/lib/business/goals";
 import * as api from "@/lib/api-client";
 import type { Case, GoalRecord } from "@/lib/types";
 
@@ -29,6 +29,7 @@ export default function GoalsView({ cases, onError }: Props) {
   const pointTotals = monthlyPointTotals(allTasks);
   const pointMax = Math.max(1, ...Object.values(pointTotals));
   const executionAverages = monthlyExecutionAverages(allTasks);
+  const personnelScores = monthlyPersonnelScores(allTasks);
 
   const findRecord = (key: string, yearMonth: string) => records.find((r) => r.key === key && r.yearMonth === yearMonth);
 
@@ -85,12 +86,11 @@ export default function GoalsView({ cases, onError }: Props) {
         <div className="rounded p-5 overflow-x-auto" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>タスク難易度点の目安</h3>
           <table className="text-xs w-full" style={{ minWidth: 560 }}>
-            <thead><tr style={{ color: COLORS.slate }}><th className="text-left py-1">レベル</th><th className="text-left py-1">点数</th><th className="text-left py-1">難易度</th><th className="text-left py-1">具体例</th></tr></thead>
+            <thead><tr style={{ color: COLORS.slate }}><th className="text-left py-1">点数</th><th className="text-left py-1">難易度</th><th className="text-left py-1">具体例</th></tr></thead>
             <tbody>
               {TASK_LEVEL_TABLE.map((row) => (
-                <tr key={row.level} style={{ borderTop: `1px solid ${COLORS.paper}` }}>
-                  <td className="py-1.5 pr-2 font-bold">{row.level}</td>
-                  <td className="py-1.5 pr-2">{row.points}</td>
+                <tr key={row.points} style={{ borderTop: `1px solid ${COLORS.paper}` }}>
+                  <td className="py-1.5 pr-2 font-bold">{row.points}</td>
                   <td className="py-1.5 pr-2">{row.difficulty}</td>
                   <td className="py-1.5">{row.examples}</td>
                 </tr>
@@ -113,10 +113,10 @@ export default function GoalsView({ cases, onError }: Props) {
         </div>
 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>宮村による対応レベル評価</h3>
+          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>対応評価点</h3>
           <div className="flex flex-col gap-1 mb-4">
             {EXECUTION_LEVELS.map((l) => (
-              <p key={l.score} className="text-xs" style={{ color: COLORS.slate }}>Lv.{l.score}　{l.label}</p>
+              <p key={l.score} className="text-xs" style={{ color: COLORS.slate }}>{l.score}点　{l.label}</p>
             ))}
           </div>
           <div className="flex flex-col gap-2">
@@ -130,6 +130,20 @@ export default function GoalsView({ cases, onError }: Props) {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>人事評価点</h3>
+          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>タスク難易度点×対応評価点×2×0.1で計算されます（タスクごとに算出して合算）。賞与の基礎点になります。</p>
+          <div className="flex flex-col gap-2">
+            {Object.entries(personnelScores).map(([name, score]) => (
+              <div key={name} className="flex items-center justify-between text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
+                <span style={{ color: COLORS.slate }}>{name}</span>
+                <span className="font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{score.toFixed(1)}点</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs mt-2" style={{ color: COLORS.slate }}>{formatYearMonth(cm)}に完了し、難易度点・評価点の両方が付いているタスクのみが対象です。</p>
         </div>
 
         {GOAL_KEYS.map((g) => {

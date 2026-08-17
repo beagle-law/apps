@@ -5,8 +5,6 @@ export const caseInclude = {
   hearings: { orderBy: { date: "asc" } },
   tasks: { orderBy: { createdAt: "asc" } },
   expenses: { orderBy: { date: "asc" } },
-  questions: { orderBy: { createdAt: "desc" } },
-  documents: true,
   updates: { orderBy: { timestamp: "desc" } },
 } satisfies Prisma.CaseInclude;
 
@@ -30,13 +28,6 @@ export function serializeCase(c: FullCase) {
     isPrivate: c.isPrivate,
 
     courtCaseNumber: c.courtCaseNumber,
-    opposingCounsel: {
-      name: decryptField(c.opposingCounselContactName),
-      affiliation: decryptField(c.opposingCounselContactAffiliation),
-      phone: decryptField(c.opposingCounselContactPhone),
-      fax: decryptField(c.opposingCounselContactFax),
-      email: decryptField(c.opposingCounselContactEmail),
-    },
     courtClerk: {
       name: c.courtClerkName,
       affiliation: c.courtClerkAffiliation,
@@ -53,7 +44,14 @@ export function serializeCase(c: FullCase) {
 
     caseClassification: c.caseClassification,
     opposingParty: decryptField(c.opposingParty),
-    opposingCounselName: decryptField(c.opposingCounselName),
+    opposingPartyPhone: decryptField(c.opposingPartyPhone),
+    opposingPartyContactMethod: c.opposingPartyContactMethod,
+    opposingCounselOffice: decryptField(c.opposingCounselOffice),
+    opposingCounselPersonName: decryptField(c.opposingCounselPersonName),
+    opposingCounselPhone: decryptField(c.opposingCounselPhone),
+    opposingCounselFax: decryptField(c.opposingCounselFax),
+    opposingCounselEmail: decryptField(c.opposingCounselEmail),
+    opposingCounselContactMethod: c.opposingCounselContactMethod,
     engagementDate: c.engagementDate,
     litigationEngagementDate: c.litigationEngagementDate,
     noticeSentDate: c.noticeSentDate,
@@ -69,27 +67,27 @@ export function serializeCase(c: FullCase) {
     hearings: c.hearings,
     tasks: c.tasks.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),
     expenses: c.expenses.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
-    questions: c.questions.map((q) => ({ ...q, createdAt: q.createdAt.toISOString() })),
-    documents: c.documents,
     updates: c.updates.map((u) => ({ ...u, timestamp: u.timestamp.toISOString() })),
   };
 }
 
-/** Fields on Case that are stored encrypted — used by write paths to encrypt before persisting. */
-export interface ContactInput {
-  name?: string;
-  affiliation?: string;
+/** 相手方代理人情報（v4で1セットに統合）の書き込み用ヘルパー。未指定のキーは更新しない。 */
+export interface OpposingCounselInput {
+  office?: string;
+  personName?: string;
   phone?: string;
   fax?: string;
   email?: string;
+  contactMethod?: string;
 }
 
-export function encryptOpposingCounselContact(c: ContactInput) {
+export function encryptOpposingCounsel(c: OpposingCounselInput) {
   return {
-    ...(c.name !== undefined && { opposingCounselContactName: encryptField(c.name) }),
-    ...(c.affiliation !== undefined && { opposingCounselContactAffiliation: encryptField(c.affiliation) }),
-    ...(c.phone !== undefined && { opposingCounselContactPhone: encryptField(c.phone) }),
-    ...(c.fax !== undefined && { opposingCounselContactFax: encryptField(c.fax) }),
-    ...(c.email !== undefined && { opposingCounselContactEmail: encryptField(c.email) }),
+    ...(c.office !== undefined && { opposingCounselOffice: encryptField(c.office) }),
+    ...(c.personName !== undefined && { opposingCounselPersonName: encryptField(c.personName) }),
+    ...(c.phone !== undefined && { opposingCounselPhone: encryptField(c.phone) }),
+    ...(c.fax !== undefined && { opposingCounselFax: encryptField(c.fax) }),
+    ...(c.email !== undefined && { opposingCounselEmail: encryptField(c.email) }),
+    ...(c.contactMethod !== undefined && { opposingCounselContactMethod: c.contactMethod }),
   };
 }

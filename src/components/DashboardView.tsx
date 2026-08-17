@@ -151,7 +151,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase }: 
           <table className="text-xs w-full" style={{ minWidth: 900 }}>
             <thead>
               <tr style={{ color: COLORS.slate, borderBottom: `1px solid ${COLORS.brassLight}` }}>
-                {["No.", "案件名", "案件分類", "相手方", "相手方代理人", "受任日", "訴訟受任日", "通知書発送日", "提訴日", "請求額", "着手金", "見込報酬額", "報酬見込日"].map((h) => (
+                {["No.", "案件名", "案件分類", "相手方", "相手方代理人", "受任日", "訴訟受任日", "通知書発送日", "提訴日", "請求額(税込)", "着手金(税込)", "見込報酬額(税込)", "報酬見込日"].map((h) => (
                   <th key={h} className="text-left py-1.5 pr-3 whitespace-nowrap font-normal">{h}</th>
                 ))}
               </tr>
@@ -163,7 +163,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase }: 
                   <td className="py-1.5 pr-3 max-w-[180px] truncate">{c.title}</td>
                   <td className="py-1.5 pr-3 whitespace-nowrap">{c.caseClassification}</td>
                   <td className="py-1.5 pr-3 whitespace-nowrap">{c.opposingParty}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.opposingCounselName}</td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.opposingCounselPersonName}</td>
                   <td className="py-1.5 pr-3 whitespace-nowrap">{c.engagementDate}</td>
                   <td className="py-1.5 pr-3 whitespace-nowrap">{c.litigationEngagementDate}</td>
                   <td className="py-1.5 pr-3 whitespace-nowrap">{c.noticeSentDate}</td>
