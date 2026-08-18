@@ -33,7 +33,11 @@
       "Bash(rm -rf \"/c/Users/taish/Desktop/APP/src/app/api/cases/[id]/questions\" \"/c/Users/taish/Desktop/APP/src/app/api/cases/[id]/documents\" && echo done)",
       "Bash(rm -rf \"/c/Users/taish/Desktop/APP/src/lib/pdf\" \"/c/Users/taish/Desktop/APP/src/app/api/invoices/[id]/pdf\" && echo done)",
       "Bash(git check-ignore *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(SCRATCH=\"/c/Users/taish/AppData/Local/Temp/claude/C--Users-taish-Desktop-APP/017e8d1a-8d21-4f0b-9507-32b935407788/scratchpad\" *)"
     ]
   }
 }

@@ -4562,7 +4562,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c0",
-"caseNumber": "旧1",
+"caseNumber": "1",
 "title": "株式会社INF",
 "clientName": "株式会社INF",
 "clientId": "",
@@ -4613,7 +4613,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c1",
-"caseNumber": "旧2",
+"caseNumber": "2",
 "title": "TOBC",
 "clientName": "TOBC",
 "clientId": "",
@@ -4664,7 +4664,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c2",
-"caseNumber": "旧3",
+"caseNumber": "3",
 "title": "稲月頼人様",
 "clientName": "稲月頼人様",
 "clientId": "",
@@ -4715,7 +4715,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c3",
-"caseNumber": "旧99",
+"caseNumber": "99",
 "title": "HouseDoctor合同会社",
 "clientName": "HouseDoctor合同会社",
 "clientId": "",
@@ -4766,7 +4766,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c4",
-"caseNumber": "旧105",
+"caseNumber": "105",
 "title": "浦田康平様",
 "clientName": "浦田康平様",
 "clientId": "",
@@ -4817,7 +4817,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c5",
-"caseNumber": "旧108",
+"caseNumber": "108",
 "title": "株式会社雄美",
 "clientName": "株式会社雄美",
 "clientId": "",
@@ -4866,7 +4866,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c6",
-"caseNumber": "旧99",
+"caseNumber": "99",
 "title": "House Doctor",
 "clientName": "House Doctor",
 "clientId": "",
@@ -4915,7 +4915,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c7",
-"caseNumber": "旧111",
+"caseNumber": "111",
 "title": "上原洋様",
 "clientName": "上原洋様",
 "clientId": "",
@@ -4964,7 +4964,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c8",
-"caseNumber": "旧60",
+"caseNumber": "60",
 "title": "有限会社河西工業",
 "clientName": "有限会社河西工業",
 "clientId": "",
@@ -5013,7 +5013,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c9",
-"caseNumber": "旧162",
+"caseNumber": "162",
 "title": "川華建設",
 "clientName": "川華建設",
 "clientId": "",
@@ -5054,7 +5054,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c10",
-"caseNumber": "旧150",
+"caseNumber": "150",
 "title": "星様",
 "clientName": "星様",
 "clientId": "",
@@ -5095,7 +5095,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c11",
-"caseNumber": "旧160",
+"caseNumber": "160",
 "title": "アドバンス",
 "clientName": "アドバンス",
 "clientId": "",
@@ -5136,7 +5136,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c12",
-"caseNumber": "旧175",
+"caseNumber": "175",
 "title": "五百旗頭様",
 "clientName": "五百旗頭様",
 "clientId": "",
@@ -5177,7 +5177,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c13",
-"caseNumber": "旧181",
+"caseNumber": "181",
 "title": "増田様",
 "clientName": "増田様",
 "clientId": "",
@@ -5218,7 +5218,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c14",
-"caseNumber": "旧134",
+"caseNumber": "134",
 "title": "石井考幸様＿ジム山田借金260万円",
 "clientName": "石井考幸様＿ジム山田借金260万円",
 "clientId": "",
@@ -5259,7 +5259,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c15",
-"caseNumber": "旧170",
+"caseNumber": "170",
 "title": "鶴岡様",
 "clientName": "鶴岡様",
 "clientId": "",
@@ -5308,7 +5308,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c16",
-"caseNumber": "旧113",
+"caseNumber": "113",
 "title": "M.Rペイントこと岩田真輝様",
 "clientName": "M.Rペイントこと岩田真輝様",
 "clientId": "",
@@ -5357,7 +5357,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c17",
-"caseNumber": "旧11",
+"caseNumber": "11",
 "title": "フロンティア",
 "clientName": "フロンティア",
 "clientId": "",
@@ -5398,7 +5398,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c18",
-"caseNumber": "旧116",
+"caseNumber": "116",
 "title": "株式会社EVM",
 "clientName": "株式会社EVM",
 "clientId": "",
@@ -5439,7 +5439,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c19",
-"caseNumber": "旧174",
+"caseNumber": "174",
 "title": "新井様",
 "clientName": "新井様",
 "clientId": "",
@@ -5480,7 +5480,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c20",
-"caseNumber": "旧71",
+"caseNumber": "71",
 "title": "上杉昴太様",
 "clientName": "上杉昴太様",
 "clientId": "",
@@ -5521,7 +5521,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c21",
-"caseNumber": "旧3",
+"caseNumber": "3",
 "title": "株式会社イガワ",
 "clientName": "株式会社イガワ",
 "clientId": "",
@@ -5562,7 +5562,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c22",
-"caseNumber": "旧99",
+"caseNumber": "99",
 "title": "HouseDoctor",
 "clientName": "HouseDoctor",
 "clientId": "",
@@ -5611,7 +5611,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c23",
-"caseNumber": "旧14",
+"caseNumber": "14",
 "title": "佐藤亮",
 "clientName": "佐藤亮",
 "clientId": "",
@@ -5660,7 +5660,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c24",
-"caseNumber": "旧111",
+"caseNumber": "111",
 "title": "エンジョイント　松野",
 "clientName": "エンジョイント　松野",
 "clientId": "",
@@ -5709,7 +5709,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c25",
-"caseNumber": "旧167",
+"caseNumber": "167",
 "title": "溝下先生",
 "clientName": "溝下先生",
 "clientId": "",
@@ -5750,7 +5750,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c26",
-"caseNumber": "旧192",
+"caseNumber": "192",
 "title": "島田邦夫様",
 "clientName": "島田邦夫様",
 "clientId": "",
@@ -5791,7 +5791,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c27",
-"caseNumber": "旧189",
+"caseNumber": "189",
 "title": "渥美友加里様",
 "clientName": "渥美友加里様",
 "clientId": "",
@@ -5832,7 +5832,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c28",
-"caseNumber": "旧99",
+"caseNumber": "99",
 "title": "ハウスドクター",
 "clientName": "ハウスドクター",
 "clientId": "",
@@ -5873,7 +5873,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c29",
-"caseNumber": "旧136",
+"caseNumber": "136",
 "title": "山戸雄翔様",
 "clientName": "山戸雄翔様",
 "clientId": "",
@@ -5914,7 +5914,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c30",
-"caseNumber": "旧142",
+"caseNumber": "142",
 "title": "長内将太様",
 "clientName": "長内将太様",
 "clientId": "",
@@ -5955,7 +5955,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c31",
-"caseNumber": "旧193",
+"caseNumber": "193",
 "title": "ワタナベ様",
 "clientName": "ワタナベ様",
 "clientId": "",
@@ -5996,7 +5996,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c32",
-"caseNumber": "旧197",
+"caseNumber": "197",
 "title": "株式会社大晃",
 "clientName": "株式会社大晃",
 "clientId": "",
@@ -6037,7 +6037,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c33",
-"caseNumber": "旧174",
+"caseNumber": "174",
 "title": "鬼頭様",
 "clientName": "鬼頭様",
 "clientId": "",
@@ -6078,7 +6078,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c34",
-"caseNumber": "旧200",
+"caseNumber": "200",
 "title": "空間工房OKOME",
 "clientName": "空間工房OKOME",
 "clientId": "",
@@ -6119,7 +6119,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c35",
-"caseNumber": "旧99",
+"caseNumber": "99",
 "title": "HouseDoctor",
 "clientName": "HouseDoctor",
 "clientId": "",
@@ -6168,7 +6168,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c36",
-"caseNumber": "旧3",
+"caseNumber": "3",
 "title": "株式会社イガワ",
 "clientName": "株式会社イガワ",
 "clientId": "",
@@ -6217,7 +6217,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c37",
-"caseNumber": "旧155",
+"caseNumber": "155",
 "title": "アートスタジオ日下様",
 "clientName": "アートスタジオ日下様",
 "clientId": "",
@@ -6258,7 +6258,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c38",
-"caseNumber": "旧182",
+"caseNumber": "182",
 "title": "ニューエラ",
 "clientName": "ニューエラ",
 "clientId": "",
@@ -6299,7 +6299,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c39",
-"caseNumber": "旧11",
+"caseNumber": "11",
 "title": "フロンティア",
 "clientName": "フロンティア",
 "clientId": "",
@@ -6340,7 +6340,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c40",
-"caseNumber": "旧99",
+"caseNumber": "99",
 "title": "HouseDoctor",
 "clientName": "HouseDoctor",
 "clientId": "",
@@ -6389,7 +6389,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c41",
-"caseNumber": "旧112",
+"caseNumber": "112",
 "title": "アクシエイズム",
 "clientName": "アクシエイズム",
 "clientId": "",
@@ -6430,7 +6430,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c42",
-"caseNumber": "旧201",
+"caseNumber": "201",
 "title": "中山様",
 "clientName": "中山様",
 "clientId": "",
@@ -6471,7 +6471,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c43",
-"caseNumber": "旧204",
+"caseNumber": "204",
 "title": "野村楽器店",
 "clientName": "野村楽器店",
 "clientId": "",
@@ -6512,7 +6512,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c44",
-"caseNumber": "旧196",
+"caseNumber": "196",
 "title": "佐藤様",
 "clientName": "佐藤様",
 "clientId": "",
@@ -6553,7 +6553,7 @@ export const EXCEL_IMPORT_CASES: ExcelImportCase[] = [
 },
 {
 "id": "imp-c45",
-"caseNumber": "旧11",
+"caseNumber": "11",
 "title": "フロンティア",
 "clientName": "フロンティア",
 "clientId": "",

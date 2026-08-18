@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { importExcelCases } from "./import-excel-cases";
+import { linkClientsFromCases } from "./link-clients-from-cases";
 
 const prisma = new PrismaClient();
 
@@ -28,6 +29,7 @@ async function seedUsers() {
 async function main() {
   await seedUsers();
   await importExcelCases(prisma);
+  await linkClientsFromCases(prisma);
 }
 
 main()

@@ -20,8 +20,8 @@ import {
   Wand2,
 } from "lucide-react";
 import { COLORS, FONT_MINCHO, FONT_GOTHIC, PERSONAL_TASK_TABS } from "@/lib/constants";
-import { nextHearing } from "@/lib/business/hearings";
 import { suggestedCaseNumber } from "@/lib/business/caseNumber";
+import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
 import type { Case, User } from "@/lib/types";
 import * as api from "@/lib/api-client";
 import CaseListSidebar from "@/components/CaseListSidebar";
@@ -129,22 +129,7 @@ export default function CaseTrackerApp() {
           c.teamMembers.some((m) => m.toLowerCase().includes(q))
       );
     }
-    return [...list].sort((a, b) => {
-      if (a.priority === "至急" && b.priority !== "至急") return -1;
-      if (b.priority === "至急" && a.priority !== "至急") return 1;
-      const aOurs = a.ballOwner === "事務所";
-      const bOurs = b.ballOwner === "事務所";
-      if (aOurs && !bOurs) return -1;
-      if (bOurs && !aOurs) return 1;
-      const aH = nextHearing(a);
-      const bH = nextHearing(b);
-      const aDate = aH ? aH.nextHearingDate : a.deadline;
-      const bDate = bH ? bH.nextHearingDate : b.deadline;
-      if (aDate && bDate) return aDate < bDate ? -1 : 1;
-      if (aDate && !bDate) return -1;
-      if (!aDate && bDate) return 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    return sortCasesByCaseNumber(list);
   }, [cases, ballFilter, showHiddenCases, searchQuery]);
 
   const openCaseFromElsewhere = (id: string) => {

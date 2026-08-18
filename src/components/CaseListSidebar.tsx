@@ -70,7 +70,7 @@ export default function CaseListSidebar({
           ))}
         </div>
         <button onClick={onToggleShowHidden} className="text-xs self-start underline" style={{ color: showHiddenCases ? COLORS.vermillion : COLORS.slate }}>
-          {showHiddenCases ? "通常の一覧に戻る" : `非表示の案件を表示${hiddenCount > 0 ? `（${hiddenCount}）` : ""}`}
+          {showHiddenCases ? "通常の一覧に戻る" : `非表示の案件を表示（${hiddenCount}件）`}
         </button>
         {!showHiddenCases && (
           <button
