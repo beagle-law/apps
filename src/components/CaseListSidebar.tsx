@@ -4,7 +4,7 @@ import { Search, Plus, Users, Calendar, Eye, EyeOff } from "lucide-react";
 import { COLORS, FONT_MINCHO, BALL_OWNERS, BALL_COLOR } from "@/lib/constants";
 import { formatDateShort } from "@/lib/dates";
 import { nextHearing } from "@/lib/business/hearings";
-import { Badge, Seal } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import type { Case } from "@/lib/types";
 
 interface Props {
@@ -83,7 +83,7 @@ export default function CaseListSidebar({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-2">
+      <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-1.5">
         {cases.length === 0 && (
           <p className="text-sm text-center py-8" style={{ color: COLORS.slate }}>
             {showHiddenCases ? "非表示の案件はありません" : "該当する案件がありません"}
@@ -95,7 +95,7 @@ export default function CaseListSidebar({
             <div key={c.id} className="relative group">
               <button
                 onClick={() => onSelect(c.id)}
-                className="w-full text-left p-2.5 rounded flex flex-col gap-1 transition"
+                className="w-full text-left px-2.5 py-1.5 rounded flex flex-col gap-0.5 transition"
                 style={{
                   backgroundColor: COLORS.card,
                   borderTop: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
@@ -105,15 +105,14 @@ export default function CaseListSidebar({
                   boxShadow: selectedId === c.id ? "0 1px 4px rgba(0,0,0,0.12)" : "none",
                 }}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs truncate" style={{ color: COLORS.slate }}>
-                    No. {c.caseNumber}{c.isPrivate && "　個人メモ"}
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>
+                    No.{c.caseNumber}
                   </span>
-                  <Seal stage={c.stage} size="sm" />
+                  <p className="text-sm font-semibold leading-snug truncate flex-1" style={{ fontFamily: FONT_MINCHO }}>
+                    {c.title}{c.isPrivate && "　個人メモ"}
+                  </p>
                 </div>
-                <p className="text-sm font-semibold leading-snug truncate" style={{ fontFamily: FONT_MINCHO }}>
-                  {c.title}
-                </p>
                 <div className="flex items-center justify-between gap-2 text-xs" style={{ color: COLORS.slate }}>
                   <span className="truncate">{c.clientName}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -122,14 +121,14 @@ export default function CaseListSidebar({
                   </div>
                 </div>
                 {(nh || c.teamMembers.length > 0) && (
-                  <div className="flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>
+                  <div className="flex items-center justify-between gap-2 text-xs" style={{ color: COLORS.slate }}>
                     {c.teamMembers.length > 0 && (
-                      <span className="flex items-center gap-1">
-                        <Users size={11} /> {c.teamMembers.join("・")}
+                      <span className="flex items-center gap-1 truncate">
+                        <Users size={11} className="flex-shrink-0" /> {c.teamMembers.join("・")}
                       </span>
                     )}
                     {nh && (
-                      <span className="flex items-center gap-1" style={{ color: COLORS.vermillion }}>
+                      <span className="flex items-center gap-1 flex-shrink-0" style={{ color: COLORS.vermillion }}>
                         <Calendar size={11} /> {formatDateShort(nh.nextHearingDate)}
                       </span>
                     )}
