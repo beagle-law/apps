@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, canAccessGoalKey } from "@/lib/auth";
 import { GOAL_KEYS } from "@/lib/constants";
 
 async function ensureRecord(key: string, yearMonth: string) {
@@ -20,6 +20,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ key
   if (!GOAL_KEYS.some((g) => g.key === key)) {
     return NextResponse.json({ error: "keyが不正です" }, { status: 400 });
   }
+  if (!canAccessGoalKey(user, key)) {
+    return NextResponse.json({ error: "この目標は閲覧できません" }, { status: 403 });
+  }
   const record = await ensureRecord(key, yearMonth);
   return NextResponse.json(record);
 }
@@ -32,6 +35,12 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
 
   const { key, yearMonth } = await params;
+  if (!GOAL_KEYS.some((g) => g.key === key)) {
+    return NextResponse.json({ error: "keyが不正です" }, { status: 400 });
+  }
+  if (!canAccessGoalKey(user, key)) {
+    return NextResponse.json({ error: "この目標は編集できません" }, { status: 403 });
+  }
   const body = (await req.json()) as { overallPercent?: string };
   const record = await ensureRecord(key, yearMonth);
 

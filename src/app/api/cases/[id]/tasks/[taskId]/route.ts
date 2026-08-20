@@ -11,6 +11,7 @@ interface PatchTaskBody {
   assignee?: string;
   dueDate?: string;
   points?: number | null;
+  caseId?: string; // 別案件を選ぶと、そのタスクが選んだ案件へ移動する（v6 3.2）
 }
 
 export async function PATCH(
@@ -35,12 +36,20 @@ export async function PATCH(
   if (body.dueDate !== undefined) data.dueDate = body.dueDate;
   if (body.points !== undefined) data.points = body.points;
 
+  let targetCaseId = id;
+  if (body.caseId !== undefined && body.caseId !== id) {
+    const destination = await getAccessibleCaseOrNull(body.caseId, user.id);
+    if (!destination) return NextResponse.json({ error: "移動先の案件が見つかりません" }, { status: 404 });
+    data.case = { connect: { id: body.caseId } };
+    targetCaseId = body.caseId;
+  }
+
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "更新する項目がありません" }, { status: 400 });
   }
 
   await prisma.caseTask.update({ where: { id: taskId, caseId: id }, data });
-  const c = await prisma.case.findUnique({ where: { id }, include: caseInclude });
+  const c = await prisma.case.findUnique({ where: { id: targetCaseId }, include: caseInclude });
   return NextResponse.json(serializeCase(c!));
 }
 

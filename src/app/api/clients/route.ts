@@ -18,12 +18,14 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json()) as {
     companyName?: string;
+    clientType?: string;
     address?: string;
     contactName?: string;
     phone?: string;
     email?: string;
     contactMethod?: string;
     source?: string;
+    referrerName?: string;
     notes?: string;
   };
   if (!body.companyName?.trim()) {
@@ -37,12 +39,14 @@ export async function POST(req: NextRequest) {
     data: {
       clientNumber,
       companyName: body.companyName.trim(),
+      clientType: body.clientType?.trim() || "法人",
       address: encryptField(body.address?.trim() || ""),
       contactName: encryptField(body.contactName?.trim() || ""),
       phone: encryptField(body.phone?.trim() || ""),
       email: encryptField(body.email?.trim() || ""),
       contactMethod: body.contactMethod?.trim() || "",
       source: body.source?.trim() || "",
+      referrerName: body.source?.trim() === "紹介" ? body.referrerName?.trim() || "" : "",
       notes: body.notes?.trim() || "",
     },
   });

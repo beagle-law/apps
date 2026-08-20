@@ -7,12 +7,14 @@ import { serializeClient } from "@/lib/client-query";
 
 interface PatchClientBody {
   companyName?: string;
+  clientType?: string;
   address?: string;
   contactName?: string;
   phone?: string;
   email?: string;
   contactMethod?: string;
   source?: string;
+  referrerName?: string;
   notes?: string;
 }
 
@@ -25,12 +27,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const data: Prisma.ClientUpdateInput = {};
   if (body.companyName !== undefined) data.companyName = body.companyName;
+  if (body.clientType !== undefined) data.clientType = body.clientType;
   if (body.address !== undefined) data.address = encryptField(body.address);
   if (body.contactName !== undefined) data.contactName = encryptField(body.contactName);
   if (body.phone !== undefined) data.phone = encryptField(body.phone);
   if (body.email !== undefined) data.email = encryptField(body.email);
   if (body.contactMethod !== undefined) data.contactMethod = body.contactMethod;
   if (body.source !== undefined) data.source = body.source;
+  if (body.referrerName !== undefined) data.referrerName = body.source === "紹介" || body.source === undefined ? body.referrerName : "";
   if (body.notes !== undefined) data.notes = body.notes;
 
   const updated = await prisma.client.update({ where: { id }, data });

@@ -115,7 +115,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [invoiceForm, setInvoiceForm] = useState({
     issueDate: todayStr(),
     applyTax: true,
-    applyWithholding: true,
+    applyWithholding: false,
     expenseAmount: "",
     notes: "",
   });
@@ -137,9 +137,22 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     setConfirmDelete(false);
     setFeeItems([]);
     setBillTimeChargeIds([]);
-    setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: true, expenseAmount: "", notes: "" });
     setNewTaskForm({ description: "", assignee: "", assignedBy: "", dueDate: plusDaysStr(7), points: "" });
     api.fetchUnbilledTimeCharges(selectedCase.id).then(setUnbilledTimeCharges).catch(() => setUnbilledTimeCharges([]));
+
+    // 依頼者（顧客）が法人なら源泉徴収デフォルトON、個人・未連携ならデフォルトOFF（要件v6 3.5）
+    if (selectedCase.clientId) {
+      api
+        .fetchClients()
+        .then((clients) => {
+          const c = clients.find((cl) => cl.id === selectedCase.clientId);
+          const isCorp = c?.clientType === "法人";
+          setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: isCorp, expenseAmount: "", notes: "" });
+        })
+        .catch(() => setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: false, expenseAmount: "", notes: "" }));
+    } else {
+      setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: false, expenseAmount: "", notes: "" });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCase.id]);
 
@@ -361,7 +374,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       await downloadInvoicePdf(inv);
       setFeeItems([]);
       setBillTimeChargeIds([]);
-      setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: true, expenseAmount: "", notes: "" });
+      setInvoiceForm((prev) => ({ issueDate: todayStr(), applyTax: true, applyWithholding: prev.applyWithholding, expenseAmount: "", notes: "" }));
       const remaining = await api.fetchUnbilledTimeCharges(selectedCase.id);
       setUnbilledTimeCharges(remaining);
       setInvoiceRefreshKey((k) => k + 1);

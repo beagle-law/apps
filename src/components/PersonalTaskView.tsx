@@ -23,9 +23,9 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
   const [instructionForm, setInstructionForm] = useState({ caseId: "", assignee: "尾崎", content: "", dueDate: plusDaysStr(7), points: "" });
   const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", hours: "", content: "" });
-  const [reportForm, setReportForm] = useState({ date: todayStr(), content: "" });
+  const [reportForm, setReportForm] = useState({ date: todayStr(), mostImportant: "", todayTasks: "", waitingCases: "", todaySuccess: "" });
   const [editingTask, setEditingTask] = useState<PersonalTask | null>(null);
-  const [taskEditDraft, setTaskEditDraft] = useState({ assignee: "", description: "", dueDate: "", points: "" });
+  const [taskEditDraft, setTaskEditDraft] = useState({ assignee: "", description: "", dueDate: "", points: "", caseId: "" });
 
   const load = () => {
     api.fetchPersonalSummary(personName).then(setSummary).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -35,6 +35,23 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personName]);
+
+  // 日報の引き継ぎロジック（v6 3.4）：本日分が未記入なら、todayTasks/waitingCasesを前回記録から引き継ぐ。
+  // mostImportant/todaySuccessは引き継がない。
+  useEffect(() => {
+    if (!summary?.dailyReports) return;
+    const today = todayStr();
+    if (summary.dailyReports.some((r) => r.date === today)) return;
+    const latest = summary.dailyReports[0];
+    setReportForm({
+      date: today,
+      mostImportant: "",
+      todayTasks: latest?.todayTasks || "",
+      waitingCases: latest?.waitingCases || "",
+      todaySuccess: "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary?.dailyReports]);
 
   const visibleCases = cases.filter((c) => !c.hidden);
 
@@ -70,6 +87,7 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
       description: t.description || "",
       dueDate: t.dueDate || "",
       points: t.points != null ? String(t.points) : "",
+      caseId: t.case.id,
     });
   };
   const saveTaskEdit = async () => {
@@ -80,6 +98,7 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
         description: taskEditDraft.description.trim() || editingTask.description,
         dueDate: taskEditDraft.dueDate,
         points: taskEditDraft.points ? Number(taskEditDraft.points) : null,
+        caseId: taskEditDraft.caseId,
       });
       setEditingTask(null);
       load();
@@ -89,9 +108,10 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
   };
 
   const issueInstruction = async () => {
-    if (!instructionForm.caseId || !instructionForm.content.trim()) return;
+    if (!instructionForm.content.trim()) return;
     try {
-      await api.issueInstruction(instructionForm.caseId, {
+      await api.issueInstruction({
+        caseId: instructionForm.caseId || undefined,
         assignee: instructionForm.assignee,
         content: instructionForm.content,
         dueDate: instructionForm.dueDate,
@@ -128,11 +148,11 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
     }
   };
 
+  const reportHasContent = [reportForm.mostImportant, reportForm.todayTasks, reportForm.waitingCases, reportForm.todaySuccess].some((v) => v.trim());
   const addReport = async () => {
-    if (!reportForm.content.trim()) return;
+    if (!reportHasContent) return;
     try {
       await api.addDailyReport(reportForm);
-      setReportForm({ date: todayStr(), content: "" });
       load();
     } catch (e) {
       onError(e instanceof Error ? e.message : "日報の登録に失敗しました");
@@ -225,7 +245,7 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
             <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Send size={15} /> 指示を出す</h3>
             <div className="flex flex-col gap-2">
               <select value={instructionForm.caseId} onChange={(e) => setInstructionForm({ ...instructionForm, caseId: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-                <option value="">案件を選択</option>
+                <option value="">案件未選択（{instructionForm.assignee}の「とりあえず案件」へ）</option>
                 {visibleCases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
               </select>
               <div className="flex gap-2">
@@ -241,7 +261,7 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
                   {TASK_POINT_OPTIONS.map((p) => <option key={p} value={p}>{p}点</option>)}
                 </select>
               </div>
-              <button onClick={issueInstruction} disabled={!instructionForm.caseId || !instructionForm.content.trim()} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>指示を送信</button>
+              <button onClick={issueInstruction} disabled={!instructionForm.content.trim()} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>指示を送信</button>
             </div>
             {summary.instructions.length > 0 && (
               <div className="mt-4 pt-3 flex flex-col gap-2" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
@@ -311,17 +331,39 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
         {DAILY_REPORT_STAFF.includes(personName) && summary.dailyReports && (
           <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><User size={15} /> 日報</h3>
-            <div className="flex flex-col gap-2 mb-3">
-              <TextInput type="date" value={reportForm.date} onChange={(e) => setReportForm({ ...reportForm, date: e.target.value })} className="w-full sm:w-40" />
-              <textarea value={reportForm.content} onChange={(e) => setReportForm({ ...reportForm, content: e.target.value })} rows={3} placeholder="本日の業務内容..." className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-              <button onClick={addReport} disabled={!reportForm.content.trim()} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>記録する</button>
-            </div>
+            {summary.dailyReports.some((r) => r.date === todayStr()) ? (
+              <p className="text-xs mb-3" style={{ color: COLORS.slate }}>本日分は記録済みです。書き直す場合は下の一覧から削除してください。</p>
+            ) : (
+              <div className="flex flex-col gap-2 mb-3">
+                <TextInput type="date" value={reportForm.date} onChange={(e) => setReportForm({ ...reportForm, date: e.target.value })} className="w-full sm:w-40" />
+                <label className="text-xs" style={{ color: COLORS.slate }}>
+                  本日一番大事なこと
+                  <textarea value={reportForm.mostImportant} onChange={(e) => setReportForm({ ...reportForm, mostImportant: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                </label>
+                <label className="text-xs" style={{ color: COLORS.slate }}>
+                  本日やること
+                  <textarea value={reportForm.todayTasks} onChange={(e) => setReportForm({ ...reportForm, todayTasks: e.target.value })} rows={3} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                </label>
+                <label className="text-xs" style={{ color: COLORS.slate }}>
+                  待ち案件
+                  <textarea value={reportForm.waitingCases} onChange={(e) => setReportForm({ ...reportForm, waitingCases: e.target.value })} rows={3} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                </label>
+                <label className="text-xs" style={{ color: COLORS.slate }}>
+                  今日の成功
+                  <textarea value={reportForm.todaySuccess} onChange={(e) => setReportForm({ ...reportForm, todaySuccess: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                </label>
+                <button onClick={addReport} disabled={!reportHasContent} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>記録する</button>
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               {summary.dailyReports.map((r) => (
                 <div key={r.id} className="flex items-start justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                  <div>
+                  <div className="flex flex-col gap-1">
                     <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(r.createdAt)}</p>
-                    <p className="whitespace-pre-wrap">{r.content}</p>
+                    {r.mostImportant && <p><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日一番大事なこと：</span>{r.mostImportant}</p>}
+                    {r.todayTasks && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日やること：</span>{r.todayTasks}</p>}
+                    {r.waitingCases && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>待ち案件：</span>{r.waitingCases}</p>}
+                    {r.todaySuccess && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>今日の成功：</span>{r.todaySuccess}</p>}
                   </div>
                   <button onClick={() => removeReport(r.id)} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
                 </div>
@@ -354,6 +396,12 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
                   ).map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
+                </select>
+              </label>
+              <label className="text-xs" style={{ color: COLORS.slate }}>
+                案件
+                <select value={taskEditDraft.caseId} onChange={(e) => setTaskEditDraft({ ...taskEditDraft, caseId: e.target.value })} className="mt-1 w-full text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                  {visibleCases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
                 </select>
               </label>
               <div className="flex gap-3">

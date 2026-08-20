@@ -10,7 +10,7 @@ Next.js（App Router） + PostgreSQL（Prisma）で構築した、法律事務�
 - 認証：個別アカウント（loginId + パスワード、bcryptハッシュ）＋署名付きセッションCookie
 - 暗号化：パスワード管理データ・依頼者/相手方の個人情報はAES-256-GCMで保存時暗号化
 - AI機能：Anthropic APIをサーバー側（APIルート）経由で呼び出し（AI入力・経路自動計算・クライアント報告文作成）
-- 請求書PDF：Puppeteer（ローカルは`puppeteer`、本番は`puppeteer-core`+`@sparticuz/chromium`）でサーバー側生成
+- 請求書PDF：jsPDF + html2canvasによるクライアント側生成（ワンクリックで直接ダウンロード、サーバー往復なし）
 - UI：プロトタイプ（`legal-case-tracker.jsx` v3）のデザイン・データ構造・業務ロジックを踏襲
 
 ## 1. ローカル環境のセットアップ
@@ -91,7 +91,7 @@ APIキーは [console.anthropic.com](https://console.anthropic.com/) で発行�
 
 ## 5. 請求書PDFについて
 
-案件詳細の「請求書作成」から実際の事務所書式（宛名・登録番号・二重線の請求額枠・第1/第2区分の明細・振込先定型文）でPDFを直接ダウンロードできます。ローカル開発では`puppeteer`の内蔵Chromiumを、Vercel本番では`puppeteer-core`+`@sparticuz/chromium`を自動的に使い分けます。
+案件詳細の「請求書作成」から実際の事務所書式（宛名・登録番号・二重線の請求額枠・第1/第2区分の明細・振込先定型文）でPDFを直接ダウンロードできます。jsPDF + html2canvasによりブラウザ内で完結して生成するため、サーバー側の追加設定は不要です。
 
 ## 6. Vercelへのデプロイ手順
 
@@ -138,11 +138,6 @@ DATABASE_URL="<本番のDATABASE_URL>" npx prisma migrate deploy
 ```bash
 DATABASE_URL="<本番のDATABASE_URL>" npx prisma db seed
 ```
-
-### 6-5. Puppeteer / @sparticuz/chromium に関する注意
-
-- Vercelの関数サイズ上限に収まるよう、`@sparticuz/chromium` は本番実行時のみ動的importされる設計にしています。
-- 請求書PDF生成は他の処理より時間がかかるため（数秒程度）、Vercelの関数タイムアウト設定が短い場合は延長を検討してください。
 
 ### 6-6. 独自ドメイン・バックアップ
 

@@ -4,18 +4,20 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { COLORS, FONT_MINCHO, PRIORITIES, STAFF_MEMBERS } from "@/lib/constants";
 import { plusDaysStr } from "@/lib/dates";
+import { suggestedCaseNumberForClient } from "@/lib/business/caseNumber";
 import { TextInput, Pill } from "@/components/ui";
 import * as api from "@/lib/api-client";
 import type { Case, Client } from "@/lib/types";
 
 interface Props {
   suggestedCaseNumber: string;
+  cases: Case[];
   onClose: () => void;
   onCreated: (c: Case) => void;
   onError: (msg: string) => void;
 }
 
-export default function NewCaseModal({ suggestedCaseNumber, onClose, onCreated, onError }: Props) {
+export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCreated, onError }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [form, setForm] = useState({
     title: "",
@@ -35,13 +37,15 @@ export default function NewCaseModal({ suggestedCaseNumber, onClose, onCreated, 
 
   const selectClient = (clientId: string) => {
     if (!clientId) {
-      setForm((f) => ({ ...f, clientId: "" }));
+      setForm((f) => ({ ...f, clientId: "", caseNumber: suggestedCaseNumber }));
       return;
     }
     const client = clients.find((c) => c.id === clientId);
     if (!client) return;
-    // v4：顧客を選択しても案件番号は連動させない（案件番号は共通の単純連番ルールのみ）
-    setForm((f) => ({ ...f, clientId, clientName: client.companyName }));
+    // v6 3.6：顧客を選択した場合、1件目は顧客番号そのまま、2件目以降は「顧客番号-連番」を提案する
+    const existingCaseCount = cases.filter((c) => c.clientId === clientId).length;
+    const caseNumber = suggestedCaseNumberForClient(client.clientNumber, existingCaseCount);
+    setForm((f) => ({ ...f, clientId, clientName: client.companyName, caseNumber }));
   };
 
   const submit = async () => {

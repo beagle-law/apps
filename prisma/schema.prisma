@@ -47,12 +47,14 @@ model Client {
   id            String   @id @default(cuid())
   clientNumber  Int      @unique
   companyName   String // 企業名又は屋号（v4でtradeNameを統合）
+  clientType    String   @default("法人") // "法人" | "個人"（源泉所得税の要否判定に使用）
   address       String   @default("") // 暗号化
   contactName   String   @default("") // 暗号化
   phone         String   @default("") // 暗号化
   email         String   @default("") // 暗号化
   contactMethod String   @default("")
-  source        String   @default("")
+  source        String   @default("") // "紹介" | "HP経由"
+  referrerName  String   @default("") // sourceが「紹介」の場合の紹介者名
   notes         String   @default("")
   createdAt     DateTime @default(now())
 
@@ -78,6 +80,7 @@ model Case {
   hidden       Boolean  @default(false)
   teamMembers  String[] @default([])
   deadline     String   @default("")
+  catchAllFor  String   @default("") // 「とりあえず案件」の場合、対象スタッフ名（通常の案件では空）
 
   ownerId   String?
   owner     User?   @relation("CaseOwner", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -224,11 +227,15 @@ model TimeCharge {
 }
 
 model DailyReport {
-  id         String   @id @default(cuid())
-  personName String
-  date       String
-  content    String
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  personName    String
+  date          String
+  caseId        String?
+  mostImportant String   @default("") // 本日一番大事なこと（引き継がない）
+  todayTasks    String   @default("") // 本日やること（未記入日は前回から引き継ぎ）
+  waitingCases  String   @default("") // 待ち案件（未記入日は前回から引き継ぎ）
+  todaySuccess  String   @default("") // 今日の成功（引き継がない）
+  createdAt     DateTime @default(now())
 
   @@index([personName])
 }

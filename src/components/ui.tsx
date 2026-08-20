@@ -91,6 +91,44 @@ export function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** 年タブ・月タブで任意の年月を選択するナビゲーション（目標画面・日報閲覧で共通利用、v6 4.14） */
+export function YearMonthNav({
+  yearMonth,
+  onChange,
+  yearsBefore = 2,
+  yearsAfter = 1,
+}: {
+  yearMonth: string; // "YYYY-MM"
+  onChange: (next: string) => void;
+  yearsBefore?: number;
+  yearsAfter?: number;
+}) {
+  const [selYear, selMonth] = yearMonth.split("-").map(Number);
+  const thisYear = new Date().getFullYear();
+  const years: number[] = [];
+  for (let y = thisYear - yearsBefore; y <= thisYear + yearsAfter; y++) years.push(y);
+  if (!years.includes(selYear)) years.push(selYear);
+  years.sort((a, b) => a - b);
+
+  const setYear = (y: number) => onChange(`${y}-${String(selMonth).padStart(2, "0")}`);
+  const setMonth = (m: number) => onChange(`${selYear}-${String(m).padStart(2, "0")}`);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-1.5 flex-wrap">
+        {years.map((y) => (
+          <Pill key={y} active={y === selYear} color={COLORS.navy} onClick={() => setYear(y)}>{y}年</Pill>
+        ))}
+      </div>
+      <div className="flex gap-1.5 flex-wrap">
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+          <Pill key={m} active={m === selMonth} color={COLORS.brass} onClick={() => setMonth(m)}>{m}月</Pill>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input

@@ -69,7 +69,7 @@ export const TASK_STATUSES = ["未着手", "対応中", "完了"];
 export const PRIORITIES = ["通常", "至急"];
 export const STAFF_MEMBERS = ["宮村", "尾崎", "岩下", "石谷", "上田"];
 export const PERSONAL_TASK_TABS = ["宮村", "尾崎", "岩下"];
-export const DAILY_REPORT_STAFF = ["岩下", "尾崎"];
+export const DAILY_REPORT_STAFF = ["宮村", "岩下", "尾崎"];
 export const CASE_CLASSIFICATIONS = [
   "売買代金請求",
   "損害賠償",

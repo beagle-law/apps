@@ -126,7 +126,7 @@ export const patchTaskStatus = (caseId: string, taskId: string, status: string) 
 export const patchTask = (
   caseId: string,
   taskId: string,
-  payload: Partial<{ description: string; assignee: string; dueDate: string; points: number | null }>
+  payload: Partial<{ description: string; assignee: string; dueDate: string; points: number | null; caseId: string }>
 ) => request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(payload) });
 
 export const finishTask = (caseId: string, taskId: string) =>
@@ -138,10 +138,13 @@ export const scoreTask = (caseId: string, taskId: string, score: number) =>
 export const deleteTask = (caseId: string, taskId: string) =>
   request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "DELETE" });
 
-export const issueInstruction = (
-  caseId: string,
-  payload: { assignee: string; content: string; dueDate?: string; points?: number | null }
-) => request<Case>(`/api/cases/${caseId}/instructions`, { method: "POST", body: JSON.stringify(payload) });
+export const issueInstruction = (payload: {
+  caseId?: string;
+  assignee: string;
+  content: string;
+  dueDate?: string;
+  points?: number | null;
+}) => request<Case>("/api/instructions", { method: "POST", body: JSON.stringify(payload) });
 
 export const addExpense = (
   id: string,
@@ -175,8 +178,14 @@ export const addTimeCharge = (payload: { date: string; caseId: string; hours: nu
   request<TimeCharge>("/api/timecharges", { method: "POST", body: JSON.stringify(payload) });
 export const deleteTimeCharge = (id: string) => request<{ ok: true }>(`/api/timecharges/${id}`, { method: "DELETE" });
 
-export const addDailyReport = (payload: { date: string; content: string }) =>
-  request<DailyReport>("/api/dailyreports", { method: "POST", body: JSON.stringify(payload) });
+export const addDailyReport = (payload: {
+  date: string;
+  caseId?: string;
+  mostImportant: string;
+  todayTasks: string;
+  waitingCases: string;
+  todaySuccess: string;
+}) => request<DailyReport>("/api/dailyreports", { method: "POST", body: JSON.stringify(payload) });
 export const deleteDailyReport = (id: string) => request<{ ok: true }>(`/api/dailyreports/${id}`, { method: "DELETE" });
 
 // ── 個人別サマリー ──────────────────────────────────

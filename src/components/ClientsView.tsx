@@ -13,7 +13,27 @@ interface Props {
   onError: (msg: string) => void;
 }
 
-const emptyForm = { companyName: "", address: "", contactName: "", phone: "", email: "", contactMethod: "", source: "", notes: "" };
+const emptyForm = { companyName: "", clientType: "法人", address: "", contactName: "", phone: "", email: "", contactMethod: "", source: "", referrerName: "", notes: "" };
+
+const RadioGroup = ({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) => (
+  <div className="flex gap-2 mt-1">
+    {options.map((opt) => (
+      <button
+        key={opt}
+        type="button"
+        onClick={() => onChange(opt)}
+        className="text-xs font-bold px-3 py-1.5 rounded-full"
+        style={{
+          backgroundColor: value === opt ? COLORS.navy : "transparent",
+          color: value === opt ? "#fff" : COLORS.navy,
+          border: `1px solid ${COLORS.navy}`,
+        }}
+      >
+        {opt}
+      </button>
+    ))}
+  </div>
+);
 
 export default function ClientsView({ cases, onOpenCase, onError }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
@@ -153,9 +173,35 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
                   <TextInput type="text" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} onBlur={saveDraft} className="mt-1 w-full" />
                 </label>
                 <label className="text-xs" style={{ color: COLORS.slate }}>
-                  きっかけ
-                  <TextInput type="text" value={draft.source} onChange={(e) => setDraft({ ...draft, source: e.target.value })} onBlur={saveDraft} className="mt-1 w-full" />
+                  区分
+                  <RadioGroup
+                    options={["法人", "個人"]}
+                    value={draft.clientType}
+                    onChange={(v) => {
+                      const next = { ...draft, clientType: v };
+                      setDraft(next);
+                      api.patchClient(draft.id, { clientType: v }).then((updated) => setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))).catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
+                    }}
+                  />
                 </label>
+                <label className="text-xs" style={{ color: COLORS.slate }}>
+                  きっかけ
+                  <RadioGroup
+                    options={["紹介", "HP経由"]}
+                    value={draft.source}
+                    onChange={(v) => {
+                      const next = { ...draft, source: v, referrerName: v === "紹介" ? draft.referrerName : "" };
+                      setDraft(next);
+                      api.patchClient(draft.id, { source: v, referrerName: next.referrerName }).then((updated) => setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))).catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
+                    }}
+                  />
+                </label>
+                {draft.source === "紹介" && (
+                  <label className="text-xs sm:col-span-2" style={{ color: COLORS.slate }}>
+                    紹介者名
+                    <TextInput type="text" value={draft.referrerName} onChange={(e) => setDraft({ ...draft, referrerName: e.target.value })} onBlur={saveDraft} className="mt-1 w-full" />
+                  </label>
+                )}
               </div>
               <label className="text-xs block mt-3" style={{ color: COLORS.slate }}>
                 メモ
@@ -205,6 +251,20 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
                 メールアドレス
                 <TextInput type="text" value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })} className="mt-1 w-full" />
               </label>
+              <label className="text-xs" style={{ color: COLORS.slate }}>
+                区分
+                <RadioGroup options={["法人", "個人"]} value={newForm.clientType} onChange={(v) => setNewForm({ ...newForm, clientType: v })} />
+              </label>
+              <label className="text-xs" style={{ color: COLORS.slate }}>
+                きっかけ
+                <RadioGroup options={["紹介", "HP経由"]} value={newForm.source} onChange={(v) => setNewForm({ ...newForm, source: v, referrerName: v === "紹介" ? newForm.referrerName : "" })} />
+              </label>
+              {newForm.source === "紹介" && (
+                <label className="text-xs" style={{ color: COLORS.slate }}>
+                  紹介者名
+                  <TextInput type="text" value={newForm.referrerName} onChange={(e) => setNewForm({ ...newForm, referrerName: e.target.value })} className="mt-1 w-full" />
+                </label>
+              )}
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowNewModal(false)} className="text-sm px-4 py-2 rounded" style={{ color: COLORS.slate }}>キャンセル</button>

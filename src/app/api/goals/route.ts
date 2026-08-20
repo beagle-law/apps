@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, canAccessGoalKey } from "@/lib/auth";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -10,5 +10,5 @@ export async function GET() {
     include: { items: true },
     orderBy: [{ yearMonth: "desc" }],
   });
-  return NextResponse.json(records);
+  return NextResponse.json(records.filter((r) => canAccessGoalKey(user, r.key)));
 }

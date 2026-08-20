@@ -5,12 +5,16 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { COLORS, FONT_MINCHO, STAGES, STAGE_COLOR, STAGE_GROUP, STAFF_MEMBERS } from "@/lib/constants";
 import { plusDaysStr, todayStr } from "@/lib/dates";
 import { getPeriodRange, getPeriodLabel, shiftAnchor, isWithinPeriod, type DashboardGranularity } from "@/lib/business/dashboard";
+import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
+import * as api from "@/lib/api-client";
 import type { Case } from "@/lib/types";
 
 interface Props {
   cases: Case[];
   onGoToActiveCases: () => void;
   onOpenCase: (id: string) => void;
+  onCaseUpdated: (c: Case) => void;
+  onError: (msg: string) => void;
 }
 
 const GRANULARITIES: { key: DashboardGranularity; label: string }[] = [
@@ -24,13 +28,22 @@ function yen(n: number | "") {
   return n === "" || n == null ? "" : `¥${Number(n).toLocaleString("ja-JP")}`;
 }
 
-export default function DashboardView({ cases, onGoToActiveCases, onOpenCase }: Props) {
+export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, onCaseUpdated, onError }: Props) {
   const [granularity, setGranularity] = useState<DashboardGranularity>("all");
   const [anchor, setAnchor] = useState(todayStr());
 
   const visibleCases = cases.filter((c) => !c.hidden && !c.isPrivate);
   const range = getPeriodRange(granularity, anchor);
-  const periodCases = visibleCases.filter((c) => isWithinPeriod(c.createdAt.slice(0, 10), range));
+  const periodCases = sortCasesByCaseNumber(visibleCases.filter((c) => isWithinPeriod(c.createdAt.slice(0, 10), range)));
+
+  const saveFinanceField = async (caseId: string, field: Parameters<typeof api.patchFinance>[1]) => {
+    try {
+      const updated = await api.patchFinance(caseId, field);
+      onCaseUpdated(updated);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "保存に失敗しました");
+    }
+  };
 
   const groupCounts: Record<string, number> = { 対応前: 0, 対応中: 0, 終了: 0 };
   const stageCounts: Record<string, number> = {};
@@ -157,36 +170,115 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase }: 
               </tr>
             </thead>
             <tbody>
-              {periodCases.map((c) => (
-                <tr key={c.id} onClick={() => onOpenCase(c.id)} className="cursor-pointer hover:opacity-70" style={{ borderBottom: `1px solid ${COLORS.paper}` }}>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.caseNumber}</td>
-                  <td className="py-1.5 pr-3 max-w-[180px] truncate">{c.title}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.caseClassification}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.opposingParty}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.opposingCounselPersonName}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.engagementDate}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.litigationEngagementDate}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.noticeSentDate}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.filingDate}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap text-right">{yen(c.claimAmount)}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap text-right">{yen(c.retainerFee)}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap text-right">{yen(c.expectedFee)}</td>
-                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.expectedFeeDate}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="font-bold" style={{ borderTop: `2px solid ${COLORS.brassLight}` }}>
+              <tr className="font-bold" style={{ borderBottom: `2px solid ${COLORS.brassLight}` }}>
                 <td className="py-1.5 pr-3" colSpan={9}>合計</td>
                 <td className="py-1.5 pr-3 text-right">{yen(financeTotals.claimAmount)}</td>
                 <td className="py-1.5 pr-3 text-right">{yen(financeTotals.retainerFee)}</td>
                 <td className="py-1.5 pr-3 text-right">{yen(financeTotals.expectedFee)}</td>
                 <td></td>
               </tr>
-            </tfoot>
+              {periodCases.map((c) => (
+                <tr key={c.id} className="hover:opacity-90" style={{ borderBottom: `1px solid ${COLORS.paper}` }}>
+                  <td className="py-1.5 pr-3 whitespace-nowrap cursor-pointer" onClick={() => onOpenCase(c.id)}>{c.caseNumber}</td>
+                  <td className="py-1.5 pr-3 max-w-[180px] truncate cursor-pointer" onClick={() => onOpenCase(c.id)}>{c.title}</td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <EditableCell value={c.caseClassification} onSave={(v) => saveFinanceField(c.id, { caseClassification: v })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <EditableCell value={c.opposingParty} onSave={(v) => saveFinanceField(c.id, { opposingParty: v })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <EditableCell value={c.opposingCounselPersonName} onSave={(v) => saveFinanceField(c.id, { opposingCounselPersonName: v })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <EditableCell type="date" value={c.engagementDate} onSave={(v) => saveFinanceField(c.id, { engagementDate: v })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <EditableCell type="date" value={c.litigationEngagementDate} onSave={(v) => saveFinanceField(c.id, { litigationEngagementDate: v })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <EditableCell type="date" value={c.noticeSentDate} onSave={(v) => saveFinanceField(c.id, { noticeSentDate: v })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <EditableCell type="date" value={c.filingDate} onSave={(v) => saveFinanceField(c.id, { filingDate: v })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap text-right">
+                    <EditableCell type="number" align="right" value={c.claimAmount === "" ? "" : String(c.claimAmount)} display={yen(c.claimAmount)} onSave={(v) => saveFinanceField(c.id, { claimAmount: v === "" ? "" : Number(v) })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap text-right">
+                    <EditableCell type="number" align="right" value={c.retainerFee === "" ? "" : String(c.retainerFee)} display={yen(c.retainerFee)} onSave={(v) => saveFinanceField(c.id, { retainerFee: v === "" ? "" : Number(v) })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap text-right">
+                    <EditableCell type="number" align="right" value={c.expectedFee === "" ? "" : String(c.expectedFee)} display={yen(c.expectedFee)} onSave={(v) => saveFinanceField(c.id, { expectedFee: v === "" ? "" : Number(v) })} />
+                  </td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">
+                    <EditableCell type="date" value={c.expectedFeeDate} onSave={(v) => saveFinanceField(c.id, { expectedFeeDate: v })} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       </div>
     </div>
+  );
+}
+
+/** 案件データベース表のセル直接編集（v6 4.10）。クリックでinputに切り替わり、blur/Enterで保存する。 */
+function EditableCell({
+  value,
+  display,
+  type = "text",
+  align,
+  onSave,
+}: {
+  value: string;
+  display?: string;
+  type?: "text" | "date" | "number";
+  align?: "right";
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (!editing) {
+    return (
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          setDraft(value);
+          setEditing(true);
+        }}
+        className="block min-h-[1.2em] cursor-text hover:opacity-70"
+        style={{ color: value ? undefined : COLORS.slate }}
+      >
+        {display ?? value ?? "－"}
+      </span>
+    );
+  }
+
+  const commit = () => {
+    setEditing(false);
+    if (draft !== value) onSave(draft);
+  };
+
+  return (
+    <input
+      autoFocus
+      type={type}
+      value={draft}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          setDraft(value);
+          setEditing(false);
+        }
+      }}
+      className="text-xs p-1 rounded outline-none w-full"
+      style={{ border: `1px solid ${COLORS.brassLight}`, textAlign: align }}
+    />
   );
 }

@@ -4,12 +4,14 @@ interface RawClient {
   id: string;
   clientNumber: number;
   companyName: string;
+  clientType: string;
   address: string;
   contactName: string;
   phone: string;
   email: string;
   contactMethod: string;
   source: string;
+  referrerName: string;
   notes: string;
   createdAt: Date;
 }
@@ -19,12 +21,14 @@ export function serializeClient(c: RawClient) {
     id: c.id,
     clientNumber: c.clientNumber,
     companyName: c.companyName,
+    clientType: c.clientType,
     address: decryptField(c.address),
     contactName: decryptField(c.contactName),
     phone: decryptField(c.phone),
     email: decryptField(c.email),
     contactMethod: c.contactMethod,
     source: c.source,
+    referrerName: c.referrerName,
     notes: c.notes,
     createdAt: c.createdAt.toISOString(),
   };

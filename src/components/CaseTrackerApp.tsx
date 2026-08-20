@@ -83,6 +83,10 @@ export default function CaseTrackerApp() {
         const [{ user }, caseList] = await Promise.all([api.fetchMe(), api.fetchCases()]);
         setCurrentUser(user);
         setCases(caseList);
+        // ログイン後の初期表示画面は、ログインしたアカウントの個人タスク画面（v6 2.2）
+        if (PERSONAL_TASK_TABS.includes(user.displayName)) {
+          setView(`person:${user.displayName}`);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "データの読み込みに失敗しました。再読み込みしてください。");
       } finally {
@@ -301,10 +305,12 @@ export default function CaseTrackerApp() {
             setView("list");
           }}
           onOpenCase={openCaseFromElsewhere}
+          onCaseUpdated={updateCaseInState}
+          onError={setError}
         />
       )}
 
-      {view === "goals" && <GoalsView cases={cases} onError={setError} />}
+      {view === "goals" && <GoalsView cases={cases} currentUser={currentUser} onError={setError} />}
 
       {view === "knowledge" && <KnowledgeView onError={setError} />}
 
@@ -315,6 +321,7 @@ export default function CaseTrackerApp() {
       {showNewCaseModal && (
         <NewCaseModal
           suggestedCaseNumber={suggestedCaseNumber(cases.map((c) => c.caseNumber))}
+          cases={cases}
           onClose={() => setShowNewCaseModal(false)}
           onCreated={addCaseToState}
           onError={setError}

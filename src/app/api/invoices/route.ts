@@ -45,6 +45,10 @@ export async function POST(req: NextRequest) {
 
   const invoiceNumber = (last?.invoiceNumber ?? 0) + 1;
 
+  // 依頼者（顧客）が法人の場合は源泉徴収を自動でON、個人または顧客未連携の場合はデフォルトOFF（手動で上書き可）
+  const client = targetCase.clientId ? await prisma.client.findUnique({ where: { id: targetCase.clientId } }) : null;
+  const defaultApplyWithholding = client?.clientType === "法人";
+
   const created = await prisma.$transaction(async (tx) => {
     const invoice = await tx.invoice.create({
       data: {
@@ -54,7 +58,7 @@ export async function POST(req: NextRequest) {
         caseTitle: targetCase.title,
         issueDate: body.issueDate!,
         applyTax: body.applyTax ?? true,
-        applyWithholding: body.applyWithholding ?? true,
+        applyWithholding: body.applyWithholding ?? defaultApplyWithholding,
         expenseAmount: Math.round(Number(body.expenseAmount) || 0),
         notes: body.notes?.trim() || "",
         feeItems: { create: body.feeItems!.map((f) => ({ description: f.description, amount: Math.round(f.amount) })) },

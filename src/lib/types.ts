@@ -67,6 +67,7 @@ export interface Case {
   hidden: boolean;
   teamMembers: string[];
   deadline: string;
+  catchAllFor: string;
 
   ownerId: string;
   isPrivate: boolean;
@@ -114,12 +115,14 @@ export interface Client {
   id: string;
   clientNumber: number;
   companyName: string;
+  clientType: string; // "法人" | "個人"
   address: string;
   contactName: string;
   phone: string;
   email: string;
   contactMethod: string;
-  source: string;
+  source: string; // "紹介" | "HP経由"
+  referrerName: string;
   notes: string;
   createdAt: string;
 }
@@ -140,7 +143,11 @@ export interface DailyReport {
   id: string;
   personName: string;
   date: string;
-  content: string;
+  caseId: string | null;
+  mostImportant: string;
+  todayTasks: string;
+  waitingCases: string;
+  todaySuccess: string;
   createdAt: string;
 }
 

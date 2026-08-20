@@ -14,11 +14,22 @@ export interface InvoiceTotal {
   total: number;
 }
 
-/** Ported verbatim from the prototype's invoiceTotal(): 消費税10%・源泉徴収10.21%、それぞれ独立にroundする。 */
+/**
+ * 源泉所得税の計算式（要件定義書v6 3.5）：
+ * 弁護士報酬合計が100万円以下 → 報酬合計 × 10.21%
+ * 100万円超 → （報酬合計－100万円）× 20.42% ＋ 102,100円
+ */
+export function withholdingTax(feeSubtotal: number): number {
+  if (feeSubtotal <= 1_000_000) {
+    return Math.round(feeSubtotal * 0.1021);
+  }
+  return Math.round((feeSubtotal - 1_000_000) * 0.2042) + 102_100;
+}
+
 export function invoiceTotal(inv: InvoiceTotalInput): InvoiceTotal {
   const feeSubtotal = inv.feeItems.reduce((sum, item) => sum + item.amount, 0);
   const tax = inv.applyTax ? Math.round(feeSubtotal * 0.1) : 0;
-  const withholding = inv.applyWithholding ? Math.round(feeSubtotal * 0.1021) : 0;
+  const withholding = inv.applyWithholding ? withholdingTax(feeSubtotal) : 0;
   const section1 = feeSubtotal + tax - withholding;
   const section2 = Number(inv.expenseAmount) || 0;
   const total = section1 + section2;

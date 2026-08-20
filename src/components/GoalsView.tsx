@@ -2,29 +2,40 @@
 
 import { useEffect, useState } from "react";
 import { COLORS, FONT_MINCHO, GOAL_KEYS, TASK_LEVEL_TABLE, EXECUTION_LEVELS, PERSONAL_TASK_TABS } from "@/lib/constants";
-import { currentYearMonth, shiftYearMonth, formatYearMonth } from "@/lib/dates";
+import { currentYearMonth, formatYearMonth } from "@/lib/dates";
 import { monthlyPointTotals, monthlyExecutionAverages, monthlyPersonnelScores } from "@/lib/business/goals";
+import { YearMonthNav } from "@/components/ui";
 import * as api from "@/lib/api-client";
-import type { Case, GoalRecord } from "@/lib/types";
+import type { Case, GoalRecord, User } from "@/lib/types";
 
 interface Props {
   cases: Case[];
+  currentUser: User;
   onError: (msg: string) => void;
 }
 
 const RESULT_CYCLE = ["", "○", "△", "×"];
 
-export default function GoalsView({ cases, onError }: Props) {
+export default function GoalsView({ cases, currentUser, onError }: Props) {
   const [records, setRecords] = useState<GoalRecord[]>([]);
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
+  const [selectedYearMonth, setSelectedYearMonth] = useState(currentYearMonth());
 
   const load = () => {
     api.fetchGoalRecords().then(setRecords).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
   };
   useEffect(load, []);
 
-  const cm = currentYearMonth();
-  const prevMonth = shiftYearMonth(cm, -1);
+  // 目標画面の閲覧制限（v6 2.3）：宮村は全部、尾崎は全社+尾崎のみ、岩下は全社+岩下のみ
+  const visibleGoalKeys = GOAL_KEYS.filter((g) => {
+    if (g.key === "company") return true;
+    if (currentUser.role === "admin") return true;
+    if (g.key === "ozaki") return currentUser.displayName === "尾崎";
+    if (g.key === "iwashita") return currentUser.displayName === "岩下";
+    return false;
+  });
+
+  const cm = currentYearMonth(); // タスク難易度点・対応評価点・人事評価点は常に「当月」集計（v6 4.13）
   const allTasks = cases.flatMap((c) => c.tasks);
   const pointTotals = monthlyPointTotals(allTasks);
   const pointMax = Math.max(1, ...Object.values(pointTotals));
@@ -34,11 +45,11 @@ export default function GoalsView({ cases, onError }: Props) {
   const findRecord = (key: string, yearMonth: string) => records.find((r) => r.key === key && r.yearMonth === yearMonth);
 
   const addItem = async (key: string) => {
-    const text = (newItemText[`${key}-${cm}`] || "").trim();
+    const text = (newItemText[`${key}-${selectedYearMonth}`] || "").trim();
     if (!text) return;
     try {
-      await api.addGoalItem(key, cm, text);
-      setNewItemText((prev) => ({ ...prev, [`${key}-${cm}`]: "" }));
+      await api.addGoalItem(key, selectedYearMonth, text);
+      setNewItemText((prev) => ({ ...prev, [`${key}-${selectedYearMonth}`]: "" }));
       load();
     } catch (e) {
       onError(e instanceof Error ? e.message : "追加に失敗しました");
@@ -146,26 +157,43 @@ export default function GoalsView({ cases, onError }: Props) {
           <p className="text-xs mt-2" style={{ color: COLORS.slate }}>{formatYearMonth(cm)}に完了し、難易度点・評価点の両方が付いているタスクのみが対象です。</p>
         </div>
 
-        {GOAL_KEYS.map((g) => {
-          const current = findRecord(g.key, cm);
-          const prev = findRecord(g.key, prevMonth);
-          const history = records.filter((r) => r.key === g.key && r.yearMonth !== cm && r.items.length > 0).sort((a, b) => (a.yearMonth < b.yearMonth ? 1 : -1));
+        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>閲覧・編集する年月</h3>
+          <YearMonthNav yearMonth={selectedYearMonth} onChange={setSelectedYearMonth} />
+        </div>
+
+        {visibleGoalKeys.map((g) => {
+          const current = findRecord(g.key, selectedYearMonth);
+          const history = records
+            .filter((r) => r.key === g.key && r.yearMonth !== selectedYearMonth && r.items.length > 0)
+            .sort((a, b) => (a.yearMonth < b.yearMonth ? 1 : -1));
           return (
             <div key={g.key} className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-              <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{g.label}（{formatYearMonth(cm)}）</h3>
-              <div className="flex flex-col gap-1.5 mb-3">
+              <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{g.label}（{formatYearMonth(selectedYearMonth)}）</h3>
+              <div className="flex flex-col gap-2 mb-3">
                 {(current?.items || []).map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                    <span className="flex-1">{item.text}</span>
-                    <button onClick={() => removeItem(g.key, cm, item.id)} className="text-xs" style={{ color: COLORS.slate }}>削除</button>
+                  <div key={item.id} className="p-2 rounded text-sm" style={{ backgroundColor: COLORS.paper }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex-1">{item.text}</span>
+                      <button onClick={() => cycleResult(g.key, selectedYearMonth, item.id, item.result)} className="text-sm font-bold w-7 h-7 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>{item.result || "－"}</button>
+                      <button onClick={() => removeItem(g.key, selectedYearMonth, item.id)} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
+                    </div>
+                    <textarea
+                      defaultValue={item.note}
+                      onBlur={(e) => saveNote(g.key, selectedYearMonth, item.id, e.target.value)}
+                      placeholder="評価メモ"
+                      rows={2}
+                      className="w-full text-xs p-1.5 rounded outline-none mt-1 resize-none"
+                      style={{ border: `1px solid ${COLORS.brassLight}` }}
+                    />
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-3">
                 <input
                   type="text"
-                  value={newItemText[`${g.key}-${cm}`] || ""}
-                  onChange={(e) => setNewItemText((prev) => ({ ...prev, [`${g.key}-${cm}`]: e.target.value }))}
+                  value={newItemText[`${g.key}-${selectedYearMonth}`] || ""}
+                  onChange={(e) => setNewItemText((prev) => ({ ...prev, [`${g.key}-${selectedYearMonth}`]: e.target.value }))}
                   onKeyDown={(e) => e.key === "Enter" && addItem(g.key)}
                   placeholder="項目を追加（案件名・タスク名など）"
                   className="flex-1 text-sm p-2 rounded outline-none"
@@ -173,52 +201,29 @@ export default function GoalsView({ cases, onError }: Props) {
                 />
                 <button onClick={() => addItem(g.key)} className="text-sm font-bold px-3 rounded" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
               </div>
-
-              {prev && prev.items.length > 0 && (
-                <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
-                  <h4 className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>{formatYearMonth(prevMonth)}の評価</h4>
-                  <div className="flex flex-col gap-2 mb-3">
-                    {prev.items.map((item) => (
-                      <div key={item.id} className="p-2 rounded text-sm" style={{ backgroundColor: COLORS.paper }}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="flex-1">{item.text}</span>
-                          <button onClick={() => cycleResult(g.key, prevMonth, item.id, item.result)} className="text-sm font-bold w-7 h-7 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>{item.result || "－"}</button>
-                        </div>
-                        <textarea
-                          defaultValue={item.note}
-                          onBlur={(e) => saveNote(g.key, prevMonth, item.id, e.target.value)}
-                          placeholder="評価メモ"
-                          rows={2}
-                          className="w-full text-xs p-1.5 rounded outline-none mt-1 resize-none"
-                          style={{ border: `1px solid ${COLORS.brassLight}` }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <label className="text-xs" style={{ color: COLORS.slate }}>
-                    達成率（%）
-                    <input
-                      type="text"
-                      defaultValue={prev.overallPercent}
-                      onBlur={(e) => saveOverall(g.key, prevMonth, e.target.value)}
-                      className="mt-1 ml-2 text-sm p-1.5 rounded outline-none w-20"
-                      style={{ border: `1px solid ${COLORS.brassLight}` }}
-                    />
-                  </label>
-                </div>
-              )}
+              <label className="text-xs" style={{ color: COLORS.slate }}>
+                達成率（%）
+                <input
+                  key={`${g.key}-${selectedYearMonth}-overall`}
+                  type="text"
+                  defaultValue={current?.overallPercent || ""}
+                  onBlur={(e) => saveOverall(g.key, selectedYearMonth, e.target.value)}
+                  className="mt-1 ml-2 text-sm p-1.5 rounded outline-none w-20"
+                  style={{ border: `1px solid ${COLORS.brassLight}` }}
+                />
+              </label>
 
               {history.length > 0 && (
                 <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
                   <h4 className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>過去の記録</h4>
                   <div className="flex flex-col gap-2">
                     {history.map((r) => (
-                      <div key={r.id} className="p-2 rounded text-xs" style={{ backgroundColor: COLORS.paper }}>
+                      <button key={r.id} onClick={() => setSelectedYearMonth(r.yearMonth)} className="text-left p-2 rounded text-xs" style={{ backgroundColor: COLORS.paper }}>
                         <p className="font-bold mb-1">{formatYearMonth(r.yearMonth)}　達成率：{r.overallPercent || "－"}%</p>
                         {r.items.map((item) => (
                           <p key={item.id}>{item.text}　{item.result || "－"}{item.note ? `　${item.note}` : ""}</p>
                         ))}
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>

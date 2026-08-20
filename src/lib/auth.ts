@@ -43,3 +43,16 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 export function isAdmin(user: CurrentUser): boolean {
   return user.role === "admin";
 }
+
+/**
+ * 目標画面の閲覧制限（要件定義書v6 2.3）：
+ * 宮村（管理者）は全社目標・尾崎目標・岩下目標すべて閲覧可。
+ * 尾崎は全社目標・尾崎目標のみ、岩下は全社目標・岩下目標のみ閲覧可。
+ */
+export function canAccessGoalKey(user: CurrentUser, key: string): boolean {
+  if (key === "company") return true;
+  if (isAdmin(user)) return true;
+  if (key === "ozaki") return user.displayName === "尾崎";
+  if (key === "iwashita") return user.displayName === "岩下";
+  return false;
+}
