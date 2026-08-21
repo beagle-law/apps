@@ -53,6 +53,7 @@ export const createCase = (payload: {
   priority?: string;
   initialNote?: string;
   author?: string;
+  isTimeChargeCase?: boolean;
 }) => request<Case>("/api/cases", { method: "POST", body: JSON.stringify(payload) });
 
 export const patchCase = (
@@ -70,6 +71,7 @@ export const patchCase = (
     poaStatus: string;
     contractStatus: string;
     retainerStatus: string;
+    isTimeChargeCase: boolean;
     autoNote: string;
     author: string;
   }>
@@ -120,23 +122,30 @@ export const addTask = (
   payload: { description: string; assignee?: string; assignedBy?: string; dueDate?: string; points?: number | null }
 ) => request<Case>(`/api/cases/${id}/tasks`, { method: "POST", body: JSON.stringify(payload) });
 
-export const patchTaskStatus = (caseId: string, taskId: string, status: string) =>
-  request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ status }) });
-
 export const patchTask = (
   caseId: string,
   taskId: string,
-  payload: Partial<{ description: string; assignee: string; dueDate: string; points: number | null; caseId: string }>
+  payload: Partial<{ description: string; assignee: string; dueDate: string; points: number | null; kind: string; caseId: string }>
 ) => request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(payload) });
 
-export const finishTask = (caseId: string, taskId: string) =>
-  request<Case>(`/api/cases/${caseId}/tasks/${taskId}/finish`, { method: "POST" });
+export const completeReportTask = (
+  caseId: string,
+  taskId: string,
+  payload: { description?: string; assignee: string; dueDate?: string; points?: number | null; caseId?: string }
+) =>
+  request<{ case: Case; redirectToPerson: string | null }>(`/api/cases/${caseId}/tasks/${taskId}/complete-report`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 
 export const scoreTask = (caseId: string, taskId: string, score: number) =>
   request<Case>(`/api/cases/${caseId}/tasks/${taskId}/score`, { method: "POST", body: JSON.stringify({ score }) });
 
 export const deleteTask = (caseId: string, taskId: string) =>
   request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "DELETE" });
+
+export const reorderTasks = (taskIds: string[]) =>
+  request<{ ok: true }>("/api/tasks/reorder", { method: "POST", body: JSON.stringify({ taskIds }) });
 
 export const issueInstruction = (payload: {
   caseId?: string;
@@ -174,7 +183,7 @@ export const patchPassword = (id: string, payload: Partial<Omit<PasswordEntry, "
 export const deletePassword = (id: string) => request<{ ok: true }>(`/api/passwords/${id}`, { method: "DELETE" });
 
 // ── タイムチャージ・日報 ──────────────────────────
-export const addTimeCharge = (payload: { date: string; caseId: string; hours: number; content?: string }) =>
+export const addTimeCharge = (payload: { date: string; caseId: string; startTime?: string; endTime?: string; hours: number; content?: string }) =>
   request<TimeCharge>("/api/timecharges", { method: "POST", body: JSON.stringify(payload) });
 export const deleteTimeCharge = (id: string) => request<{ ok: true }>(`/api/timecharges/${id}`, { method: "DELETE" });
 

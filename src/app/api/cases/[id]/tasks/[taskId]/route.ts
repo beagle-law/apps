@@ -6,11 +6,11 @@ import { caseInclude, serializeCase } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
 
 interface PatchTaskBody {
-  status?: string; // クライアントが「次のステータス」（サイクル後の値）を送ってくる
   description?: string;
   assignee?: string;
   dueDate?: string;
   points?: number | null;
+  kind?: string; // "task" | "waiting"（「待ちタスクへ移動」用、v7 3.2）
   caseId?: string; // 別案件を選ぶと、そのタスクが選んだ案件へ移動する（v6 3.2）
 }
 
@@ -27,14 +27,11 @@ export async function PATCH(
 
   const body = (await req.json()) as PatchTaskBody;
   const data: Prisma.CaseTaskUpdateInput = {};
-  if (body.status !== undefined) {
-    data.status = body.status;
-    data.completedAt = body.status === "完了" ? new Date().toISOString() : "";
-  }
   if (body.description !== undefined && body.description.trim()) data.description = body.description.trim();
   if (body.assignee !== undefined) data.assignee = body.assignee;
   if (body.dueDate !== undefined) data.dueDate = body.dueDate;
   if (body.points !== undefined) data.points = body.points;
+  if (body.kind !== undefined) data.kind = body.kind;
 
   let targetCaseId = id;
   if (body.caseId !== undefined && body.caseId !== id) {

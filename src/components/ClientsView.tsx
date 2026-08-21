@@ -117,6 +117,7 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
           {filtered.length === 0 && <p className="text-sm text-center py-8" style={{ color: COLORS.slate }}>該当する顧客がいません</p>}
           {filtered.map((c) => (
             <button key={c.id} onClick={() => setSelectedId(c.id)} className="text-left p-3 rounded flex flex-col gap-1" style={{ backgroundColor: COLORS.card, border: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}` }}>
+              <p className="text-xs" style={{ color: COLORS.slate }}>No.{c.clientNumber}</p>
               <p className="text-sm font-semibold" style={{ fontFamily: FONT_MINCHO }}>{c.companyName}</p>
               <div className="flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>
                 <span>{c.contactName ? `${c.contactName}様` : ""}</span>

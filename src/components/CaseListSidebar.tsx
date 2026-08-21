@@ -1,10 +1,7 @@
 "use client";
 
-import { Search, Plus, Users, Calendar, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, Users, Eye, EyeOff } from "lucide-react";
 import { COLORS, FONT_MINCHO, BALL_OWNERS, BALL_COLOR } from "@/lib/constants";
-import { formatDateShort } from "@/lib/dates";
-import { nextHearing } from "@/lib/business/hearings";
-import { Badge } from "@/components/ui";
 import type { Case } from "@/lib/types";
 
 interface Props {
@@ -89,66 +86,46 @@ export default function CaseListSidebar({
             {showHiddenCases ? "非表示の案件はありません" : "該当する案件がありません"}
           </p>
         )}
-        {cases.map((c) => {
-          const nh = nextHearing(c);
-          return (
-            <div key={c.id} className="relative group">
-              <button
-                onClick={() => onSelect(c.id)}
-                className="w-full text-left px-2.5 py-1.5 rounded flex flex-col gap-0.5 transition"
-                style={{
-                  backgroundColor: COLORS.card,
-                  borderTop: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                  borderRight: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                  borderBottom: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                  borderLeft: c.priority === "至急" ? `4px solid ${COLORS.vermillion}` : `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                  boxShadow: selectedId === c.id ? "0 1px 4px rgba(0,0,0,0.12)" : "none",
-                }}
-              >
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>
-                    No.{c.caseNumber}
+        {cases.map((c) => (
+          <div key={c.id} className="relative group">
+            <button
+              onClick={() => onSelect(c.id)}
+              className="w-full text-left px-2.5 py-1.5 rounded flex flex-col gap-0.5 transition"
+              style={{
+                backgroundColor: COLORS.card,
+                borderTop: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                borderRight: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                borderBottom: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                borderLeft: c.priority === "至急" ? `4px solid ${COLORS.vermillion}` : `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                boxShadow: selectedId === c.id ? "0 1px 4px rgba(0,0,0,0.12)" : "none",
+              }}
+            >
+              <div className="flex items-center gap-2 text-xs">
+                <span className="flex-shrink-0" style={{ color: COLORS.slate }}>No.{c.caseNumber}</span>
+                <p className="text-sm font-semibold leading-snug truncate flex-1" style={{ fontFamily: FONT_MINCHO }}>
+                  {c.title}{c.isPrivate && "　個人メモ"}
+                </p>
+                <span className="font-bold flex-shrink-0" style={{ color: BALL_COLOR[c.ballOwner] }}>{c.ballOwner}{c.ballAssignee ? `：${c.ballAssignee}` : ""}</span>
+                {c.teamMembers.length > 0 && (
+                  <span className="flex items-center gap-1 flex-shrink-0" style={{ color: COLORS.slate }}>
+                    <Users size={11} /> {c.teamMembers.join("・")}
                   </span>
-                  <p className="text-sm font-semibold leading-snug truncate flex-1" style={{ fontFamily: FONT_MINCHO }}>
-                    {c.title}{c.isPrivate && "　個人メモ"}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-xs" style={{ color: COLORS.slate }}>
-                  <span className="truncate">{c.clientName}</span>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {c.caseClassification && <Badge color={COLORS.brass}>{c.caseClassification}</Badge>}
-                    <span className="font-bold" style={{ color: BALL_COLOR[c.ballOwner] }}>{c.ballOwner}{c.ballAssignee ? `：${c.ballAssignee}` : ""}</span>
-                  </div>
-                </div>
-                {(nh || c.teamMembers.length > 0) && (
-                  <div className="flex items-center justify-between gap-2 text-xs" style={{ color: COLORS.slate }}>
-                    {c.teamMembers.length > 0 && (
-                      <span className="flex items-center gap-1 truncate">
-                        <Users size={11} className="flex-shrink-0" /> {c.teamMembers.join("・")}
-                      </span>
-                    )}
-                    {nh && (
-                      <span className="flex items-center gap-1 flex-shrink-0" style={{ color: COLORS.vermillion }}>
-                        <Calendar size={11} /> {formatDateShort(nh.nextHearingDate)}
-                      </span>
-                    )}
-                  </div>
                 )}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleHidden(c.id);
-                }}
-                className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition"
-                style={{ color: COLORS.slate }}
-                title={c.hidden ? "表示に戻す" : "案件を非表示にする"}
-              >
-                {c.hidden ? <Eye size={13} /> : <EyeOff size={13} />}
-              </button>
-            </div>
-          );
-        })}
+              </div>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleHidden(c.id);
+              }}
+              className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition"
+              style={{ color: COLORS.slate }}
+              title={c.hidden ? "表示に戻す" : "案件を非表示にする"}
+            >
+              {c.hidden ? <Eye size={13} /> : <EyeOff size={13} />}
+            </button>
+          </div>
+        ))}
       </div>
     </aside>
   );

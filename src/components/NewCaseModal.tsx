@@ -28,6 +28,7 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
     deadline: plusDaysStr(7),
     priority: "通常",
     initialNote: "",
+    isTimeChargeCase: false,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -61,6 +62,7 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
         deadline: form.deadline,
         priority: form.priority,
         initialNote: form.initialNote,
+        isTimeChargeCase: form.isTimeChargeCase,
       });
       onCreated(created);
       onClose();
@@ -141,6 +143,10 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
           <label className="text-xs" style={{ color: COLORS.slate }}>
             初回メモ（任意）
             <textarea value={form.initialNote} onChange={(e) => setForm({ ...form, initialNote: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+          </label>
+          <label className="flex items-center gap-2 text-xs" style={{ color: COLORS.slate }}>
+            <input type="checkbox" checked={form.isTimeChargeCase} onChange={(e) => setForm({ ...form, isTimeChargeCase: e.target.checked })} />
+            タイムチャージ案件（タイムチャージ入力の案件選択に表示する）
           </label>
         </div>
         <div className="flex justify-end gap-2 mt-5">

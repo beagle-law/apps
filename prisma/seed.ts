@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { importExcelCases } from "./import-excel-cases";
 import { linkClientsFromCases } from "./link-clients-from-cases";
+import { recomputeAllClientNumbers } from "./recompute-client-numbers";
 
 const prisma = new PrismaClient();
 
@@ -48,7 +49,13 @@ async function seedInternalRecords() {
 
   for (const name of CATCH_ALL_STAFF) {
     const existing = await prisma.case.findFirst({ where: { catchAllFor: name } });
-    if (existing) continue;
+    if (existing) {
+      if (!existing.isTimeChargeCase) {
+        await prisma.case.update({ where: { id: existing.id }, data: { isTimeChargeCase: true } });
+        console.log(`案件No.000「${name}とりあえず」のisTimeChargeCaseをtrueに更新しました。`);
+      }
+      continue;
+    }
     await prisma.case.create({
       data: {
         caseNumber: "000",
@@ -58,6 +65,7 @@ async function seedInternalRecords() {
         stage: "受任・対応中",
         catchAllFor: name,
         teamMembers: [name],
+        isTimeChargeCase: true,
       },
     });
     console.log(`案件No.000「${name}とりあえず」を作成しました。`);
@@ -69,6 +77,7 @@ async function main() {
   await importExcelCases(prisma);
   await linkClientsFromCases(prisma);
   await seedInternalRecords();
+  await recomputeAllClientNumbers(prisma);
 }
 
 main()

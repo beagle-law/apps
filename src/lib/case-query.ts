@@ -25,6 +25,7 @@ export function serializeCase(c: FullCase) {
     teamMembers: c.teamMembers,
     deadline: c.deadline,
     catchAllFor: c.catchAllFor,
+    isTimeChargeCase: c.isTimeChargeCase,
     ownerId: c.ownerId ?? "",
     isPrivate: c.isPrivate,
 

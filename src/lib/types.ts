@@ -21,6 +21,7 @@ export interface CaseTask {
   isInstruction: boolean;
   points: number | null;
   executionScore: number | null;
+  sortOrder: number | null;
   completedAt: string;
   createdAt: string;
 }
@@ -68,6 +69,7 @@ export interface Case {
   teamMembers: string[];
   deadline: string;
   catchAllFor: string;
+  isTimeChargeCase: boolean;
 
   ownerId: string;
   isPrivate: boolean;
@@ -132,6 +134,8 @@ export interface TimeCharge {
   personName: string;
   date: string;
   caseId: string;
+  startTime: string;
+  endTime: string;
   hours: number;
   content: string;
   billed: boolean;

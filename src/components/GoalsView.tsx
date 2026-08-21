@@ -164,9 +164,6 @@ export default function GoalsView({ cases, currentUser, onError }: Props) {
 
         {visibleGoalKeys.map((g) => {
           const current = findRecord(g.key, selectedYearMonth);
-          const history = records
-            .filter((r) => r.key === g.key && r.yearMonth !== selectedYearMonth && r.items.length > 0)
-            .sort((a, b) => (a.yearMonth < b.yearMonth ? 1 : -1));
           return (
             <div key={g.key} className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
               <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{g.label}（{formatYearMonth(selectedYearMonth)}）</h3>
@@ -212,22 +209,6 @@ export default function GoalsView({ cases, currentUser, onError }: Props) {
                   style={{ border: `1px solid ${COLORS.brassLight}` }}
                 />
               </label>
-
-              {history.length > 0 && (
-                <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
-                  <h4 className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>過去の記録</h4>
-                  <div className="flex flex-col gap-2">
-                    {history.map((r) => (
-                      <button key={r.id} onClick={() => setSelectedYearMonth(r.yearMonth)} className="text-left p-2 rounded text-xs" style={{ backgroundColor: COLORS.paper }}>
-                        <p className="font-bold mb-1">{formatYearMonth(r.yearMonth)}　達成率：{r.overallPercent || "－"}%</p>
-                        {r.items.map((item) => (
-                          <p key={item.id}>{item.text}　{item.result || "－"}{item.note ? `　${item.note}` : ""}</p>
-                        ))}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}

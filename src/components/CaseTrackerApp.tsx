@@ -99,6 +99,36 @@ export default function CaseTrackerApp() {
   const isAdmin = currentUser?.role === "admin";
 
   const updateCaseInState = (updated: Case) => setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+
+  /**
+   * タスク編集/終了報告モーダルの結果を反映する。案件間移動があった場合、
+   * 移動元の案件からは同時にタスクを取り除く（同一データを参照しているため、v7 3.2）。
+   */
+  const applyTaskCaseUpdate = (updated: Case, movedFrom: { caseId: string; taskId: string } | null) => {
+    setCases((prev) => {
+      let next = prev.map((c) => (c.id === updated.id ? updated : c));
+      if (movedFrom && movedFrom.caseId !== updated.id) {
+        next = next.map((c) =>
+          c.id === movedFrom.caseId ? { ...c, tasks: c.tasks.filter((t) => t.id !== movedFrom.taskId) } : c
+        );
+      }
+      return next;
+    });
+  };
+
+  // ヘッダーの個人タブのタスク件数バッジ：案件データが変わったときだけ再計算する（v7 4.5）
+  const personalOpenTaskCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const name of PERSONAL_TASK_TABS) counts[name] = 0;
+    for (const c of cases) {
+      for (const t of c.tasks) {
+        if (t.status === "完了") continue;
+        const key = t.assignee && t.assignee.trim() ? t.assignee : "宮村"; // 未割当は宮村に計上
+        if (key in counts) counts[key] += 1;
+      }
+    }
+    return counts;
+  }, [cases]);
   const removeCaseFromState = (id: string) => {
     setCases((prev) => prev.filter((c) => c.id !== id));
     if (selectedId === id) setSelectedId(null);
@@ -207,7 +237,7 @@ export default function CaseTrackerApp() {
                 borderRadius: "6px 6px 0 0",
               }}
             >
-              <ClipboardList size={14} /> {name}
+              <ClipboardList size={14} /> {name}{personalOpenTaskCounts[name] ? `（${personalOpenTaskCounts[name]}）` : ""}
             </button>
           );
         })}
@@ -270,8 +300,11 @@ export default function CaseTrackerApp() {
             ) : (
               <CaseDetailPanel
                 selectedCase={selectedCase}
+                cases={cases}
+                onSelectCase={setSelectedId}
                 onCaseUpdated={updateCaseInState}
                 onCaseDeleted={removeCaseFromState}
+                onTaskSaved={applyTaskCaseUpdate}
                 onError={setError}
               />
             )}
@@ -290,7 +323,16 @@ export default function CaseTrackerApp() {
       {PERSONAL_TASK_TABS.map(
         (name) =>
           view === `person:${name}` && (
-            <PersonalTaskView key={name} personName={name} isAdmin={isAdmin} cases={cases} onOpenCase={openCaseFromElsewhere} onError={setError} />
+            <PersonalTaskView
+              key={name}
+              personName={name}
+              isAdmin={isAdmin}
+              cases={cases}
+              onOpenCase={openCaseFromElsewhere}
+              onNavigateToPerson={(n) => setView(`person:${n}`)}
+              onTaskSaved={applyTaskCaseUpdate}
+              onError={setError}
+            />
           )
       )}
 

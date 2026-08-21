@@ -29,3 +29,26 @@ export function suggestedCaseNumberForClient(
   }
   return `${clientNumber}-${existingCaseCountForClient + 1}`;
 }
+
+/**
+ * 新規顧客の採番の起点（要件定義書v7 3.7）。
+ * 2026年8月時点の事務所の最新顧客番号が230のため、新規は231番から。
+ * 将来この基準が変わった場合は要調整。
+ */
+export const NEW_CLIENT_NUMBER_FLOOR = 231;
+
+/** 新規顧客番号の提案：既存の最大値+1か、NEW_CLIENT_NUMBER_FLOORのいずれか大きい方。 */
+export function suggestedNewClientNumber(existingClientNumbers: number[]): number {
+  const max = Math.max(0, ...existingClientNumbers);
+  return Math.max(max + 1, NEW_CLIENT_NUMBER_FLOOR);
+}
+
+/**
+ * 顧客番号は、その顧客に紐づく案件の実番号（数字のみのもの）のうち最小値を採用する（v7 3.7）。
+ * 数字のみの案件番号が1つもない場合はnullを返す（呼び出し側で既存値を維持する等の判断に使う）。
+ */
+export function clientNumberFromCaseNumbers(caseNumbers: string[]): number | null {
+  const numeric = caseNumbers.filter((n) => /^\d+$/.test(n)).map((n) => parseInt(n, 10));
+  if (numeric.length === 0) return null;
+  return Math.min(...numeric);
+}

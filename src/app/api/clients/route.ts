@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { encryptField } from "@/lib/crypto";
 import { serializeClient } from "@/lib/client-query";
+import { suggestedNewClientNumber } from "@/lib/business/caseNumber";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -32,8 +33,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "企業名は必須です" }, { status: 400 });
   }
 
-  const last = await prisma.client.findFirst({ orderBy: { clientNumber: "desc" } });
-  const clientNumber = (last?.clientNumber ?? 0) + 1;
+  const existing = await prisma.client.findMany({ select: { clientNumber: true } });
+  const clientNumber = suggestedNewClientNumber(existing.map((c) => c.clientNumber));
 
   const created = await prisma.client.create({
     data: {

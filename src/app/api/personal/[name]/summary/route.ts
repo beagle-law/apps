@@ -39,8 +39,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
       (t.assignee === name || (includeUnassigned && !t.assignee.trim()))
   );
 
-  const tasks = ownOpen.filter((t) => t.kind !== "waiting");
-  const waiting = ownOpen.filter((t) => t.kind === "waiting");
+  // 一度でも並び替えると sortOrder による並びが優先され、それ以前は納期の近い順（v7 3.3）
+  const sortForDisplay = <T extends { sortOrder: number | null; dueDate: string }>(list: T[]): T[] => {
+    if (list.some((t) => t.sortOrder != null)) {
+      return [...list].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+    }
+    return list; // 既にdueDate ascでDB取得済み
+  };
+
+  const tasks = sortForDisplay(ownOpen.filter((t) => t.kind !== "waiting"));
+  const waiting = sortForDisplay(ownOpen.filter((t) => t.kind === "waiting"));
   const confirmations = allTasks.filter((t) => t.handedBackFrom === name && t.status !== "完了");
   const instructions =
     name === "宮村"

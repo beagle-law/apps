@@ -81,6 +81,7 @@ model Case {
   teamMembers  String[] @default([])
   deadline     String   @default("")
   catchAllFor  String   @default("") // 「とりあえず案件」の場合、対象スタッフ名（通常の案件では空）
+  isTimeChargeCase Boolean @default(false) // タイムチャージの対象案件かどうか（v7 3.1・4.3）
 
   ownerId   String?
   owner     User?   @relation("CaseOwner", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -168,6 +169,7 @@ model CaseTask {
   isInstruction  Boolean  @default(false)
   points         Int?
   executionScore Int?
+  sortOrder      Int? // 個人タスク画面でのドラッグ&ドロップ並び順（v7 3.3）
   completedAt    String   @default("")
   createdAt      DateTime @default(now())
 
@@ -214,6 +216,8 @@ model TimeCharge {
   date       String
   caseId     String
   case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  startTime  String   @default("") // "HH:MM"（v7 4.2）
+  endTime    String   @default("") // "HH:MM"（v7 4.2）
   hours      Float
   content    String   @default("")
   billed     Boolean  @default(false)
