@@ -2,6 +2,17 @@
 
 import { buildInvoiceElement, type InvoiceForHtml } from "@/lib/invoice-html";
 
+/** ファイル名に使えない文字を全角に置き換える。 */
+function sanitizeForFilename(s: string): string {
+  return s.replace(/[/\\:*?"<>|]/g, "_").trim();
+}
+
+function invoiceFileName(inv: InvoiceForHtml): string {
+  const [year, month] = inv.issueDate.split("-");
+  const clientPart = sanitizeForFilename(inv.clientName) || "お客様";
+  return `${clientPart}_ご請求書（${Number(year)}年${Number(month)}月）.pdf`;
+}
+
 /**
  * ワンクリックで請求書PDFを直接ダウンロードする（jsPDF + html2canvasによるクライアント側生成）。
  * サーバー往復なしで、確認済みのHTMLレイアウト（buildInvoiceElement）をそのままラスタライズしてPDF化する。
@@ -33,7 +44,7 @@ export async function downloadInvoicePdf(inv: InvoiceForHtml): Promise<void> {
         })
         .catch(reject);
     });
-    doc.save(`ご請求書_${inv.invoiceNumber}.pdf`);
+    doc.save(invoiceFileName(inv));
   } finally {
     document.body.removeChild(container);
   }

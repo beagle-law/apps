@@ -1,22 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { COLORS, FONT_MINCHO, GOAL_KEYS, TASK_LEVEL_TABLE, EXECUTION_LEVELS, PERSONAL_TASK_TABS } from "@/lib/constants";
+import { COLORS, FONT_MINCHO, GOAL_KEYS } from "@/lib/constants";
 import { currentYearMonth, formatYearMonth } from "@/lib/dates";
-import { monthlyPointTotals, monthlyExecutionAverages, monthlyPersonnelScores } from "@/lib/business/goals";
 import { YearMonthNav } from "@/components/ui";
 import * as api from "@/lib/api-client";
-import type { Case, GoalRecord, User } from "@/lib/types";
+import type { GoalRecord, User } from "@/lib/types";
 
 interface Props {
-  cases: Case[];
   currentUser: User;
   onError: (msg: string) => void;
 }
 
 const RESULT_CYCLE = ["", "○", "△", "×"];
 
-export default function GoalsView({ cases, currentUser, onError }: Props) {
+export default function GoalsView({ currentUser, onError }: Props) {
   const [records, setRecords] = useState<GoalRecord[]>([]);
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
   const [selectedYearMonth, setSelectedYearMonth] = useState(currentYearMonth());
@@ -34,13 +32,6 @@ export default function GoalsView({ cases, currentUser, onError }: Props) {
     if (g.key === "iwashita") return currentUser.displayName === "岩下";
     return false;
   });
-
-  const cm = currentYearMonth(); // タスク難易度点・対応評価点・人事評価点は常に「当月」集計（v6 4.13）
-  const allTasks = cases.flatMap((c) => c.tasks);
-  const pointTotals = monthlyPointTotals(allTasks);
-  const pointMax = Math.max(1, ...Object.values(pointTotals));
-  const executionAverages = monthlyExecutionAverages(allTasks);
-  const personnelScores = monthlyPersonnelScores(allTasks);
 
   const findRecord = (key: string, yearMonth: string) => records.find((r) => r.key === key && r.yearMonth === yearMonth);
 
@@ -93,69 +84,6 @@ export default function GoalsView({ cases, currentUser, onError }: Props) {
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl mx-auto flex flex-col gap-5">
         <h2 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>目標</h2>
-
-        <div className="rounded p-5 overflow-x-auto" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>タスク難易度点の目安</h3>
-          <table className="text-xs w-full" style={{ minWidth: 560 }}>
-            <thead><tr style={{ color: COLORS.slate }}><th className="text-left py-1">点数</th><th className="text-left py-1">難易度</th><th className="text-left py-1">具体例</th></tr></thead>
-            <tbody>
-              {TASK_LEVEL_TABLE.map((row) => (
-                <tr key={row.points} style={{ borderTop: `1px solid ${COLORS.paper}` }}>
-                  <td className="py-1.5 pr-2 font-bold">{row.points}</td>
-                  <td className="py-1.5 pr-2">{row.difficulty}</td>
-                  <td className="py-1.5">{row.examples}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h4 className="text-xs font-bold mt-4 mb-2" style={{ color: COLORS.slate }}>今月に完了したタスクの累計点</h4>
-          <div className="flex flex-col gap-2">
-            {PERSONAL_TASK_TABS.map((name) => (
-              <div key={name} className="flex items-center gap-2">
-                <span className="text-xs w-12 flex-shrink-0">{name}</span>
-                <div className="flex-1 rounded-full overflow-hidden" style={{ backgroundColor: COLORS.paper, height: 8 }}>
-                  <div style={{ width: `${(pointTotals[name] / pointMax) * 100}%`, backgroundColor: COLORS.amber, height: 8 }} />
-                </div>
-                <span className="text-xs font-bold w-8 text-right">{pointTotals[name]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>対応評価点</h3>
-          <div className="flex flex-col gap-1 mb-4">
-            {EXECUTION_LEVELS.map((l) => (
-              <p key={l.score} className="text-xs" style={{ color: COLORS.slate }}>{l.score}点　{l.label}</p>
-            ))}
-          </div>
-          <div className="flex flex-col gap-2">
-            {Object.entries(executionAverages).map(([name, avg]) => (
-              <div key={name} className="flex items-center gap-2">
-                <span className="text-xs w-12 flex-shrink-0">{name}</span>
-                <div className="flex-1 rounded-full overflow-hidden" style={{ backgroundColor: COLORS.paper, height: 8 }}>
-                  <div style={{ width: `${(avg / 5) * 100}%`, backgroundColor: COLORS.moss, height: 8 }} />
-                </div>
-                <span className="text-xs font-bold w-14 text-right">平均{avg.toFixed(1)}点</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>人事評価点</h3>
-          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>タスク難易度点×対応評価点×2×0.1で計算されます（タスクごとに算出して合算）。賞与の基礎点になります。</p>
-          <div className="flex flex-col gap-2">
-            {Object.entries(personnelScores).map(([name, score]) => (
-              <div key={name} className="flex items-center justify-between text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
-                <span style={{ color: COLORS.slate }}>{name}</span>
-                <span className="font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{score.toFixed(1)}点</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs mt-2" style={{ color: COLORS.slate }}>{formatYearMonth(cm)}に完了し、難易度点・評価点の両方が付いているタスクのみが対象です。</p>
-        </div>
 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>閲覧・編集する年月</h3>

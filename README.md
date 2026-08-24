@@ -9,7 +9,7 @@ Next.js（App Router） + PostgreSQL（Prisma）で構築した、法律事務�
 - PostgreSQL + Prisma ORM
 - 認証：個別アカウント（loginId + パスワード、bcryptハッシュ）＋署名付きセッションCookie
 - 暗号化：パスワード管理データ・依頼者/相手方の個人情報はAES-256-GCMで保存時暗号化
-- AI機能：Anthropic APIをサーバー側（APIルート）経由で呼び出し（AI入力・経路自動計算・クライアント報告文作成）
+- AI機能：Anthropic APIをサーバー側（APIルート）経由で呼び出し（実費入力時の経路自動計算のみ。v8でAI入力・クライアント報告文作成は廃止）
 - 請求書PDF：jsPDF + html2canvasによるクライアント側生成（ワンクリックで直接ダウンロード、サーバー往復なし）
 - UI：プロトタイプ（`legal-case-tracker.jsx` v3）のデザイン・データ構造・業務ロジックを踏襲
 
@@ -85,7 +85,7 @@ npm run dev
 
 ## 4. AI機能について
 
-「AI入力」「経路自動計算」「クライアント報告文作成」はサーバー側APIルート（`src/app/api/ai/*`）経由でAnthropic APIを呼びます。`ANTHROPIC_API_KEY` が未設定の間は、各機能がUI上で「AI機能は現在利用できません」と表示され、他の機能には一切影響しません。
+「経路自動計算」（実費の出発地・到着地から経路・運賃を算出）は、サーバー側APIルート（`src/app/api/ai/calculate-route`）経由でAnthropic APIを呼びます。`ANTHROPIC_API_KEY` が未設定の間は、UI上で「AI機能は現在利用できません」と表示され、他の機能には一切影響しません（v8でAI入力・クライアント報告文作成の機能は廃止済み）。
 
 APIキーは [console.anthropic.com](https://console.anthropic.com/) で発行し、`.env`（ローカル）またはVercelの環境変数（本番）に設定してください。
 

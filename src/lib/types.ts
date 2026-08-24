@@ -7,25 +7,6 @@ export interface Hearing {
   createdAt: string;
 }
 
-export interface CaseTask {
-  id: string;
-  description: string;
-  assignee: string;
-  assignedBy: string;
-  status: string;
-  dueDate: string;
-  kind: string; // "task" | "waiting"
-  waitingOn: string;
-  handedBackFrom: string;
-  sourceField: string | null;
-  isInstruction: boolean;
-  points: number | null;
-  executionScore: number | null;
-  sortOrder: number | null;
-  completedAt: string;
-  createdAt: string;
-}
-
 export interface Expense {
   id: string;
   date: string;
@@ -66,9 +47,7 @@ export interface Case {
   ballOwner: string;
   ballAssignee: string;
   hidden: boolean;
-  teamMembers: string[];
   deadline: string;
-  catchAllFor: string;
   isTimeChargeCase: boolean;
 
   ownerId: string;
@@ -106,7 +85,6 @@ export interface Case {
   updatedAt: string;
 
   hearings: Hearing[];
-  tasks: CaseTask[];
   expenses: Expense[];
   updates: UpdateLog[];
 }

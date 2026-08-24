@@ -48,7 +48,6 @@ export default function UpcomingHearingsView({ cases, onOpenCase }: Props) {
                   {h.docDeadline && (
                     <p className="text-xs mt-0.5" style={{ color: h.docDeadline < t ? COLORS.vermillion : COLORS.slate }}>書面提出期限：{formatDate(h.docDeadline)}</p>
                   )}
-                  {c.teamMembers.length > 0 && <p className="text-xs mt-1" style={{ color: COLORS.slate }}>{c.teamMembers.join("・")}</p>}
                 </div>
               </button>
             ))}

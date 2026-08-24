@@ -29,3 +29,19 @@ export function calcHoursFromTimes(startTime: string, endTime: string): string {
   if (diffMinutes < 0) diffMinutes += 24 * 60;
   return String(Math.round((diffMinutes / 60) * 100) / 100);
 }
+
+/** 担当者ごとの稼働時間・件数の内訳を集計する（案件詳細のタイムチャージ集計・個人画面の案件別内訳で使用、v8 3.4）。 */
+export function summarizeByPerson<T extends { personName: string; hours: number }>(
+  charges: T[]
+): { name: string; hours: number; count: number }[] {
+  const byName = new Map<string, { hours: number; count: number }>();
+  for (const c of charges) {
+    const entry = byName.get(c.personName) || { hours: 0, count: 0 };
+    entry.hours += c.hours;
+    entry.count += 1;
+    byName.set(c.personName, entry);
+  }
+  return Array.from(byName.entries())
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.hours - a.hours);
+}

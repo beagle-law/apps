@@ -9,13 +9,11 @@ import {
   Landmark,
   Phone,
   Mail,
-  ClipboardList,
   MapPin,
   Send,
   Receipt,
   Navigation,
-  Wand2,
-  Copy,
+  Clock,
   Eye,
   EyeOff,
   FileSpreadsheet,
@@ -35,27 +33,23 @@ import {
   POA_STATUSES,
   CONTRACT_STATUSES,
   RETAINER_STATUSES,
-  TASK_POINT_OPTIONS,
   cycleValue,
   engagementStatusColor,
 } from "@/lib/constants";
-import { formatDate, formatDateShort, formatDateTime, plusDaysStr, relativeDayLabel, todayStr } from "@/lib/dates";
+import { formatDate, formatDateShort, formatDateTime, relativeDayLabel, todayStr } from "@/lib/dates";
 import type { Case, Contact, TimeCharge } from "@/lib/types";
 import { emptyContact } from "@/lib/types";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
 import { invoiceTotal, buildTimeChargeFeeItem } from "@/lib/business/invoice";
+import { summarizeByPerson } from "@/lib/business/timecharge";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
 import InvoiceListForCase from "@/components/InvoiceListForCase";
-import TaskEditModal, { type ModalTask } from "@/components/TaskEditModal";
 
 interface Props {
   selectedCase: Case;
-  cases: Case[];
-  onSelectCase: (id: string) => void;
   onCaseUpdated: (c: Case) => void;
   onCaseDeleted: (id: string) => void;
-  onTaskSaved: (updated: Case, movedFrom: { caseId: string; taskId: string } | null) => void;
   onError: (msg: string) => void;
 }
 
@@ -82,22 +76,11 @@ function financeDraftFromCase(c: Case) {
   };
 }
 
-export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onCaseUpdated, onCaseDeleted, onTaskSaved, onError }: Props) {
-  const [editingTask, setEditingTask] = useState<ModalTask | null>(null);
+export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDeleted, onError }: Props) {
   const [newUpdateText, setNewUpdateText] = useState("");
   const [claimMemoDraft, setClaimMemoDraft] = useState(selectedCase.claimMemo);
   const [financeDraft, setFinanceDraft] = useState(financeDraftFromCase(selectedCase));
-  const [newMemberName, setNewMemberName] = useState("");
   const [newHearing, setNewHearing] = useState({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
-  const [clientReportText, setClientReportText] = useState("");
-  const [generatingReport, setGeneratingReport] = useState(false);
-  const [newTaskForm, setNewTaskForm] = useState<{ description: string; assignee: string; assignedBy: string; dueDate: string; points: string }>({
-    description: "",
-    assignee: "",
-    assignedBy: "",
-    dueDate: plusDaysStr(7),
-    points: "",
-  });
   const [newExpenseForm, setNewExpenseForm] = useState({
     date: "",
     amount: "",
@@ -108,6 +91,7 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
     notes: "",
   });
   const [calculatingRoute, setCalculatingRoute] = useState(false);
+  const [caseTimeCharges, setCaseTimeCharges] = useState<TimeCharge[]>([]);
   const [courtInfoDraft, setCourtInfoDraft] = useState<{ courtCaseNumber: string; courtClerk: Contact }>({
     courtCaseNumber: "",
     courtClerk: emptyContact(),
@@ -138,11 +122,10 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
       courtClerk: { ...emptyContact(), ...selectedCase.courtClerk },
     });
     setConfirmDelete(false);
-    setEditingTask(null);
     setFeeItems([]);
     setBillTimeChargeIds([]);
-    setNewTaskForm({ description: "", assignee: "", assignedBy: "", dueDate: plusDaysStr(7), points: "" });
     api.fetchUnbilledTimeCharges(selectedCase.id).then(setUnbilledTimeCharges).catch(() => setUnbilledTimeCharges([]));
+    api.fetchCaseTimeCharges(selectedCase.id).then(setCaseTimeCharges).catch(() => setCaseTimeCharges([]));
 
     // 依頼者（顧客）が法人なら源泉徴収デフォルトON、個人・未連携ならデフォルトOFF（要件v6 3.5）
     if (selectedCase.clientId) {
@@ -190,24 +173,6 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
     run(() => api.patchCase(selectedCase.id, { [field]: nextVal } as Partial<Case>));
   };
 
-  const toggleTeamMember = (name: string) => {
-    const has = selectedCase.teamMembers.includes(name);
-    const next = has ? selectedCase.teamMembers.filter((m) => m !== name) : [...selectedCase.teamMembers, name];
-    run(() => api.patchCase(selectedCase.id, { teamMembers: next }));
-  };
-  const addTeamMember = () => {
-    const name = newMemberName.trim();
-    if (!name || selectedCase.teamMembers.includes(name)) {
-      setNewMemberName("");
-      return;
-    }
-    run(() => api.patchCase(selectedCase.id, { teamMembers: [...selectedCase.teamMembers, name] }));
-    setNewMemberName("");
-  };
-  const removeTeamMember = (name: string) => {
-    run(() => api.patchCase(selectedCase.id, { teamMembers: selectedCase.teamMembers.filter((m) => m !== name) }));
-  };
-
   const saveCourtInfo = () => {
     run(() =>
       api.patchCase(selectedCase.id, {
@@ -244,38 +209,6 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
     setNewHearing({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   };
   const removeHearing = (hearingId: string) => run(() => api.deleteHearing(selectedCase.id, hearingId));
-
-  const generateClientReport = async () => {
-    setGeneratingReport(true);
-    try {
-      const res = await api.aiClientReport({
-        clientName: selectedCase.clientName,
-        title: selectedCase.title,
-        content: newHearing.content,
-        docDeadline: newHearing.docDeadline,
-        nextHearingDate: newHearing.nextHearingDate,
-      });
-      setClientReportText(res.text);
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "報告文の作成に失敗しました");
-    } finally {
-      setGeneratingReport(false);
-    }
-  };
-
-  const addTaskEntry = () => {
-    if (!newTaskForm.description.trim()) return;
-    run(() =>
-      api.addTask(selectedCase.id, {
-        description: newTaskForm.description,
-        assignee: newTaskForm.assignee,
-        assignedBy: newTaskForm.assignedBy,
-        dueDate: newTaskForm.dueDate,
-        points: newTaskForm.points ? Number(newTaskForm.points) : null,
-      })
-    );
-    setNewTaskForm({ description: "", assignee: "", assignedBy: "", dueDate: plusDaysStr(7), points: "" });
-  };
 
   const addExpenseEntry = () => {
     if (!newExpenseForm.date || !newExpenseForm.category || !newExpenseForm.amount) return;
@@ -385,7 +318,6 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
   };
 
   return (
-    <>
     <div className="max-w-2xl mx-auto flex flex-col gap-5">
       {/* Header */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
@@ -437,25 +369,6 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
           </div>
         </div>
 
-        <div className="mt-4">
-          <FieldLabel>担当メンバー</FieldLabel>
-          <div className="flex gap-1.5 flex-wrap items-center mb-2">
-            {selectedCase.teamMembers.map((m) => (
-              <span key={m} className="text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}`, color: COLORS.ink }}>
-                {m}
-                <button onClick={() => removeTeamMember(m)} style={{ color: COLORS.slate }}><X size={11} /></button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-1.5 flex-wrap items-center">
-            {STAFF_MEMBERS.map((m) => (
-              <Pill key={m} active={selectedCase.teamMembers.includes(m)} color={COLORS.navy} onClick={() => toggleTeamMember(m)}>{m}</Pill>
-            ))}
-            <input type="text" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTeamMember()} placeholder="その他の名前を追加" className="text-xs p-1.5 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}`, width: 130 }} />
-            <button onClick={addTeamMember} className="text-xs font-bold px-2 py-1.5 rounded" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
-          </div>
-        </div>
-
         <div className="mt-5 p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${BALL_COLOR[selectedCase.ballOwner]}` }}>
           <p className="text-xs mb-1.5 font-bold" style={{ color: COLORS.ink }}>ボール（次のアクションを持っているのは誰か）</p>
           <div className="flex gap-1.5 flex-wrap">
@@ -465,71 +378,12 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
           </div>
           {selectedCase.ballOwner === "事務所" && (
             <div className="flex gap-1.5 flex-wrap mt-2">
-              {selectedCase.teamMembers.map((m) => (
+              {STAFF_MEMBERS.map((m) => (
                 <Pill key={m} active={selectedCase.ballAssignee === m} color={COLORS.vermillion} onClick={() => changeBallAssignee(m)}>{m}</Pill>
               ))}
             </div>
           )}
         </div>
-      </div>
-
-      {/* タスク */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
-          <ClipboardList size={15} /> タスク
-        </h3>
-        <div className="mb-2">
-          <TextInput type="text" placeholder="タスク内容" value={newTaskForm.description} onChange={(e) => setNewTaskForm({ ...newTaskForm, description: e.target.value })} className="w-full" />
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-          <select value={newTaskForm.assignee} onChange={(e) => setNewTaskForm({ ...newTaskForm, assignee: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-            <option value="">担当者</option>
-            {STAFF_MEMBERS.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <select value={newTaskForm.assignedBy} onChange={(e) => setNewTaskForm({ ...newTaskForm, assignedBy: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-            <option value="">依頼者（任意）</option>
-            {STAFF_MEMBERS.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <TextInput type="date" value={newTaskForm.dueDate} onChange={(e) => setNewTaskForm({ ...newTaskForm, dueDate: e.target.value })} />
-          <select value={newTaskForm.points} onChange={(e) => setNewTaskForm({ ...newTaskForm, points: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-            <option value="">難易度点（任意）</option>
-            {TASK_POINT_OPTIONS.map((p) => <option key={p} value={p}>{p}点</option>)}
-          </select>
-        </div>
-        <button onClick={addTaskEntry} disabled={!newTaskForm.description.trim()} className="text-sm font-bold px-3 py-1.5 rounded disabled:opacity-40 mb-3" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>タスクを追加</button>
-
-        {selectedCase.tasks.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: COLORS.slate }}>タスクはありません。</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {selectedCase.tasks.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setEditingTask({ ...t, case: { id: selectedCase.id, title: selectedCase.title, caseNumber: selectedCase.caseNumber } })}
-                className="w-full text-left flex flex-col gap-2 text-sm p-2.5 rounded transition hover:opacity-90"
-                style={{ backgroundColor: COLORS.paper }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="flex-1" style={t.status === "完了" ? { textDecoration: "line-through", color: COLORS.slate } : {}}>{t.description}</p>
-                  <span className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ color: "#fff", backgroundColor: t.status === "完了" ? COLORS.moss : COLORS.slate }}>{t.status}</span>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {t.assignee && <span className="text-xs font-bold flex items-center gap-1" style={{ color: COLORS.navy }}><User size={11} /> {t.assignee}</span>}
-                  {t.assignedBy && <span className="text-xs" style={{ color: COLORS.slate }}>依頼者：{t.assignedBy}</span>}
-                  {t.points != null && <Badge color={COLORS.amber}>{t.points}点</Badge>}
-                  {t.executionScore != null && <Badge color={COLORS.moss}>評価{t.executionScore}点</Badge>}
-                  {t.kind === "waiting" && <Badge color={COLORS.slate}>待ち：{t.waitingOn}</Badge>}
-                  {t.handedBackFrom && t.status !== "完了" && <Badge color={COLORS.vermillion}>採点待ち：{t.handedBackFrom}</Badge>}
-                  {t.dueDate && (
-                    <span className="text-xs flex items-center gap-1" style={{ color: t.status !== "完了" && t.dueDate < todayStr() ? COLORS.vermillion : COLORS.slate }}>
-                      <Calendar size={11} /> {formatDateShort(t.dueDate)}まで
-                    </span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* 経過記録 */}
@@ -710,20 +564,7 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
         </div>
         <div className="flex gap-2 mb-4">
           <button onClick={addHearingEntry} disabled={!newHearing.date || !newHearing.content.trim()} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>期日を追加</button>
-          <button onClick={generateClientReport} disabled={generatingReport || !newHearing.content.trim()} className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.brass, color: "#fff" }}>
-            <Wand2 size={14} /> クライアント報告文の作成
-          </button>
         </div>
-
-        {clientReportText && (
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1">
-              <FieldLabel>クライアント報告文（編集可）</FieldLabel>
-              <button onClick={() => navigator.clipboard.writeText(clientReportText)} className="text-xs flex items-center gap-1" style={{ color: COLORS.navy }}><Copy size={12} /> コピー</button>
-            </div>
-            <textarea value={clientReportText} onChange={(e) => setClientReportText(e.target.value)} rows={6} className="w-full text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-          </div>
-        )}
 
         {selectedCase.hearings.length === 0 ? (
           <p className="text-sm py-2" style={{ color: COLORS.slate }}>登録された期日はありません。</p>
@@ -765,8 +606,29 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
             <button onClick={() => cycleEngagement("retainerStatus", RETAINER_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.retainerStatus) }}>{selectedCase.retainerStatus}</button>
           </div>
         </div>
-        <p className="text-xs mt-3" style={{ color: COLORS.slate }}>クリックで状態を切り替えます。ステータスに応じてタスクが自動生成されます。</p>
+        <p className="text-xs mt-3" style={{ color: COLORS.slate }}>クリックで状態を切り替えます。</p>
       </div>
+
+      {/* タイムチャージ集計 */}
+      {caseTimeCharges.length > 0 && (
+        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
+            <Clock size={15} /> タイムチャージ集計
+          </h3>
+          <p className="text-sm font-bold mb-3">
+            合計：{caseTimeCharges.reduce((s, t) => s + t.hours, 0)}時間
+            <span className="font-normal text-xs" style={{ color: COLORS.slate }}>（{caseTimeCharges.length}件）</span>
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {summarizeByPerson(caseTimeCharges).map((p) => (
+              <div key={p.name} className="flex items-center justify-between text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                <span>{p.name}</span>
+                <span style={{ color: COLORS.slate }}>{p.hours}時間　<span className="text-xs">（{p.count}件）</span></span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 実費 */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
@@ -896,20 +758,5 @@ export default function CaseDetailPanel({ selectedCase, cases, onSelectCase, onC
         <InvoiceListForCase caseId={selectedCase.id} refreshKey={invoiceRefreshKey} onError={onError} />
       </div>
     </div>
-    {editingTask && (
-      <TaskEditModal
-        task={editingTask}
-        cases={cases}
-        isFullEditContext
-        onClose={() => setEditingTask(null)}
-        onOpenCase={(id) => {
-          setEditingTask(null);
-          if (id !== selectedCase.id) onSelectCase(id);
-        }}
-        onSaved={(updated, info) => onTaskSaved(updated, info.movedFrom)}
-        onError={onError}
-      />
-    )}
-    </>
   );
 }

@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
-import { computeEngagementTaskChange, type EngagementField } from "@/lib/business/engagement";
-import { ENGAGEMENT_TASK_META } from "@/lib/constants";
+import { ENGAGEMENT_FIELD_LABEL } from "@/lib/constants";
+
+type EngagementField = "poaStatus" | "contractStatus" | "retainerStatus";
 
 interface PatchCaseBody {
   stage?: string;
@@ -13,7 +14,6 @@ interface PatchCaseBody {
   ballOwner?: string;
   ballAssignee?: string;
   hidden?: boolean;
-  teamMembers?: string[];
   deadline?: string;
   courtCaseNumber?: string;
   courtClerk?: { name?: string; affiliation?: string; phone?: string; fax?: string; email?: string };
@@ -54,7 +54,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (body.ballAssignee !== undefined) data.ballAssignee = body.ballAssignee;
   if (body.hidden !== undefined) data.hidden = body.hidden;
-  if (body.teamMembers !== undefined) data.teamMembers = body.teamMembers;
   if (body.deadline !== undefined) data.deadline = body.deadline;
   if (body.isTimeChargeCase !== undefined) data.isTimeChargeCase = body.isTimeChargeCase;
   if (body.courtCaseNumber !== undefined) data.courtCaseNumber = body.courtCaseNumber;
@@ -73,26 +72,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     };
   }
 
-  // 受任関連チェックのステータス変更は、連動するタスクの自動生成/更新/削除を伴う
+  // 受任関連チェックのステータス変更（v8：タスク自動生成の連動は廃止、ステータス管理のみ）
   const engagementFields: EngagementField[] = ["poaStatus", "contractStatus", "retainerStatus"];
   const engagementUpdates = engagementFields.filter((f) => body[f] !== undefined && body[f] !== existing[f]);
 
   await prisma.$transaction(async (tx) => {
     for (const field of engagementUpdates) {
       const status = body[field]!;
-      const action = computeEngagementTaskChange(existing.tasks, existing.teamMembers, field, status);
-      if (action.type === "create") {
-        await tx.caseTask.create({ data: { caseId: id, status: "未着手", ...action.data } });
-      } else if (action.type === "update") {
-        await tx.caseTask.update({ where: { id: action.taskId }, data: action.data });
-      } else if (action.type === "delete") {
-        await tx.caseTask.delete({ where: { id: action.taskId } });
-      }
       await tx.updateLog.create({
         data: {
           caseId: id,
           author: user.displayName,
-          note: `${ENGAGEMENT_TASK_META[field].label}を「${status}」に更新`,
+          note: `${ENGAGEMENT_FIELD_LABEL[field]}を「${status}」に更新`,
           auto: true,
         },
       });

@@ -116,13 +116,9 @@ export default function ClientsView({ cases, onOpenCase, onError }: Props) {
         <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-2">
           {filtered.length === 0 && <p className="text-sm text-center py-8" style={{ color: COLORS.slate }}>該当する顧客がいません</p>}
           {filtered.map((c) => (
-            <button key={c.id} onClick={() => setSelectedId(c.id)} className="text-left p-3 rounded flex flex-col gap-1" style={{ backgroundColor: COLORS.card, border: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}` }}>
-              <p className="text-xs" style={{ color: COLORS.slate }}>No.{c.clientNumber}</p>
-              <p className="text-sm font-semibold" style={{ fontFamily: FONT_MINCHO }}>{c.companyName}</p>
-              <div className="flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>
-                <span>{c.contactName ? `${c.contactName}様` : ""}</span>
-                <span>{c.phone}</span>
-              </div>
+            <button key={c.id} onClick={() => setSelectedId(c.id)} className="text-left px-2.5 py-1.5 rounded flex items-center gap-2 text-sm" style={{ backgroundColor: COLORS.card, border: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}` }}>
+              <span className="flex-shrink-0" style={{ color: COLORS.slate }}>No.{c.clientNumber}</span>
+              <span className="font-semibold truncate" style={{ fontFamily: FONT_MINCHO }}>{c.companyName}</span>
             </button>
           ))}
         </div>

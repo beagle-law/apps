@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { COLORS, FONT_MINCHO, PRIORITIES, STAFF_MEMBERS } from "@/lib/constants";
+import { COLORS, FONT_MINCHO, PRIORITIES } from "@/lib/constants";
 import { plusDaysStr } from "@/lib/dates";
 import { suggestedCaseNumberForClient } from "@/lib/business/caseNumber";
-import { TextInput, Pill } from "@/components/ui";
+import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
 import type { Case, Client } from "@/lib/types";
 
@@ -24,7 +24,6 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
     clientName: "",
     clientId: "",
     caseNumber: suggestedCaseNumber,
-    teamMember: "",
     deadline: plusDaysStr(7),
     priority: "通常",
     initialNote: "",
@@ -58,7 +57,6 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
         clientName: form.clientName,
         clientId: form.clientId || undefined,
         caseNumber: form.caseNumber,
-        teamMember: form.teamMember,
         deadline: form.deadline,
         priority: form.priority,
         initialNote: form.initialNote,
@@ -108,14 +106,6 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
             依頼者 *
             <TextInput type="text" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} className="mt-1 w-full" />
           </label>
-          <div>
-            <p className="text-xs mb-1.5" style={{ color: COLORS.slate }}>担当者（1人目）</p>
-            <div className="flex gap-1.5 flex-wrap">
-              {STAFF_MEMBERS.map((m) => (
-                <Pill key={m} active={form.teamMember === m} color={COLORS.navy} onClick={() => setForm({ ...form, teamMember: form.teamMember === m ? "" : m })}>{m}</Pill>
-              ))}
-            </div>
-          </div>
           <label className="text-xs" style={{ color: COLORS.slate }}>
             期限
             <TextInput type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="mt-1 w-full" />

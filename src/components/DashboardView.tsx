@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { COLORS, FONT_MINCHO, STAGES, STAGE_COLOR, STAGE_GROUP, STAFF_MEMBERS } from "@/lib/constants";
+import { COLORS, FONT_MINCHO, STAGES, STAGE_COLOR, STAGE_GROUP } from "@/lib/constants";
 import { plusDaysStr, todayStr } from "@/lib/dates";
 import { getPeriodRange, getPeriodLabel, shiftAnchor, isWithinPeriod, type DashboardGranularity } from "@/lib/business/dashboard";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
@@ -53,16 +53,11 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
     stageCounts[c.stage]++;
   });
 
-  const memberCounts: Record<string, number> = {};
-  periodCases.forEach((c) => c.teamMembers.forEach((m) => (memberCounts[m] = (memberCounts[m] || 0) + 1)));
-  const memberList = Object.entries(memberCounts).sort((a, b) => b[1] - a[1]);
-
   const t = todayStr();
   const t7 = plusDaysStr(7);
   const upcomingCount = visibleCases.flatMap((c) => (c.hearings || []).filter((h) => h.nextHearingDate && h.nextHearingDate >= t && h.nextHearingDate <= t7)).length;
 
   const stageMax = Math.max(1, ...Object.values(stageCounts));
-  const memberMax = Math.max(1, ...memberList.map(([, c]) => c), 1);
 
   const financeTotals = periodCases.reduce(
     (acc, c) => ({
@@ -123,7 +118,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6">
           <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>ステータス内訳</h3>
             <div className="flex flex-col gap-2">
@@ -137,25 +132,6 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-            <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>担当者別 案件数</h3>
-            {memberList.length === 0 ? (
-              <p className="text-sm" style={{ color: COLORS.slate }}>担当メンバーが登録された案件がありません。</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {memberList.map(([name, count]) => (
-                  <div key={name} className="flex items-center gap-2">
-                    <span className="text-xs w-20 flex-shrink-0 truncate" style={{ color: STAFF_MEMBERS.includes(name) ? COLORS.ink : COLORS.slate }}>{name}</span>
-                    <div className="flex-1 rounded-full overflow-hidden" style={{ backgroundColor: COLORS.paper, height: 8 }}>
-                      <div style={{ width: `${(count / memberMax) * 100}%`, backgroundColor: COLORS.vermillion, height: 8 }} />
-                    </div>
-                    <span className="text-xs font-bold w-4 text-right">{count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 

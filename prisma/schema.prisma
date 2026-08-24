@@ -78,9 +78,7 @@ model Case {
   ballOwner    String   @default("事務所")
   ballAssignee String   @default("")
   hidden       Boolean  @default(false)
-  teamMembers  String[] @default([])
   deadline     String   @default("")
-  catchAllFor  String   @default("") // 「とりあえず案件」の場合、対象スタッフ名（通常の案件では空）
   isTimeChargeCase Boolean @default(false) // タイムチャージの対象案件かどうか（v7 3.1・4.3）
 
   ownerId   String?
@@ -127,7 +125,6 @@ model Case {
   updatedAt DateTime @updatedAt
 
   hearings    Hearing[]
-  tasks       CaseTask[]
   expenses    Expense[]
   updates     UpdateLog[]
   timeCharges TimeCharge[]
@@ -151,31 +148,6 @@ model Hearing {
 
   @@index([caseId])
   @@index([date])
-}
-
-model CaseTask {
-  id             String   @id @default(cuid())
-  caseId         String
-  case           Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  description    String
-  assignee       String   @default("")
-  assignedBy     String   @default("")
-  status         String   @default("未着手")
-  dueDate        String   @default("")
-  kind           String   @default("task") // task | waiting
-  waitingOn      String   @default("")
-  handedBackFrom String   @default("")
-  sourceField    String? // poaStatus | contractStatus | retainerStatus
-  isInstruction  Boolean  @default(false)
-  points         Int?
-  executionScore Int?
-  sortOrder      Int? // 個人タスク画面でのドラッグ&ドロップ並び順（v7 3.3）
-  completedAt    String   @default("")
-  createdAt      DateTime @default(now())
-
-  @@index([caseId])
-  @@index([status])
-  @@index([assignee])
 }
 
 model Expense {

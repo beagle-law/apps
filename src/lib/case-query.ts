@@ -3,7 +3,6 @@ import { decryptField, encryptField } from "@/lib/crypto";
 
 export const caseInclude = {
   hearings: { orderBy: { date: "asc" } },
-  tasks: { orderBy: { createdAt: "asc" } },
   expenses: { orderBy: { date: "asc" } },
   updates: { orderBy: { timestamp: "desc" } },
 } satisfies Prisma.CaseInclude;
@@ -22,9 +21,7 @@ export function serializeCase(c: FullCase) {
     ballOwner: c.ballOwner,
     ballAssignee: c.ballAssignee,
     hidden: c.hidden,
-    teamMembers: c.teamMembers,
     deadline: c.deadline,
-    catchAllFor: c.catchAllFor,
     isTimeChargeCase: c.isTimeChargeCase,
     ownerId: c.ownerId ?? "",
     isPrivate: c.isPrivate,
@@ -67,7 +64,6 @@ export function serializeCase(c: FullCase) {
     updatedAt: c.updatedAt.toISOString(),
 
     hearings: c.hearings,
-    tasks: c.tasks.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),
     expenses: c.expenses.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
     updates: c.updates.map((u) => ({ ...u, timestamp: u.timestamp.toISOString() })),
   };

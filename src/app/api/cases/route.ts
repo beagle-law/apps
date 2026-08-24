@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
 import { caseVisibilityFilter } from "@/lib/case-access";
-import { computeEngagementTaskChange } from "@/lib/business/engagement";
 import { suggestedCaseNumber } from "@/lib/business/caseNumber";
 import { recomputeClientNumberFromLinkedCases } from "@/lib/business/recompute-client-number";
 import { encryptField } from "@/lib/crypto";
@@ -25,7 +24,6 @@ interface CreateCaseBody {
   title: string;
   clientName: string;
   clientId?: string;
-  teamMember?: string;
   deadline?: string;
   priority?: string;
   initialNote?: string;
@@ -48,24 +46,6 @@ export async function POST(req: NextRequest) {
     caseNumber = suggestedCaseNumber(existing.map((c) => c.caseNumber));
   }
 
-  const teamMembers = body.teamMember?.trim() ? [body.teamMember.trim()] : [];
-
-  // 受任関連チェックの初期状態（すべて「対応不要」）から、対応タスクを自動生成する
-  const initialTaskCreates: {
-    description: string;
-    kind: string;
-    waitingOn: string;
-    assignee: string;
-    sourceField: string;
-    status: string;
-  }[] = [];
-  for (const field of ["poaStatus", "contractStatus", "retainerStatus"] as const) {
-    const action = computeEngagementTaskChange([], teamMembers, field, "対応不要");
-    if (action.type === "create") {
-      initialTaskCreates.push({ ...action.data, status: "未着手" });
-    }
-  }
-
   const created = await prisma.case.create({
     data: {
       caseNumber,
@@ -76,9 +56,7 @@ export async function POST(req: NextRequest) {
       priority: body.priority || "通常",
       deadline: body.deadline || "",
       ballOwner: "事務所",
-      teamMembers,
       isTimeChargeCase: !!body.isTimeChargeCase,
-      tasks: initialTaskCreates.length ? { create: initialTaskCreates } : undefined,
       updates: body.initialNote?.trim()
         ? { create: [{ author: body.author?.trim() || user.displayName, note: body.initialNote.trim(), auto: false }] }
         : undefined,

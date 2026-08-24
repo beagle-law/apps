@@ -16,12 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
     return NextResponse.json({ error: "他のメンバーの画面は閲覧できません" }, { status: 403 });
   }
 
-  const [allTasks, timeCharges, dailyReports] = await Promise.all([
-    prisma.caseTask.findMany({
-      where: { case: caseVisibilityFilter(user.id) },
-      include: { case: { select: { id: true, title: true, caseNumber: true } } },
-      orderBy: { dueDate: "asc" },
-    }),
+  const [timeCharges, dailyReports] = await Promise.all([
     prisma.timeCharge.findMany({
       where: { personName: name, case: caseVisibilityFilter(user.id) },
       include: { case: { select: { id: true, title: true, caseNumber: true } } },
@@ -32,43 +27,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
       : Promise.resolve(null),
   ]);
 
-  const includeUnassigned = name === "宮村";
-  const ownOpen = allTasks.filter(
-    (t) =>
-      t.status !== "完了" &&
-      (t.assignee === name || (includeUnassigned && !t.assignee.trim()))
-  );
-
-  // 一度でも並び替えると sortOrder による並びが優先され、それ以前は納期の近い順（v7 3.3）
-  const sortForDisplay = <T extends { sortOrder: number | null; dueDate: string }>(list: T[]): T[] => {
-    if (list.some((t) => t.sortOrder != null)) {
-      return [...list].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
-    }
-    return list; // 既にdueDate ascでDB取得済み
-  };
-
-  const tasks = sortForDisplay(ownOpen.filter((t) => t.kind !== "waiting"));
-  const waiting = sortForDisplay(ownOpen.filter((t) => t.kind === "waiting"));
-  const confirmations = allTasks.filter((t) => t.handedBackFrom === name && t.status !== "完了");
-  const instructions =
-    name === "宮村"
-      ? allTasks
-          .filter((t) => t.isInstruction)
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      : [];
-
-  const serializeTask = (t: (typeof allTasks)[number]) => ({
-    ...t,
-    completedAt: t.completedAt,
-    createdAt: t.createdAt.toISOString(),
-  });
-
   return NextResponse.json({
     personName: name,
-    tasks: tasks.map(serializeTask),
-    waiting: waiting.map(serializeTask),
-    confirmations: confirmations.map(serializeTask),
-    instructions: instructions.map(serializeTask),
     timeCharges: timeCharges.map((tc) => ({ ...tc, createdAt: tc.createdAt.toISOString() })),
     dailyReports: dailyReports?.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })) ?? null,
   });

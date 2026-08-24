@@ -93,7 +93,6 @@ export async function importExcelCases(prisma: PrismaClient) {
         ballOwner: raw.ballOwner || "事務所",
         ballAssignee: raw.ballAssignee || "",
         hidden: !!raw.hidden,
-        teamMembers: raw.teamMembers || [],
         courtCaseNumber: raw.courtCaseNumber || "",
         poaStatus: raw.engagement?.poaStatus || "対応不要",
         contractStatus: raw.engagement?.contractStatus || "対応不要",

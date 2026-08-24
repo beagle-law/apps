@@ -1,35 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Calendar, ClipboardList, Clock, Send } from "lucide-react";
-import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, TASK_POINT_OPTIONS } from "@/lib/constants";
-import { formatDateShort, formatDateTime, plusDaysStr, todayStr } from "@/lib/dates";
+import { User, Clock } from "lucide-react";
+import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF } from "@/lib/constants";
+import { formatDateShort, formatDateTime, todayStr } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes } from "@/lib/business/timecharge";
 import { TextInput } from "@/components/ui";
-import TaskEditModal, { type ModalTask } from "@/components/TaskEditModal";
 import * as api from "@/lib/api-client";
 import type { PersonalSummary } from "@/lib/api-client";
 import type { Case } from "@/lib/types";
 
-type PersonalTask = PersonalSummary["tasks"][number];
+/** 自分のタイムチャージを案件ごとに集計する（個人画面の内訳表示、v8 3.4）。 */
+function caseBreakdown(timeCharges: PersonalSummary["timeCharges"]) {
+  const byCase = new Map<string, { caseId: string; title: string; caseNumber: string; hours: number }>();
+  for (const t of timeCharges) {
+    const entry = byCase.get(t.case.id) || { caseId: t.case.id, title: t.case.title, caseNumber: t.case.caseNumber, hours: 0 };
+    entry.hours += t.hours;
+    byCase.set(t.case.id, entry);
+  }
+  return Array.from(byCase.values()).sort((a, b) => b.hours - a.hours);
+}
 
 interface Props {
   personName: string;
-  isAdmin: boolean;
   cases: Case[];
-  onOpenCase: (id: string) => void;
-  onNavigateToPerson: (name: string) => void;
-  onTaskSaved: (updated: Case, movedFrom: { caseId: string; taskId: string } | null) => void;
   onError: (msg: string) => void;
 }
 
-export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCase, onNavigateToPerson, onTaskSaved, onError }: Props) {
+export default function PersonalTaskView({ personName, cases, onError }: Props) {
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
-  const [instructionForm, setInstructionForm] = useState({ caseId: "", assignee: "尾崎", content: "", dueDate: plusDaysStr(7), points: "" });
   const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", hours: "", content: "" });
   const [reportForm, setReportForm] = useState({ date: todayStr(), mostImportant: "", todayTasks: "", waitingCases: "", todaySuccess: "" });
-  const [editingTask, setEditingTask] = useState<ModalTask | null>(null);
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
   const load = () => {
     api.fetchPersonalSummary(personName).then(setSummary).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -59,25 +60,6 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
 
   const visibleCases = cases.filter((c) => !c.hidden);
   const timeChargeCases = visibleCases.filter((c) => c.isTimeChargeCase);
-  // v7 3.2：難易度点の編集・採点UIは、宮村のタブから開いた場合のみ（案件詳細から開いた場合はTaskEditModal側でtrue固定）
-  const isFullEditContext = personName === "宮村";
-
-  const issueInstruction = async () => {
-    if (!instructionForm.content.trim()) return;
-    try {
-      await api.issueInstruction({
-        caseId: instructionForm.caseId || undefined,
-        assignee: instructionForm.assignee,
-        content: instructionForm.content,
-        dueDate: instructionForm.dueDate,
-        points: instructionForm.points ? Number(instructionForm.points) : null,
-      });
-      setInstructionForm({ caseId: "", assignee: "尾崎", content: "", dueDate: plusDaysStr(7), points: "" });
-      load();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "指示の送信に失敗しました");
-    }
-  };
 
   const applyTimeAndRecalc = (field: "startTime" | "endTime", raw: string) => {
     const normalized = normalizeTimeInput(raw);
@@ -133,123 +115,13 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
     }
   };
 
-  const handleReorderDrop = async (list: PersonalTask[], targetId: string) => {
-    if (!draggedTaskId || draggedTaskId === targetId) return;
-    const fromIdx = list.findIndex((x) => x.id === draggedTaskId);
-    const toIdx = list.findIndex((x) => x.id === targetId);
-    setDraggedTaskId(null);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const reordered = [...list];
-    const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, moved);
-    try {
-      await api.reorderTasks(reordered.map((t) => t.id));
-      load();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "並び替えに失敗しました");
-    }
-  };
-
   if (!summary) return null;
-
-  const renderTaskRow = (t: PersonalTask, list: PersonalTask[]) => {
-    const awaitingScore = isFullEditContext && !!t.handedBackFrom && t.status !== "完了";
-    return (
-      <button
-        key={t.id}
-        onClick={() => setEditingTask(t)}
-        draggable
-        onDragStart={(e) => { e.stopPropagation(); setDraggedTaskId(t.id); }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); handleReorderDrop(list, t.id); }}
-        onDragEnd={() => setDraggedTaskId(null)}
-        className="w-full text-left flex flex-col gap-2 text-sm p-2.5 rounded transition hover:opacity-90"
-        style={{ backgroundColor: COLORS.paper, opacity: draggedTaskId === t.id ? 0.4 : 1, cursor: "grab" }}
-      >
-        <div>
-          <p>{t.description}</p>
-          <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{t.case.title}（No. {t.case.caseNumber}）</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {t.points != null && <span className="text-xs" style={{ color: COLORS.amber }}>{t.points}点</span>}
-          {t.dueDate && (
-            <span className="text-xs flex items-center gap-1" style={{ color: t.dueDate < todayStr() ? COLORS.vermillion : COLORS.slate }}>
-              <Calendar size={11} /> {formatDateShort(t.dueDate)}まで
-            </span>
-          )}
-          {awaitingScore && <span className="text-xs font-bold ml-auto" style={{ color: COLORS.amber }}>採点待ち</span>}
-        </div>
-      </button>
-    );
-  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto flex flex-col gap-5">
         <div>
           <h2 className="text-lg mb-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{personName}</h2>
-          <p className="text-xs" style={{ color: COLORS.slate }}>
-            {personName === "宮村"
-              ? "未完了のタスクのうち、宮村さんに割り当てられているもの、および誰にも割り当てられていないものを表示しています。行をクリックすると編集できます（ドラッグで並び替え可）。"
-              : "あなたに割り当てられている未完了のタスクを表示しています。行をクリックすると編集できます（ドラッグで並び替え可）。"}
-          </p>
-        </div>
-
-        {isAdmin && personName === "宮村" && (
-          <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Send size={15} /> 指示を出す</h3>
-            <div className="flex flex-col gap-2">
-              <select value={instructionForm.caseId} onChange={(e) => setInstructionForm({ ...instructionForm, caseId: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-                <option value="">案件未選択（{instructionForm.assignee}の「とりあえず案件」へ）</option>
-                {visibleCases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
-              </select>
-              <div className="flex gap-2">
-                {["尾崎", "岩下"].map((name) => (
-                  <button key={name} onClick={() => setInstructionForm({ ...instructionForm, assignee: name })} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ backgroundColor: instructionForm.assignee === name ? COLORS.navy : "transparent", color: instructionForm.assignee === name ? "#fff" : COLORS.navy, border: `1px solid ${COLORS.navy}` }}>{name}</button>
-                ))}
-              </div>
-              <TextInput type="text" placeholder="指示内容" value={instructionForm.content} onChange={(e) => setInstructionForm({ ...instructionForm, content: e.target.value })} />
-              <div className="flex gap-2">
-                <TextInput type="date" value={instructionForm.dueDate} onChange={(e) => setInstructionForm({ ...instructionForm, dueDate: e.target.value })} />
-                <select value={instructionForm.points} onChange={(e) => setInstructionForm({ ...instructionForm, points: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-                  <option value="">難易度点（任意）</option>
-                  {TASK_POINT_OPTIONS.map((p) => <option key={p} value={p}>{p}点</option>)}
-                </select>
-              </div>
-              <button onClick={issueInstruction} disabled={!instructionForm.content.trim()} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>指示を送信</button>
-            </div>
-            {summary.instructions.length > 0 && (
-              <div className="mt-4 pt-3 flex flex-col gap-2" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
-                <p className="text-xs font-bold" style={{ color: COLORS.slate }}>これまでの指示</p>
-                {summary.instructions.map((t) => (
-                  <button key={t.id} onClick={() => onOpenCase(t.case.id)} className="text-left text-xs p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                    {t.assignee}へ：{t.description}（{t.case.title}）　<span className="font-bold">{t.status}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><ClipboardList size={15} /> タスク（{summary.tasks.length}）</h3>
-          <div className="flex flex-col gap-2">
-            {summary.tasks.length === 0 ? <p className="text-sm" style={{ color: COLORS.slate }}>未完了のタスクはありません。</p> : summary.tasks.map((t) => renderTaskRow(t, summary.tasks))}
-          </div>
-        </div>
-
-        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>待ちタスク（{summary.waiting.length}）</h3>
-          <div className="flex flex-col gap-2">
-            {summary.waiting.length === 0 ? <p className="text-sm" style={{ color: COLORS.slate }}>待ちタスクはありません。</p> : summary.waiting.map((t) => renderTaskRow(t, summary.waiting))}
-          </div>
-        </div>
-
-        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>確認待ち（{summary.confirmations.length}）</h3>
-          <div className="flex flex-col gap-2">
-            {summary.confirmations.length === 0 ? <p className="text-sm" style={{ color: COLORS.slate }}>確認待ちのタスクはありません。</p> : summary.confirmations.map((t) => renderTaskRow(t, summary.confirmations))}
-          </div>
         </div>
 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
@@ -282,6 +154,14 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
                 </div>
               ))}
               <p className="text-xs font-bold text-right" style={{ color: COLORS.slate }}>合計：{summary.timeCharges.reduce((s, t) => s + t.hours, 0)}時間</p>
+              <div className="flex flex-col gap-1 mt-1 pt-2" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
+                {caseBreakdown(summary.timeCharges).map((c) => (
+                  <div key={c.caseId} className="flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>
+                    <span className="truncate">{c.title}（No.{c.caseNumber}）</span>
+                    <span className="flex-shrink-0 ml-2">{c.hours}時間</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -330,28 +210,6 @@ export default function PersonalTaskView({ personName, isAdmin, cases, onOpenCas
           </div>
         )}
       </div>
-
-      {editingTask && (
-        <TaskEditModal
-          task={editingTask}
-          cases={visibleCases}
-          isFullEditContext={isFullEditContext}
-          onClose={() => setEditingTask(null)}
-          onOpenCase={(id) => {
-            setEditingTask(null);
-            onOpenCase(id);
-          }}
-          onSaved={(updated, info) => {
-            onTaskSaved(updated, info.movedFrom);
-            if (info.redirectToPerson) {
-              onNavigateToPerson(info.redirectToPerson);
-            } else {
-              load();
-            }
-          }}
-          onError={onError}
-        />
-      )}
     </div>
   );
 }

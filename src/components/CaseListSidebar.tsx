@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Plus, Users, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, Eye, EyeOff } from "lucide-react";
 import { COLORS, FONT_MINCHO, BALL_OWNERS, BALL_COLOR } from "@/lib/constants";
 import type { Case } from "@/lib/types";
 
@@ -106,11 +106,6 @@ export default function CaseListSidebar({
                   {c.title}{c.isPrivate && "　個人メモ"}
                 </p>
                 <span className="font-bold flex-shrink-0" style={{ color: BALL_COLOR[c.ballOwner] }}>{c.ballOwner}{c.ballAssignee ? `：${c.ballAssignee}` : ""}</span>
-                {c.teamMembers.length > 0 && (
-                  <span className="flex items-center gap-1 flex-shrink-0" style={{ color: COLORS.slate }}>
-                    <Users size={11} /> {c.teamMembers.join("・")}
-                  </span>
-                )}
               </div>
             </button>
             <button

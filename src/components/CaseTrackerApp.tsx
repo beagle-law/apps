@@ -10,14 +10,12 @@ import {
   Building2,
   Lock,
   StickyNote,
-  ClipboardList,
   Clock,
   LayoutDashboard,
   Target,
   BookOpen,
   FileSpreadsheet,
   Settings as SettingsIcon,
-  Wand2,
 } from "lucide-react";
 import { COLORS, FONT_MINCHO, FONT_GOTHIC, PERSONAL_TASK_TABS } from "@/lib/constants";
 import { suggestedCaseNumber } from "@/lib/business/caseNumber";
@@ -27,7 +25,6 @@ import * as api from "@/lib/api-client";
 import CaseListSidebar from "@/components/CaseListSidebar";
 import CaseDetailPanel from "@/components/CaseDetailPanel";
 import NewCaseModal from "@/components/NewCaseModal";
-import AiInputView from "@/components/AiInputView";
 import ClientsView from "@/components/ClientsView";
 import PasswordsView from "@/components/PasswordsView";
 import PersonalTaskView from "@/components/PersonalTaskView";
@@ -39,7 +36,6 @@ import BillingView from "@/components/BillingView";
 import SettingsView from "@/components/SettingsView";
 
 type View =
-  | "ai-input"
   | "list"
   | "clients"
   | "passwords"
@@ -52,7 +48,6 @@ type View =
   | "settings";
 
 const MAIN_TABS: { key: View; label: string; icon: typeof Briefcase }[] = [
-  { key: "ai-input", label: "AI入力", icon: Wand2 },
   { key: "list", label: "案件一覧", icon: Briefcase },
   { key: "clients", label: "顧客一覧", icon: Building2 },
   { key: "passwords", label: "パスワード管理", icon: Lock },
@@ -100,35 +95,6 @@ export default function CaseTrackerApp() {
 
   const updateCaseInState = (updated: Case) => setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
 
-  /**
-   * タスク編集/終了報告モーダルの結果を反映する。案件間移動があった場合、
-   * 移動元の案件からは同時にタスクを取り除く（同一データを参照しているため、v7 3.2）。
-   */
-  const applyTaskCaseUpdate = (updated: Case, movedFrom: { caseId: string; taskId: string } | null) => {
-    setCases((prev) => {
-      let next = prev.map((c) => (c.id === updated.id ? updated : c));
-      if (movedFrom && movedFrom.caseId !== updated.id) {
-        next = next.map((c) =>
-          c.id === movedFrom.caseId ? { ...c, tasks: c.tasks.filter((t) => t.id !== movedFrom.taskId) } : c
-        );
-      }
-      return next;
-    });
-  };
-
-  // ヘッダーの個人タブのタスク件数バッジ：案件データが変わったときだけ再計算する（v7 4.5）
-  const personalOpenTaskCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const name of PERSONAL_TASK_TABS) counts[name] = 0;
-    for (const c of cases) {
-      for (const t of c.tasks) {
-        if (t.status === "完了") continue;
-        const key = t.assignee && t.assignee.trim() ? t.assignee : "宮村"; // 未割当は宮村に計上
-        if (key in counts) counts[key] += 1;
-      }
-    }
-    return counts;
-  }, [cases]);
   const removeCaseFromState = (id: string) => {
     setCases((prev) => prev.filter((c) => c.id !== id));
     if (selectedId === id) setSelectedId(null);
@@ -159,8 +125,7 @@ export default function CaseTrackerApp() {
         (c) =>
           c.title.toLowerCase().includes(q) ||
           c.clientName.toLowerCase().includes(q) ||
-          c.caseNumber.toLowerCase().includes(q) ||
-          c.teamMembers.some((m) => m.toLowerCase().includes(q))
+          c.caseNumber.toLowerCase().includes(q)
       );
     }
     return sortCasesByCaseNumber(list);
@@ -237,7 +202,7 @@ export default function CaseTrackerApp() {
                 borderRadius: "6px 6px 0 0",
               }}
             >
-              <ClipboardList size={14} /> {name}{personalOpenTaskCounts[name] ? `（${personalOpenTaskCounts[name]}）` : ""}
+              {name}
             </button>
           );
         })}
@@ -300,20 +265,13 @@ export default function CaseTrackerApp() {
             ) : (
               <CaseDetailPanel
                 selectedCase={selectedCase}
-                cases={cases}
-                onSelectCase={setSelectedId}
                 onCaseUpdated={updateCaseInState}
                 onCaseDeleted={removeCaseFromState}
-                onTaskSaved={applyTaskCaseUpdate}
                 onError={setError}
               />
             )}
           </main>
         </div>
-      )}
-
-      {view === "ai-input" && (
-        <AiInputView cases={cases} onCaseCreated={addCaseToState} onCaseUpdated={updateCaseInState} onOpenCase={openCaseFromElsewhere} onError={setError} />
       )}
 
       {view === "clients" && <ClientsView cases={cases} onOpenCase={openCaseFromElsewhere} onError={setError} />}
@@ -323,16 +281,7 @@ export default function CaseTrackerApp() {
       {PERSONAL_TASK_TABS.map(
         (name) =>
           view === `person:${name}` && (
-            <PersonalTaskView
-              key={name}
-              personName={name}
-              isAdmin={isAdmin}
-              cases={cases}
-              onOpenCase={openCaseFromElsewhere}
-              onNavigateToPerson={(n) => setView(`person:${n}`)}
-              onTaskSaved={applyTaskCaseUpdate}
-              onError={setError}
-            />
+            <PersonalTaskView key={name} personName={name} cases={cases} onError={setError} />
           )
       )}
 
@@ -352,7 +301,7 @@ export default function CaseTrackerApp() {
         />
       )}
 
-      {view === "goals" && <GoalsView cases={cases} currentUser={currentUser} onError={setError} />}
+      {view === "goals" && <GoalsView currentUser={currentUser} onError={setError} />}
 
       {view === "knowledge" && <KnowledgeView onError={setError} />}
 

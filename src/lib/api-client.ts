@@ -48,7 +48,6 @@ export const createCase = (payload: {
   title: string;
   clientName: string;
   clientId?: string;
-  teamMember?: string;
   deadline?: string;
   priority?: string;
   initialNote?: string;
@@ -64,7 +63,6 @@ export const patchCase = (
     ballOwner: string;
     ballAssignee: string;
     hidden: boolean;
-    teamMembers: string[];
     deadline: string;
     courtCaseNumber: string;
     courtClerk: Partial<Contact>;
@@ -117,44 +115,6 @@ export const addHearing = (
 export const deleteHearing = (id: string, hearingId: string) =>
   request<Case>(`/api/cases/${id}/hearings/${hearingId}`, { method: "DELETE" });
 
-export const addTask = (
-  id: string,
-  payload: { description: string; assignee?: string; assignedBy?: string; dueDate?: string; points?: number | null }
-) => request<Case>(`/api/cases/${id}/tasks`, { method: "POST", body: JSON.stringify(payload) });
-
-export const patchTask = (
-  caseId: string,
-  taskId: string,
-  payload: Partial<{ description: string; assignee: string; dueDate: string; points: number | null; kind: string; caseId: string }>
-) => request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(payload) });
-
-export const completeReportTask = (
-  caseId: string,
-  taskId: string,
-  payload: { description?: string; assignee: string; dueDate?: string; points?: number | null; caseId?: string }
-) =>
-  request<{ case: Case; redirectToPerson: string | null }>(`/api/cases/${caseId}/tasks/${taskId}/complete-report`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-
-export const scoreTask = (caseId: string, taskId: string, score: number) =>
-  request<Case>(`/api/cases/${caseId}/tasks/${taskId}/score`, { method: "POST", body: JSON.stringify({ score }) });
-
-export const deleteTask = (caseId: string, taskId: string) =>
-  request<Case>(`/api/cases/${caseId}/tasks/${taskId}`, { method: "DELETE" });
-
-export const reorderTasks = (taskIds: string[]) =>
-  request<{ ok: true }>("/api/tasks/reorder", { method: "POST", body: JSON.stringify({ taskIds }) });
-
-export const issueInstruction = (payload: {
-  caseId?: string;
-  assignee: string;
-  content: string;
-  dueDate?: string;
-  points?: number | null;
-}) => request<Case>("/api/instructions", { method: "POST", body: JSON.stringify(payload) });
-
 export const addExpense = (
   id: string,
   payload: { date: string; amount: number; category: string; origin?: string; destination?: string; route?: string; notes?: string }
@@ -165,6 +125,9 @@ export const deleteExpense = (caseId: string, expenseId: string) =>
 
 export const fetchUnbilledTimeCharges = (caseId: string) =>
   request<TimeCharge[]>(`/api/cases/${caseId}/timecharges/unbilled`);
+
+export const fetchCaseTimeCharges = (caseId: string) =>
+  request<TimeCharge[]>(`/api/cases/${caseId}/timecharges`);
 
 // ── 顧客 ──────────────────────────────────────────
 export const fetchClients = () => request<Client[]>("/api/clients");
@@ -200,10 +163,6 @@ export const deleteDailyReport = (id: string) => request<{ ok: true }>(`/api/dai
 // ── 個人別サマリー ──────────────────────────────────
 export interface PersonalSummary {
   personName: string;
-  tasks: (Case["tasks"][number] & { case: { id: string; title: string; caseNumber: string } })[];
-  waiting: (Case["tasks"][number] & { case: { id: string; title: string; caseNumber: string } })[];
-  confirmations: (Case["tasks"][number] & { case: { id: string; title: string; caseNumber: string } })[];
-  instructions: (Case["tasks"][number] & { case: { id: string; title: string; caseNumber: string } })[];
   timeCharges: (TimeCharge & { case: { id: string; title: string; caseNumber: string } })[];
   dailyReports: DailyReport[] | null;
 }
@@ -253,37 +212,12 @@ export const saveTemplateContent = (id: string, content: string) =>
   request<Template>(`/api/templates/${id}`, { method: "PATCH", body: JSON.stringify({ content }) });
 export const deleteTemplate = (id: string) => request<{ ok: true }>(`/api/templates/${id}`, { method: "DELETE" });
 
-// ── AI ──────────────────────────────────────────────
-export interface AiExtractResult {
-  matchedCaseNumber: string;
-  expense: { date: string; category: string; amount: number; origin: string; destination: string; route: string; notes: string };
-  title: string;
-  clientName: string;
-  stage: string;
-  priority: string;
-  teamMembers: string[];
-  deadline: string;
-  ballOwner: string;
-  summary: string;
-  tasks: { description: string; assignee: string; dueDate: string }[];
-}
-export const aiExtractCase = (text: string) =>
-  request<AiExtractResult>("/api/ai/extract-case", { method: "POST", body: JSON.stringify({ text }) });
-
+// ── AI（経路自動計算） ────────────────────────────────
 export const aiCalculateRoute = (origin: string, destination: string) =>
   request<{ route: string; fare: number; duration_minutes: number }>("/api/ai/calculate-route", {
     method: "POST",
     body: JSON.stringify({ origin, destination }),
   });
-
-export const aiClientReport = (payload: {
-  clientName: string;
-  title: string;
-  reportDate?: string;
-  content: string;
-  docDeadline?: string;
-  nextHearingDate?: string;
-}) => request<{ text: string }>("/api/ai/client-report", { method: "POST", body: JSON.stringify(payload) });
 
 // ── 個人メモ案件 ──────────────────────────────────────
 export const fetchOrCreateMemoCase = () => request<Case>("/api/memo");
