@@ -17,6 +17,7 @@
     "@anthropic-ai/sdk": "^0.116.0",
     "@prisma/client": "^6.3.1",
     "bcryptjs": "^2.4.3",
+    "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.469.0",
