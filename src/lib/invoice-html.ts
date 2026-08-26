@@ -1,4 +1,4 @@
-import { invoiceTotal } from "@/lib/business/invoice";
+import { invoiceTotal, formatYen, type InvoiceSectionInput } from "@/lib/business/invoice";
 import { formatDate } from "@/lib/dates";
 
 const FIRM_NAME = "Beagle総合法律事務所";
@@ -13,9 +13,7 @@ const BANK_INFO = `銀行：三井住友銀行
 口座種別：普通
 口座番号：9548121`;
 
-function yen(n: number) {
-  return `¥${Math.round(n).toLocaleString("ja-JP")}`;
-}
+const yen = formatYen;
 
 function escapeHtml(s: string) {
   return s
@@ -30,56 +28,43 @@ export interface InvoiceForHtml {
   clientName: string;
   caseTitle: string;
   issueDate: string;
-  feeItems: { description: string; amount: number }[];
-  applyTax: boolean;
-  applyWithholding: boolean;
-  expenseAmount: number;
+  sections: InvoiceSectionInput[];
   notes: string;
 }
 
-/** 請求書の中身（style込みの1つの&lt;div&gt;フラグメント）。印刷プレビュー・PDF化どちらにも使う。 */
+/** 請求書の中身（style込みの1つの&lt;div&gt;フラグメント）。PDF化に使う。区分が2つ以上のときのみ「項目」列（第N）を表示する（v9 3.8）。 */
 export function buildInvoiceElement(inv: InvoiceForHtml): string {
-  const totals = invoiceTotal({
-    feeItems: inv.feeItems,
-    applyTax: inv.applyTax,
-    applyWithholding: inv.applyWithholding,
-    expenseAmount: inv.expenseAmount,
-  });
+  const { sections, total } = invoiceTotal(inv.sections);
+  const showSectionLabel = sections.length > 1;
 
-  const section1RowCount = inv.feeItems.length + 1 + (inv.applyTax ? 1 : 0) + (inv.applyWithholding ? 1 : 0);
+  const bodyRowsHtml = sections
+    .map((sec, secIdx) => {
+      let no = 0;
+      const rowCount = sec.items.length + (sec.tax ? 1 : 0) + (sec.withholding ? 1 : 0) + 1; // +1 for subtotal row
+      const sectionLabelCell = showSectionLabel ? `<td class="section-cell" rowspan="${rowCount}">第${secIdx + 1}</td>` : "";
 
-  const feeRows = inv.feeItems
-    .map(
-      (item, i) => `
-      <tr>
-        ${i === 0 ? `<td class="section-cell" rowspan="${section1RowCount}">第1<br/>（弁護士報酬）</td>` : ""}
-        <td class="no-cell">${i + 1}</td>
-        <td class="desc-cell">${escapeHtml(item.description)}</td>
-        <td class="amount-cell">${yen(item.amount)}</td>
-      </tr>`
-    )
+      const itemRows = sec.items
+        .map((item) => {
+          no += 1;
+          return `<tr>${no === 1 ? sectionLabelCell : ""}<td class="no-cell">${no}</td><td class="desc-cell">${escapeHtml(item.description)}</td><td class="amount-cell">${yen(item.amount)}</td></tr>`;
+        })
+        .join("");
+
+      let extraRows = "";
+      if (sec.tax) {
+        no += 1;
+        extraRows += `<tr>${no === 1 ? sectionLabelCell : ""}<td class="no-cell">${no}</td><td class="desc-cell">消費税（10%）</td><td class="amount-cell">${yen(sec.tax)}</td></tr>`;
+      }
+      if (sec.withholding) {
+        no += 1;
+        extraRows += `<tr>${no === 1 ? sectionLabelCell : ""}<td class="no-cell">${no}</td><td class="desc-cell">源泉所得税</td><td class="amount-cell">${yen(-sec.withholding)}</td></tr>`;
+      }
+      no += 1;
+      const subtotalRow = `<tr>${no === 1 ? sectionLabelCell : ""}<td class="no-cell">${no}</td><td class="desc-cell">小計</td><td class="amount-cell">${yen(sec.total)}</td></tr>`;
+
+      return itemRows + extraRows + subtotalRow;
+    })
     .join("");
-
-  const taxRow = inv.applyTax
-    ? `<tr><td class="no-cell"></td><td class="desc-cell">消費税（10%）</td><td class="amount-cell">${yen(totals.tax)}</td></tr>`
-    : "";
-  const withholdingRow = inv.applyWithholding
-    ? `<tr><td class="no-cell"></td><td class="desc-cell">源泉所得税</td><td class="amount-cell">-${yen(totals.withholding)}</td></tr>`
-    : "";
-  const section1SubtotalRow = `<tr><td class="no-cell"></td><td class="desc-cell">小計</td><td class="amount-cell">${yen(totals.section1)}</td></tr>`;
-
-  const section2Rows = `
-    <tr>
-      <td class="section-cell" rowspan="2">第2<br/>（実費預り金）</td>
-      <td class="no-cell"></td>
-      <td class="desc-cell">実費預り金</td>
-      <td class="amount-cell">${yen(totals.section2)}</td>
-    </tr>
-    <tr>
-      <td class="no-cell"></td>
-      <td class="desc-cell">小計</td>
-      <td class="amount-cell">${yen(totals.section2)}</td>
-    </tr>`;
 
   const notesBlock = inv.notes?.trim() ? `\n\n${inv.notes.trim()}` : "";
 
@@ -119,22 +104,18 @@ ${FIRM_PHONE}</div>
 
     <div class="inv-amount-box">
       <span class="inv-label">ご請求額</span>
-      <span class="inv-value">${yen(totals.total)}</span>
+      <span class="inv-value">${yen(total)}</span>
     </div>
 
     <table class="inv-table">
       <thead>
-        <tr><th>項目</th><th>No.</th><th>摘要</th><th>金額</th></tr>
+        <tr>${showSectionLabel ? "<th>項目</th>" : ""}<th>No.</th><th>摘要</th><th>金額</th></tr>
       </thead>
       <tbody>
-        ${feeRows}
-        ${taxRow}
-        ${withholdingRow}
-        ${section1SubtotalRow}
-        ${section2Rows}
+        ${bodyRowsHtml}
         <tr class="inv-total-row">
-          <td colspan="3">税込ご請求額</td>
-          <td class="amount-cell">${yen(totals.total)}</td>
+          <td colspan="${showSectionLabel ? 3 : 2}" style="text-align:center;">税込ご請求額</td>
+          <td class="amount-cell">${yen(total)}</td>
         </tr>
       </tbody>
     </table>

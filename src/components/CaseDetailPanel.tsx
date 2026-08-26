@@ -33,6 +33,7 @@ import {
   POA_STATUSES,
   CONTRACT_STATUSES,
   RETAINER_STATUSES,
+  INVOICE_SECTION_TYPES,
   cycleValue,
   engagementStatusColor,
 } from "@/lib/constants";
@@ -40,7 +41,7 @@ import { formatDate, formatDateShort, formatDateTime, relativeDayLabel, todayStr
 import type { Case, Contact, TimeCharge } from "@/lib/types";
 import { emptyContact } from "@/lib/types";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
-import { invoiceTotal, buildTimeChargeFeeItem } from "@/lib/business/invoice";
+import { invoiceTotal, buildTimeChargeItem, formatYen } from "@/lib/business/invoice";
 import { summarizeByPerson } from "@/lib/business/timecharge";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
@@ -51,6 +52,32 @@ interface Props {
   onCaseUpdated: (c: Case) => void;
   onCaseDeleted: (id: string) => void;
   onError: (msg: string) => void;
+}
+
+interface SectionItemDraft {
+  tempId: string;
+  description: string;
+  amount: string;
+}
+
+interface SectionDraft {
+  tempId: string;
+  type: string;
+  customTypeLabel: string;
+  applyTax: boolean;
+  applyWithholding: boolean;
+  items: SectionItemDraft[];
+}
+
+function newSectionDraft(applyWithholdingDefault: boolean): SectionDraft {
+  return {
+    tempId: crypto.randomUUID(),
+    type: "弁護士報酬",
+    customTypeLabel: "",
+    applyTax: true,
+    applyWithholding: applyWithholdingDefault,
+    items: [],
+  };
 }
 
 function financeDraftFromCase(c: Case) {
@@ -98,16 +125,9 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // 請求書作成ドラフト
-  const [invoiceForm, setInvoiceForm] = useState({
-    issueDate: todayStr(),
-    applyTax: true,
-    applyWithholding: false,
-    expenseAmount: "",
-    notes: "",
-  });
-  const [feeItems, setFeeItems] = useState<{ description: string; amount: number }[]>([]);
-  const [newFeeItem, setNewFeeItem] = useState({ description: "", unitPrice: "" });
+  // 請求書作成ドラフト（v9：区分方式）
+  const [invoiceForm, setInvoiceForm] = useState({ issueDate: todayStr(), notes: "" });
+  const [invoiceSections, setInvoiceSections] = useState<SectionDraft[]>([newSectionDraft(false)]);
   const [unbilledTimeCharges, setUnbilledTimeCharges] = useState<TimeCharge[]>([]);
   const [timeChargeRateDraft, setTimeChargeRateDraft] = useState("");
   const [billTimeChargeIds, setBillTimeChargeIds] = useState<string[]>([]);
@@ -122,7 +142,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       courtClerk: { ...emptyContact(), ...selectedCase.courtClerk },
     });
     setConfirmDelete(false);
-    setFeeItems([]);
+    setInvoiceForm({ issueDate: todayStr(), notes: "" });
     setBillTimeChargeIds([]);
     api.fetchUnbilledTimeCharges(selectedCase.id).then(setUnbilledTimeCharges).catch(() => setUnbilledTimeCharges([]));
     api.fetchCaseTimeCharges(selectedCase.id).then(setCaseTimeCharges).catch(() => setCaseTimeCharges([]));
@@ -133,12 +153,11 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         .fetchClients()
         .then((clients) => {
           const c = clients.find((cl) => cl.id === selectedCase.clientId);
-          const isCorp = c?.clientType === "法人";
-          setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: isCorp, expenseAmount: "", notes: "" });
+          setInvoiceSections([newSectionDraft(c?.clientType === "法人")]);
         })
-        .catch(() => setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: false, expenseAmount: "", notes: "" }));
+        .catch(() => setInvoiceSections([newSectionDraft(false)]));
     } else {
-      setInvoiceForm({ issueDate: todayStr(), applyTax: true, applyWithholding: false, expenseAmount: "", notes: "" });
+      setInvoiceSections([newSectionDraft(false)]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCase.id]);
@@ -266,47 +285,76 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     }
   };
 
-  // ── 請求書作成 ──────────────────────────────────
-  const addFeeItemDraft = () => {
-    if (!newFeeItem.description.trim() || !newFeeItem.unitPrice) return;
-    setFeeItems((prev) => [...prev, { description: newFeeItem.description.trim(), amount: Number(newFeeItem.unitPrice) }]);
-    setNewFeeItem({ description: "", unitPrice: "" });
-  };
-  const removeFeeItemDraft = (idx: number) => setFeeItems((prev) => prev.filter((_, i) => i !== idx));
+  // ── 請求書作成（v9：区分方式） ──────────────────────
+  const addSection = () => setInvoiceSections((prev) => [...prev, newSectionDraft(true)]);
+  const removeSection = (tempId: string) =>
+    setInvoiceSections((prev) => (prev.length <= 1 ? prev : prev.filter((s) => s.tempId !== tempId)));
+  const updateSection = (tempId: string, updates: Partial<SectionDraft>) =>
+    setInvoiceSections((prev) => prev.map((s) => (s.tempId === tempId ? { ...s, ...updates } : s)));
+  const addSectionItem = (tempId: string) =>
+    setInvoiceSections((prev) =>
+      prev.map((s) => (s.tempId === tempId ? { ...s, items: [...s.items, { tempId: crypto.randomUUID(), description: "", amount: "" }] } : s))
+    );
+  const updateSectionItem = (sectionTempId: string, itemTempId: string, updates: Partial<SectionItemDraft>) =>
+    setInvoiceSections((prev) =>
+      prev.map((s) =>
+        s.tempId === sectionTempId ? { ...s, items: s.items.map((i) => (i.tempId === itemTempId ? { ...i, ...updates } : i)) } : s
+      )
+    );
+  const removeSectionItem = (sectionTempId: string, itemTempId: string) =>
+    setInvoiceSections((prev) =>
+      prev.map((s) => (s.tempId === sectionTempId ? { ...s, items: s.items.filter((i) => i.tempId !== itemTempId) } : s))
+    );
 
-  const addTimeChargeFeeItemDraft = () => {
+  // タイムチャージから計算した項目は、最初に見つかった「弁護士報酬」区分に追加する（無ければ新規作成、v9 3.8）
+  const addTimeChargeSectionItem = () => {
     const totalHours = unbilledTimeCharges.reduce((sum, t) => sum + t.hours, 0);
-    if (!totalHours) return;
-    const item = buildTimeChargeFeeItem(totalHours, Number(timeChargeRateDraft) || 0);
-    setFeeItems((prev) => [...prev, item]);
+    if (!totalHours || !timeChargeRateDraft) return;
+    const built = buildTimeChargeItem(totalHours, Number(timeChargeRateDraft) || 0);
+    const newItem: SectionItemDraft = { tempId: crypto.randomUUID(), description: built.description, amount: String(built.amount) };
+    setInvoiceSections((prev) => {
+      const idx = prev.findIndex((s) => s.type === "弁護士報酬");
+      if (idx >= 0) return prev.map((s, i) => (i === idx ? { ...s, items: [...s.items, newItem] } : s));
+      return [...prev, { ...newSectionDraft(true), items: [newItem] }];
+    });
     setBillTimeChargeIds(unbilledTimeCharges.map((t) => t.id));
+    setTimeChargeRateDraft("");
   };
 
-  const previewTotals = invoiceTotal({
-    feeItems,
-    applyTax: invoiceForm.applyTax,
-    applyWithholding: invoiceForm.applyWithholding,
-    expenseAmount: Number(invoiceForm.expenseAmount) || 0,
-  });
+  const draftSectionsForTotal = invoiceSections.map((s) => ({
+    type: s.type,
+    applyTax: s.applyTax,
+    applyWithholding: s.applyWithholding,
+    items: s.items.filter((i) => i.description.trim() && i.amount !== "").map((i) => ({ description: i.description, amount: Number(i.amount) })),
+  }));
+  const previewTotals = invoiceTotal(draftSectionsForTotal);
+  const hasAnyInvoiceItem = draftSectionsForTotal.some((s) => s.items.length > 0);
 
   const submitInvoice = async () => {
-    if (!feeItems.length || !invoiceForm.issueDate) return;
+    const cleanedSections = invoiceSections
+      .map((s) => ({
+        type: s.type,
+        customTypeLabel: s.customTypeLabel,
+        applyTax: s.applyTax,
+        applyWithholding: s.applyWithholding,
+        items: s.items.filter((i) => i.description.trim() && i.amount !== "").map((i) => ({ description: i.description.trim(), amount: Number(i.amount) })),
+      }))
+      .filter((s) => s.items.length > 0);
+    if (!cleanedSections.length || !invoiceForm.issueDate) return;
     setCreatingInvoice(true);
     try {
       const inv = await api.createInvoice({
         caseId: selectedCase.id,
         issueDate: invoiceForm.issueDate,
-        feeItems,
-        applyTax: invoiceForm.applyTax,
-        applyWithholding: invoiceForm.applyWithholding,
-        expenseAmount: Number(invoiceForm.expenseAmount) || 0,
+        sections: cleanedSections,
         notes: invoiceForm.notes,
         billTimeChargeIds,
       });
       await downloadInvoicePdf(inv);
-      setFeeItems([]);
+      const wasWithholdingDefault = invoiceSections[0]?.applyWithholding ?? false;
+      setInvoiceSections([newSectionDraft(wasWithholdingDefault)]);
       setBillTimeChargeIds([]);
-      setInvoiceForm((prev) => ({ issueDate: todayStr(), applyTax: true, applyWithholding: prev.applyWithholding, expenseAmount: "", notes: "" }));
+      setInvoiceForm({ issueDate: todayStr(), notes: "" });
       const remaining = await api.fetchUnbilledTimeCharges(selectedCase.id);
       setUnbilledTimeCharges(remaining);
       setInvoiceRefreshKey((k) => k + 1);
@@ -690,68 +738,86 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
 
         <label className="text-xs" style={{ color: COLORS.slate }}>
           発行日
-          <TextInput type="date" value={invoiceForm.issueDate} onChange={(e) => setInvoiceForm({ ...invoiceForm, issueDate: e.target.value })} className="mt-1 w-full sm:w-48" />
+          <TextInput type="date" value={invoiceForm.issueDate} onChange={(e) => setInvoiceForm({ ...invoiceForm, issueDate: e.target.value })} className="mt-1 w-full sm:w-48 mb-3" />
         </label>
-
-        <p className="text-xs font-bold mt-4 mb-2" style={{ color: COLORS.slate }}>第1　弁護士報酬</p>
-        <div className="flex flex-col sm:flex-row gap-2 mb-2">
-          <TextInput type="text" placeholder="摘要" value={newFeeItem.description} onChange={(e) => setNewFeeItem({ ...newFeeItem, description: e.target.value })} className="flex-1" />
-          <TextInput type="number" placeholder="金額" value={newFeeItem.unitPrice} onChange={(e) => setNewFeeItem({ ...newFeeItem, unitPrice: e.target.value })} className="sm:w-32" />
-          <button onClick={addFeeItemDraft} disabled={!newFeeItem.description.trim() || !newFeeItem.unitPrice} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
-        </div>
 
         {unbilledTimeCharges.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-3 p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
-            <span className="text-xs flex-1" style={{ color: COLORS.slate }}>
-              未請求のタイムチャージ {unbilledTimeCharges.length}件（合計{unbilledTimeCharges.reduce((s, t) => s + t.hours, 0)}時間）
-            </span>
-            <TextInput type="number" placeholder="時間単価" value={timeChargeRateDraft} onChange={(e) => setTimeChargeRateDraft(e.target.value)} className="w-28" />
-            <button onClick={addTimeChargeFeeItemDraft} disabled={!timeChargeRateDraft} className="text-xs font-bold px-3 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.brass, color: "#fff" }}>
-              タイムチャージから計算して追加
-            </button>
+          <div className="rounded p-3 mb-3" style={{ backgroundColor: COLORS.paper, border: `1px dashed ${COLORS.brassLight}` }}>
+            <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.navy }}>タイムチャージから計算して追加（任意）</p>
+            <p className="text-xs mb-2" style={{ color: COLORS.slate }}>この案件の未請求タイムチャージ：{unbilledTimeCharges.reduce((s, t) => s + t.hours, 0)}時間</p>
+            <div className="flex gap-2">
+              <TextInput type="number" placeholder="時間単価（円）" value={timeChargeRateDraft} onChange={(e) => setTimeChargeRateDraft(e.target.value)} className="flex-1" />
+              <button onClick={addTimeChargeSectionItem} disabled={!timeChargeRateDraft} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>計算して追加</button>
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>最初の「弁護士報酬」区分に追加されます（無ければ新規作成）。</p>
           </div>
         )}
 
-        {feeItems.length > 0 && (
-          <div className="flex flex-col gap-1.5 mb-3">
-            {feeItems.map((f, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                <span className="flex-1">{f.description}</span>
-                <span className="font-bold">¥{f.amount.toLocaleString("ja-JP")}</span>
-                <button onClick={() => removeFeeItemDraft(i)} style={{ color: COLORS.slate }}><X size={14} /></button>
+        <div className="flex flex-col gap-4 mb-3">
+          {invoiceSections.map((sec, secIdx) => (
+            <div key={sec.tempId} className="rounded p-3" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold" style={{ color: COLORS.navy }}>第{secIdx + 1}</p>
+                {invoiceSections.length > 1 && (
+                  <button onClick={() => removeSection(sec.tempId)} className="text-xs" style={{ color: COLORS.slate }}>この区分を削除</button>
+                )}
               </div>
-            ))}
-          </div>
-        )}
-
-        <div className="flex gap-4 mb-3">
-          <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
-            <input type="checkbox" checked={invoiceForm.applyTax} onChange={(e) => setInvoiceForm({ ...invoiceForm, applyTax: e.target.checked })} /> 消費税10%を加算
-          </label>
-          <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
-            <input type="checkbox" checked={invoiceForm.applyWithholding} onChange={(e) => setInvoiceForm({ ...invoiceForm, applyWithholding: e.target.checked })} /> 源泉所得税10.21%を控除
-          </label>
+              <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                <select value={sec.type} onChange={(e) => updateSection(sec.tempId, { type: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                  {INVOICE_SECTION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                {sec.type === "その他" && (
+                  <TextInput type="text" placeholder="項目名（例：日当）" value={sec.customTypeLabel} onChange={(e) => updateSection(sec.tempId, { customTypeLabel: e.target.value })} className="flex-1" />
+                )}
+              </div>
+              {sec.type === "弁護士報酬" && (
+                <div className="flex flex-col gap-1 mb-2">
+                  <label className="text-xs flex items-center gap-1.5" style={{ color: COLORS.slate }}>
+                    <input type="checkbox" checked={sec.applyTax} onChange={(e) => updateSection(sec.tempId, { applyTax: e.target.checked })} />
+                    消費税を加算する（10%）
+                  </label>
+                  <label className="text-xs flex items-center gap-1.5" style={{ color: COLORS.slate }}>
+                    <input type="checkbox" checked={sec.applyWithholding} onChange={(e) => updateSection(sec.tempId, { applyWithholding: e.target.checked })} />
+                    源泉所得税を控除する（100万円以下：10.21%／超過分：20.42%＋102,100円）
+                  </label>
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5 mb-2">
+                {sec.items.map((item) => (
+                  <div key={item.tempId} className="flex items-center gap-2">
+                    <TextInput type="text" placeholder="項目名" value={item.description} onChange={(e) => updateSectionItem(sec.tempId, item.tempId, { description: e.target.value })} className="flex-1" />
+                    <TextInput type="number" placeholder="金額（返金等はマイナス可）" value={item.amount} onChange={(e) => updateSectionItem(sec.tempId, item.tempId, { amount: e.target.value })} style={{ width: 170 }} />
+                    <button onClick={() => removeSectionItem(sec.tempId, item.tempId)} style={{ color: COLORS.slate }}><X size={13} /></button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => addSectionItem(sec.tempId)} className="text-xs font-bold px-2.5 py-1.5 rounded" style={{ color: COLORS.navy, border: `1px solid ${COLORS.brassLight}` }}>+ 項目を追加</button>
+            </div>
+          ))}
         </div>
 
-        <label className="text-xs" style={{ color: COLORS.slate }}>
-          第2　実費預り金
-          <TextInput type="number" value={invoiceForm.expenseAmount} onChange={(e) => setInvoiceForm({ ...invoiceForm, expenseAmount: e.target.value })} className="mt-1 w-full sm:w-48" />
-        </label>
+        <button onClick={addSection} className="text-xs font-bold mb-4 px-2.5 py-1.5 rounded" style={{ color: COLORS.navy, border: `1px solid ${COLORS.brassLight}` }}>
+          + 区分を追加（第{invoiceSections.length + 1}）
+        </button>
 
-        <label className="text-xs block mt-3" style={{ color: COLORS.slate }}>
+        <label className="text-xs block mb-3" style={{ color: COLORS.slate }}>
           備考
           <textarea value={invoiceForm.notes} onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
         </label>
 
-        <div className="mt-4 p-3 rounded text-sm flex flex-col gap-1" style={{ backgroundColor: COLORS.paper }}>
-          <div className="flex justify-between"><span>弁護士報酬小計</span><span>¥{previewTotals.feeSubtotal.toLocaleString("ja-JP")}</span></div>
-          {invoiceForm.applyTax && <div className="flex justify-between"><span>消費税（10%）</span><span>¥{previewTotals.tax.toLocaleString("ja-JP")}</span></div>}
-          {invoiceForm.applyWithholding && <div className="flex justify-between"><span>源泉所得税</span><span>-¥{previewTotals.withholding.toLocaleString("ja-JP")}</span></div>}
-          <div className="flex justify-between"><span>実費預り金</span><span>¥{previewTotals.section2.toLocaleString("ja-JP")}</span></div>
-          <div className="flex justify-between font-bold text-base pt-1" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}><span>税込ご請求額</span><span>¥{previewTotals.total.toLocaleString("ja-JP")}</span></div>
-        </div>
+        {hasAnyInvoiceItem && (
+          <div className="mt-1 p-3 rounded text-sm flex flex-col gap-1" style={{ backgroundColor: COLORS.paper }}>
+            {previewTotals.sections.map((s, i) => (
+              <div key={i} className="flex justify-between">
+                <span>第{i + 1}（{s.type === "その他" ? (invoiceSections[i]?.customTypeLabel || "その他") : s.type}）小計</span>
+                <span>{formatYen(s.total)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between font-bold text-base pt-1" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}><span>税込ご請求額</span><span>{formatYen(previewTotals.total)}</span></div>
+          </div>
+        )}
 
-        <button onClick={submitInvoice} disabled={!feeItems.length || creatingInvoice} className="mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
+        <button onClick={submitInvoice} disabled={!hasAnyInvoiceItem || creatingInvoice} className="mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
           <Download size={15} /> 請求書PDFを作成
         </button>
 

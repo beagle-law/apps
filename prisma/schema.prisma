@@ -284,33 +284,48 @@ model Template {
 // ─────────────────────────────────────────────────────────
 
 model Invoice {
-  id               String   @id @default(cuid())
-  invoiceNumber    Int      @unique
-  caseId           String
-  case             Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  clientName       String // 発行時点のスナップショット、暗号化
-  caseTitle        String
-  issueDate        String
-  applyTax         Boolean  @default(true)
-  applyWithholding Boolean  @default(true)
-  expenseAmount    Int      @default(0)
-  notes            String   @default("")
-  paid             Boolean  @default(false)
-  paidAt           String   @default("")
-  createdAt        DateTime @default(now())
+  id            String   @id @default(cuid())
+  invoiceNumber Int      @unique
+  caseId        String
+  case          Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  clientName    String // 発行時点のスナップショット、暗号化
+  caseTitle     String
+  issueDate     String
+  notes         String   @default("")
+  paid          Boolean  @default(false)
+  paidAt        String   @default("")
+  createdAt     DateTime @default(now())
 
-  feeItems    FeeItem[]
+  sections    InvoiceSection[]
   timeCharges TimeCharge[]
 
   @@index([caseId])
 }
 
-model FeeItem {
-  id          String  @id @default(cuid())
-  invoiceId   String
-  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  description String
-  amount      Int
+// 請求書の区分（v9 3.8）：第1・第2…と任意個数追加できる。種別ごとに消費税・源泉徴収の
+// 適用可否が変わる（「弁護士報酬」区分にのみ適用）。sortOrderが区分の表示順（＝第N）。
+model InvoiceSection {
+  id               String  @id @default(cuid())
+  invoiceId        String
+  invoice          Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  type             String // "弁護士報酬" | "実費お預かり金" | "実費ご返金" | "その他"
+  customTypeLabel  String  @default("") // typeが「その他」の場合のみ使用する自由入力の項目名
+  applyTax         Boolean @default(false)
+  applyWithholding Boolean @default(false)
+  sortOrder        Int     @default(0)
+
+  items InvoiceSectionItem[]
 
   @@index([invoiceId])
+}
+
+model InvoiceSectionItem {
+  id          String         @id @default(cuid())
+  sectionId   String
+  section     InvoiceSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  description String
+  amount      Int // マイナス可（実費の返金等）
+  sortOrder   Int            @default(0)
+
+  @@index([sectionId])
 }

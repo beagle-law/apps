@@ -174,10 +174,13 @@ export const fetchInvoices = (caseId?: string) =>
 export const createInvoice = (payload: {
   caseId: string;
   issueDate: string;
-  feeItems: { description: string; amount: number }[];
-  applyTax: boolean;
-  applyWithholding: boolean;
-  expenseAmount: number;
+  sections: {
+    type: string;
+    customTypeLabel?: string;
+    applyTax?: boolean;
+    applyWithholding?: boolean;
+    items: { description: string; amount: number }[];
+  }[];
   notes?: string;
   billTimeChargeIds?: string[];
 }) => request<Invoice>("/api/invoices", { method: "POST", body: JSON.stringify(payload) });

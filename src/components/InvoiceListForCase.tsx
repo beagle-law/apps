@@ -5,7 +5,7 @@ import { X, Download } from "lucide-react";
 import { COLORS } from "@/lib/constants";
 import { formatDate } from "@/lib/dates";
 import type { Invoice } from "@/lib/types";
-import { invoiceTotal } from "@/lib/business/invoice";
+import { invoiceTotal, formatYen } from "@/lib/business/invoice";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
 
@@ -56,11 +56,11 @@ export default function InvoiceListForCase({ caseId, refreshKey, onError }: Prop
       <p className="text-xs font-bold mb-2" style={{ color: COLORS.slate }}>この案件の請求書</p>
       <div className="flex flex-col gap-2">
         {invoices.map((inv) => {
-          const totals = invoiceTotal(inv);
+          const totals = invoiceTotal(inv.sections);
           return (
             <div key={inv.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
               <div className="flex-1">
-                <p>No.{inv.invoiceNumber}　{formatDate(inv.issueDate)}　¥{totals.total.toLocaleString("ja-JP")}</p>
+                <p>No.{inv.invoiceNumber}　{formatDate(inv.issueDate)}　{formatYen(totals.total)}</p>
               </div>
               <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ color: "#fff", backgroundColor: inv.paid ? COLORS.moss : COLORS.slate }}>
                 {inv.paid ? "入金済み" : "未入金"}

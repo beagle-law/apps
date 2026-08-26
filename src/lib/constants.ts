@@ -82,6 +82,7 @@ export const CASE_CLASSIFICATIONS = [
 ];
 export const EXPENSE_CATEGORIES = ["交通費", "印紙代", "郵送費", "謄写費用", "通信費", "その他"];
 export const PASSWORD_CATEGORIES = ["事務所", "コレカ", "Sherpa", "Beagle", "Samurai"];
+export const INVOICE_SECTION_TYPES = ["弁護士報酬", "実費お預かり金", "実費ご返金", "その他"];
 export const GOAL_KEYS = [
   { key: "company", label: "全社目標" },
   { key: "ozaki", label: "尾崎目標" },

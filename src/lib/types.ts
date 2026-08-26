@@ -174,10 +174,19 @@ export interface Template {
   updatedAt: string;
 }
 
-export interface FeeItem {
+export interface InvoiceSectionItem {
   id: string;
   description: string;
   amount: number;
+}
+
+export interface InvoiceSection {
+  id: string;
+  type: string; // "弁護士報酬" | "実費お預かり金" | "実費ご返金" | "その他"
+  customTypeLabel: string;
+  applyTax: boolean;
+  applyWithholding: boolean;
+  items: InvoiceSectionItem[];
 }
 
 export interface Invoice {
@@ -187,14 +196,11 @@ export interface Invoice {
   clientName: string;
   caseTitle: string;
   issueDate: string;
-  applyTax: boolean;
-  applyWithholding: boolean;
-  expenseAmount: number;
   notes: string;
   paid: boolean;
   paidAt: string;
   createdAt: string;
-  feeItems: FeeItem[];
+  sections: InvoiceSection[];
 }
 
 export interface User {

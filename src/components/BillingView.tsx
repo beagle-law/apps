@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { COLORS, FONT_MINCHO } from "@/lib/constants";
 import { formatDate } from "@/lib/dates";
-import { invoiceTotal } from "@/lib/business/invoice";
+import { invoiceTotal, formatYen } from "@/lib/business/invoice";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
 import type { Invoice } from "@/lib/types";
@@ -66,12 +66,12 @@ export default function BillingView({ onOpenCase, onError }: Props) {
           <div className="flex flex-col gap-5">
             {sortedMonths.map((ym) => {
               const monthInvoices = groups.get(ym)!;
-              const total = monthInvoices.reduce((s, inv) => s + invoiceTotal(inv).total, 0);
+              const total = monthInvoices.reduce((s, inv) => s + invoiceTotal(inv.sections).total, 0);
               return (
                 <div key={ym} className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{ym}</h3>
-                    <span className="text-sm font-bold">合計 ¥{total.toLocaleString("ja-JP")}</span>
+                    <span className="text-sm font-bold">合計 {formatYen(total)}</span>
                   </div>
                   <div className="flex flex-col gap-2">
                     {monthInvoices.map((inv) => (
@@ -80,7 +80,7 @@ export default function BillingView({ onOpenCase, onError }: Props) {
                           <p>{inv.clientName}　{inv.caseTitle}</p>
                           <p className="text-xs" style={{ color: COLORS.slate }}>No.{inv.invoiceNumber}　{formatDate(inv.issueDate)}{inv.paidAt && `　入金日：${formatDate(inv.paidAt)}`}</p>
                         </button>
-                        <span className="font-bold flex-shrink-0">¥{invoiceTotal(inv).total.toLocaleString("ja-JP")}</span>
+                        <span className="font-bold flex-shrink-0">{formatYen(invoiceTotal(inv.sections).total)}</span>
                         <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: inv.paid ? COLORS.moss : COLORS.slate, color: "#fff" }}>
                           {inv.paid ? "入金済み" : "未入金"}
                         </button>

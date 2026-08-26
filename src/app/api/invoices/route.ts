@@ -17,13 +17,18 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(invoices.map(serializeInvoice));
 }
 
+interface CreateInvoiceSectionBody {
+  type: string;
+  customTypeLabel?: string;
+  applyTax?: boolean;
+  applyWithholding?: boolean;
+  items: { description: string; amount: number }[];
+}
+
 interface CreateInvoiceBody {
   caseId?: string;
   issueDate?: string;
-  feeItems?: { description: string; amount: number }[];
-  applyTax?: boolean;
-  applyWithholding?: boolean;
-  expenseAmount?: number;
+  sections?: CreateInvoiceSectionBody[];
   notes?: string;
   billTimeChargeIds?: string[];
 }
@@ -33,8 +38,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
 
   const body = (await req.json()) as CreateInvoiceBody;
-  if (!body.caseId || !body.issueDate || !body.feeItems?.length) {
-    return NextResponse.json({ error: "案件・発行日・弁護士報酬項目は必須です" }, { status: 400 });
+  const sections = (body.sections || []).filter((s) => s.items.some((i) => i.description.trim() && i.amount !== undefined));
+  if (!body.caseId || !body.issueDate || !sections.length) {
+    return NextResponse.json({ error: "案件・発行日・区分の項目は必須です" }, { status: 400 });
   }
 
   const [targetCase, last] = await Promise.all([
@@ -45,10 +51,6 @@ export async function POST(req: NextRequest) {
 
   const invoiceNumber = (last?.invoiceNumber ?? 0) + 1;
 
-  // 依頼者（顧客）が法人の場合は源泉徴収を自動でON、個人または顧客未連携の場合はデフォルトOFF（手動で上書き可）
-  const client = targetCase.clientId ? await prisma.client.findUnique({ where: { id: targetCase.clientId } }) : null;
-  const defaultApplyWithholding = client?.clientType === "法人";
-
   const created = await prisma.$transaction(async (tx) => {
     const invoice = await tx.invoice.create({
       data: {
@@ -57,11 +59,21 @@ export async function POST(req: NextRequest) {
         clientName: targetCase.clientName, // 既に暗号化済みの値をそのままスナップショットとしてコピー
         caseTitle: targetCase.title,
         issueDate: body.issueDate!,
-        applyTax: body.applyTax ?? true,
-        applyWithholding: body.applyWithholding ?? defaultApplyWithholding,
-        expenseAmount: Math.round(Number(body.expenseAmount) || 0),
         notes: body.notes?.trim() || "",
-        feeItems: { create: body.feeItems!.map((f) => ({ description: f.description, amount: Math.round(f.amount) })) },
+        sections: {
+          create: sections.map((sec, secIdx) => ({
+            type: sec.type,
+            customTypeLabel: sec.customTypeLabel?.trim() || "",
+            applyTax: sec.type === "弁護士報酬" ? !!sec.applyTax : false,
+            applyWithholding: sec.type === "弁護士報酬" ? !!sec.applyWithholding : false,
+            sortOrder: secIdx,
+            items: {
+              create: sec.items
+                .filter((i) => i.description.trim() && i.amount !== undefined)
+                .map((i, itemIdx) => ({ description: i.description.trim(), amount: Math.round(i.amount), sortOrder: itemIdx })),
+            },
+          })),
+        },
       },
       include: invoiceInclude,
     });
