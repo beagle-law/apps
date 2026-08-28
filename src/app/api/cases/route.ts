@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       title: body.title.trim(),
       clientName: encryptField(body.clientName.trim()),
       clientId: body.clientId || null,
-      stage: "新規問合せ・紹介",
+      stage: "受任前",
       priority: body.priority || "通常",
       deadline: body.deadline || "",
       ballOwner: "事務所",

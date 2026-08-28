@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase, encryptOpposingCounsel } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
 import { encryptField } from "@/lib/crypto";
+import { computeAutoStage } from "@/lib/business/stage";
 
 interface FinanceBody {
   caseClassification?: string;
@@ -21,10 +22,12 @@ interface FinanceBody {
   litigationEngagementDate?: string;
   noticeSentDate?: string;
   filingDate?: string;
+  closedDate?: string;
   claimAmount?: number | "" | null;
   retainerFee?: number | "" | null;
   expectedFee?: number | "" | null;
   expectedFeeDate?: string;
+  customFields?: { label: string; value: string }[];
 }
 
 function toNullableInt(v: number | "" | null | undefined): number | null | undefined {
@@ -62,6 +65,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.litigationEngagementDate !== undefined) data.litigationEngagementDate = body.litigationEngagementDate;
   if (body.noticeSentDate !== undefined) data.noticeSentDate = body.noticeSentDate;
   if (body.filingDate !== undefined) data.filingDate = body.filingDate;
+  if (body.closedDate !== undefined) data.closedDate = body.closedDate;
   const claimAmount = toNullableInt(body.claimAmount);
   if (claimAmount !== undefined) data.claimAmount = claimAmount;
   const retainerFee = toNullableInt(body.retainerFee);
@@ -69,6 +73,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const expectedFee = toNullableInt(body.expectedFee);
   if (expectedFee !== undefined) data.expectedFee = expectedFee;
   if (body.expectedFeeDate !== undefined) data.expectedFeeDate = body.expectedFeeDate;
+  if (body.customFields !== undefined) data.customFields = body.customFields;
+
+  // ステータス自動遷移（v10 3.1）：受任日/終結日の入力に連動して「受任前」→「受任・対応中」→「終結」
+  const autoStage = computeAutoStage(
+    { stage: existing.stage, engagementDate: existing.engagementDate },
+    { engagementDate: body.engagementDate, closedDate: body.closedDate }
+  );
+  if (autoStage) data.stage = autoStage;
 
   const updated = await prisma.case.update({ where: { id }, data, include: caseInclude });
   return NextResponse.json(serializeCase(updated));

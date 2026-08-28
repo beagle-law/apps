@@ -41,12 +41,16 @@ export async function PATCH(
   if (!canAccessGoalKey(user, key)) {
     return NextResponse.json({ error: "この目標は編集できません" }, { status: 403 });
   }
-  const body = (await req.json()) as { overallPercent?: string };
+  const body = (await req.json()) as { overallPercent?: string; memo?: string };
   const record = await ensureRecord(key, yearMonth);
+
+  const data: { overallPercent?: string; memo?: string } = {};
+  if (body.overallPercent !== undefined) data.overallPercent = body.overallPercent;
+  if (body.memo !== undefined) data.memo = body.memo;
 
   const updated = await prisma.goalRecord.update({
     where: { id: record.id },
-    data: { overallPercent: body.overallPercent ?? "" },
+    data,
     include: { items: true },
   });
   return NextResponse.json(updated);

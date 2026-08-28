@@ -21,6 +21,7 @@ interface PatchCaseBody {
   contractStatus?: string;
   retainerStatus?: string;
   isTimeChargeCase?: boolean;
+  timeChargeRate?: number | null;
   autoNote?: string;
   author?: string;
 }
@@ -56,6 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.hidden !== undefined) data.hidden = body.hidden;
   if (body.deadline !== undefined) data.deadline = body.deadline;
   if (body.isTimeChargeCase !== undefined) data.isTimeChargeCase = body.isTimeChargeCase;
+  if (body.timeChargeRate !== undefined) data.timeChargeRate = body.timeChargeRate;
   if (body.courtCaseNumber !== undefined) data.courtCaseNumber = body.courtCaseNumber;
   if (body.courtClerk) {
     const cc = body.courtClerk;

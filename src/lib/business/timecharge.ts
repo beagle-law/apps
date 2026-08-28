@@ -1,10 +1,18 @@
+/** 全角数字・全角コロンを半角に変換する（v10 4.1）。 */
+function toHalfWidth(s: string): string {
+  return s
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/：/g, ":");
+}
+
 /**
- * タイムチャージの時刻入力補助（v7 4.2）。
+ * タイムチャージの時刻入力補助（v7 4.2、v10 4.1で全角入力にも対応）。
  * 「1004」のような3〜4桁の数字入力を「10:04」形式に自動変換する。
  * 既に「H:MM」「HH:MM」形式で入力された場合はそのまま（時のみ0埋め）扱う。
+ * 全角数字・全角コロンで入力された場合も自動的に半角に変換してから判定する。
  */
 export function normalizeTimeInput(raw: string): string {
-  const trimmed = (raw || "").trim();
+  const trimmed = toHalfWidth((raw || "").trim());
   if (!trimmed) return "";
   if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
     const [h, m] = trimmed.split(":");

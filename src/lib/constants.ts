@@ -17,38 +17,23 @@ export const COLORS = {
   moss: "#5B7A5B",
 } as const;
 
-export const STAGES = [
-  "新規問合せ・紹介",
-  "初回面談調整中",
-  "面談済み・受任検討中",
-  "受任せず（終了）",
-  "受任・対応中",
-  "終結",
-] as const;
+// v10で6段階から3値に簡素化（3.1）。受任日/終結日の入力に連動して自動遷移する。
+export const STAGES = ["受任前", "受任・対応中", "終結"] as const;
 
 export const STAGE_GROUP: Record<string, "対応前" | "対応中" | "終了"> = {
-  "新規問合せ・紹介": "対応前",
-  "初回面談調整中": "対応前",
-  "面談済み・受任検討中": "対応前",
-  "受任せず（終了）": "終了",
+  "受任前": "対応前",
   "受任・対応中": "対応中",
   "終結": "終了",
 };
 
 export const STAGE_COLOR: Record<string, string> = {
-  "新規問合せ・紹介": COLORS.slate,
-  "初回面談調整中": COLORS.amber,
-  "面談済み・受任検討中": COLORS.amber,
-  "受任せず（終了）": COLORS.slate,
+  "受任前": COLORS.slate,
   "受任・対応中": COLORS.vermillion,
   "終結": COLORS.moss,
 };
 
 export const STAGE_SEAL_TEXT: Record<string, string> = {
-  "新規問合せ・紹介": "新規",
-  "初回面談調整中": "面談",
-  "面談済み・受任検討中": "検討",
-  "受任せず（終了）": "終了",
+  "受任前": "受任前",
   "受任・対応中": "対応",
   "終結": "終結",
 };
@@ -65,11 +50,12 @@ export const BALL_COLOR: Record<string, string> = {
 export const POA_STATUSES = ["対応不要", "未対応", "発送済", "受領済"];
 export const CONTRACT_STATUSES = ["対応不要", "未対応", "発送済", "締結済"];
 export const RETAINER_STATUSES = ["対応不要", "未対応", "請求済", "受領済"];
-export const PRIORITIES = ["通常", "至急"];
 export const STAFF_MEMBERS = ["宮村", "尾崎", "岩下", "石谷", "上田"];
 export const PERSONAL_TASK_TABS = ["宮村", "尾崎", "岩下"];
 export const DAILY_REPORT_STAFF = ["宮村", "岩下", "尾崎"];
-export const CASE_CLASSIFICATIONS = [
+// v10で拡張可能に変更（3.7）。実際の選択肢は /api/case-classifications から取得する。
+// ここに残しているのはフォールバック・シード用の初期値のみ。
+export const CASE_CLASSIFICATIONS_FALLBACK = [
   "売買代金請求",
   "損害賠償",
   "貸金請求",
@@ -82,7 +68,9 @@ export const CASE_CLASSIFICATIONS = [
 ];
 export const EXPENSE_CATEGORIES = ["交通費", "印紙代", "郵送費", "謄写費用", "通信費", "その他"];
 export const PASSWORD_CATEGORIES = ["事務所", "コレカ", "Sherpa", "Beagle", "Samurai"];
-export const INVOICE_SECTION_TYPES = ["弁護士報酬", "実費お預かり金", "実費ご返金", "その他"];
+export const INVOICE_SECTION_TYPES = ["弁護士報酬", "実費", "実費お預かり金", "実費ご返金", "その他"];
+// 別紙自動生成の対象となる区分（v10 3.2）
+export const EXPENSE_LIKE_SECTION_TYPES = ["実費", "実費お預かり金", "実費ご返金"];
 export const GOAL_KEYS = [
   { key: "company", label: "全社目標" },
   { key: "ozaki", label: "尾崎目標" },

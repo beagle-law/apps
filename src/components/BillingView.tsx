@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { COLORS, FONT_MINCHO } from "@/lib/constants";
 import { formatDate } from "@/lib/dates";
 import { invoiceTotal, formatYen } from "@/lib/business/invoice";
@@ -40,15 +40,24 @@ export default function BillingView({ onOpenCase, onError }: Props) {
     }
   };
 
-  const visible = showPaid ? invoices : invoices.filter((i) => !i.paid);
+  const removeInvoice = async (id: string) => {
+    try {
+      await api.deleteInvoice(id);
+      setInvoices((prev) => prev.filter((i) => i.id !== id));
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "削除に失敗しました");
+    }
+  };
 
-  const groups = new Map<string, Invoice[]>();
-  visible.forEach((inv) => {
+  // v10 4.7：月ごとの合計は「入金済みのものも表示する」チェックの状態にかかわらず、
+  // その月の全請求書を対象に「未入金計／入金済計／合計」の3種類を算出する。
+  const allGroups = new Map<string, Invoice[]>();
+  invoices.forEach((inv) => {
     const ym = (inv.issueDate || inv.createdAt).slice(0, 7);
-    if (!groups.has(ym)) groups.set(ym, []);
-    groups.get(ym)!.push(inv);
+    if (!allGroups.has(ym)) allGroups.set(ym, []);
+    allGroups.get(ym)!.push(inv);
   });
-  const sortedMonths = Array.from(groups.keys()).sort((a, b) => (a < b ? 1 : -1));
+  const sortedMonths = Array.from(allGroups.keys()).sort((a, b) => (a < b ? 1 : -1));
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -65,26 +74,38 @@ export default function BillingView({ onOpenCase, onError }: Props) {
         ) : (
           <div className="flex flex-col gap-5">
             {sortedMonths.map((ym) => {
-              const monthInvoices = groups.get(ym)!;
-              const total = monthInvoices.reduce((s, inv) => s + invoiceTotal(inv.sections).total, 0);
+              const monthInvoices = allGroups.get(ym)!;
+              const unpaidTotal = monthInvoices.filter((i) => !i.paid).reduce((s, inv) => s + invoiceTotal(inv.sections).total, 0);
+              const paidTotal = monthInvoices.filter((i) => i.paid).reduce((s, inv) => s + invoiceTotal(inv.sections).total, 0);
+              const rows = showPaid ? monthInvoices : monthInvoices.filter((i) => !i.paid);
+              if (rows.length === 0) return null;
               return (
                 <div key={ym} className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
                     <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{ym}</h3>
-                    <span className="text-sm font-bold">合計 {formatYen(total)}</span>
+                    <span className="text-xs" style={{ color: COLORS.slate }}>
+                      未入金計 <span className="font-bold" style={{ color: COLORS.ink }}>{formatYen(unpaidTotal)}</span>
+                      　入金済計 <span className="font-bold" style={{ color: COLORS.ink }}>{formatYen(paidTotal)}</span>
+                      　合計 <span className="font-bold" style={{ color: COLORS.ink }}>{formatYen(unpaidTotal + paidTotal)}</span>
+                    </span>
                   </div>
                   <div className="flex flex-col gap-2">
-                    {monthInvoices.map((inv) => (
+                    {rows.map((inv) => (
                       <div key={inv.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
                         <button onClick={() => onOpenCase(inv.caseId)} className="flex-1 text-left">
                           <p>{inv.clientName}　{inv.caseTitle}</p>
-                          <p className="text-xs" style={{ color: COLORS.slate }}>No.{inv.invoiceNumber}　{formatDate(inv.issueDate)}{inv.paidAt && `　入金日：${formatDate(inv.paidAt)}`}</p>
+                          <p className="text-xs" style={{ color: COLORS.slate }}>
+                            {formatDate(inv.issueDate)}
+                            {inv.dueDate && `　支払期限：${formatDate(inv.dueDate)}`}
+                            {inv.paidAt && `　入金日：${formatDate(inv.paidAt)}`}
+                          </p>
                         </button>
                         <span className="font-bold flex-shrink-0">{formatYen(invoiceTotal(inv.sections).total)}</span>
                         <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: inv.paid ? COLORS.moss : COLORS.slate, color: "#fff" }}>
                           {inv.paid ? "入金済み" : "未入金"}
                         </button>
                         <button onClick={() => downloadPdf(inv)} className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFをダウンロード"><Download size={14} /></button>
+                        <button onClick={() => removeInvoice(inv.id)} className="flex-shrink-0" style={{ color: COLORS.slate }} title="削除"><X size={14} /></button>
                       </div>
                     ))}
                   </div>

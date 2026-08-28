@@ -11,6 +11,7 @@ interface Props {
   cases: Case[];
   onOpenCase: (id: string) => void;
   onError: (msg: string) => void;
+  initialClientId?: string | null;
 }
 
 const emptyForm = { companyName: "", clientType: "法人", address: "", contactName: "", phone: "", email: "", contactMethod: "", source: "", referrerName: "", notes: "" };
@@ -35,10 +36,14 @@ const RadioGroup = ({ options, value, onChange }: { options: string[]; value: st
   </div>
 );
 
-export default function ClientsView({ cases, onOpenCase, onError }: Props) {
+export default function ClientsView({ cases, onOpenCase, onError, initialClientId }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialClientId ?? null);
+
+  useEffect(() => {
+    if (initialClientId) setSelectedId(initialClientId);
+  }, [initialClientId]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
   const [newForm, setNewForm] = useState(emptyForm);

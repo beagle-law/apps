@@ -16,6 +16,7 @@ export interface Expense {
   destination: string;
   route: string;
   notes: string;
+  billedInInvoiceId: string | null;
   createdAt: string;
 }
 
@@ -35,6 +36,11 @@ export interface Contact {
   email: string;
 }
 
+export interface CustomField {
+  label: string;
+  value: string;
+}
+
 export interface Case {
   id: string;
   caseNumber: string;
@@ -43,12 +49,15 @@ export interface Case {
   clientId: string;
 
   stage: string;
+  closedDate: string;
   priority: string;
   ballOwner: string;
   ballAssignee: string;
   hidden: boolean;
   deadline: string;
   isTimeChargeCase: boolean;
+  timeChargeRate: number | null;
+  customFields: CustomField[];
 
   ownerId: string;
   isPrivate: boolean;
@@ -156,6 +165,7 @@ export interface GoalRecord {
   key: string;
   yearMonth: string;
   overallPercent: string;
+  memo: string;
   items: GoalItem[];
 }
 
@@ -170,8 +180,17 @@ export interface KnowhowEntry {
 export interface Template {
   id: string;
   name: string;
-  content: string;
+  blobUrl: string;
+  originalFileName: string;
+  fileSize: number;
+  mimeType: string;
   updatedAt: string;
+}
+
+export interface CaseClassification {
+  id: string;
+  name: string;
+  createdAt: string;
 }
 
 export interface InvoiceSectionItem {
@@ -189,6 +208,24 @@ export interface InvoiceSection {
   items: InvoiceSectionItem[];
 }
 
+export interface InvoiceTimeChargeRow {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  hours: number;
+  content: string;
+  personName: string;
+}
+
+export interface InvoiceExpenseRow {
+  id: string;
+  date: string;
+  category: string;
+  amount: number;
+  notes: string;
+}
+
 export interface Invoice {
   id: string;
   invoiceNumber: number;
@@ -196,11 +233,15 @@ export interface Invoice {
   clientName: string;
   caseTitle: string;
   issueDate: string;
+  honorific: string;
+  dueDate: string;
   notes: string;
   paid: boolean;
   paidAt: string;
   createdAt: string;
   sections: InvoiceSection[];
+  timeCharges: InvoiceTimeChargeRow[];
+  expenses: InvoiceExpenseRow[];
 }
 
 export interface User {

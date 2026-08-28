@@ -2,6 +2,7 @@ import type {
   Case,
   Contact,
   Client,
+  Expense,
   PasswordEntry,
   TimeCharge,
   DailyReport,
@@ -10,6 +11,8 @@ import type {
   Template,
   Invoice,
   User,
+  CustomField,
+  CaseClassification,
 } from "@/lib/types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -70,6 +73,7 @@ export const patchCase = (
     contractStatus: string;
     retainerStatus: string;
     isTimeChargeCase: boolean;
+    timeChargeRate: number | null;
     autoNote: string;
     author: string;
   }>
@@ -94,10 +98,12 @@ export const patchFinance = (
     litigationEngagementDate: string;
     noticeSentDate: string;
     filingDate: string;
+    closedDate: string;
     claimAmount: number | "";
     retainerFee: number | "";
     expectedFee: number | "";
     expectedFeeDate: string;
+    customFields: CustomField[];
   }>
 ) => request<Case>(`/api/cases/${id}/finance`, { method: "PATCH", body: JSON.stringify(payload) });
 
@@ -106,6 +112,9 @@ export const patchClaimMemo = (id: string, claimMemo: string) =>
 
 export const addUpdate = (id: string, note: string) =>
   request<Case>(`/api/cases/${id}/updates`, { method: "POST", body: JSON.stringify({ note }) });
+
+export const deleteUpdate = (id: string, updateId: string) =>
+  request<Case>(`/api/cases/${id}/updates/${updateId}`, { method: "DELETE" });
 
 export const addHearing = (
   id: string,
@@ -123,11 +132,19 @@ export const addExpense = (
 export const deleteExpense = (caseId: string, expenseId: string) =>
   request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "DELETE" });
 
+export const fetchUnbilledExpenses = (caseId: string, month: string) =>
+  request<Expense[]>(`/api/cases/${caseId}/expenses/unbilled?month=${encodeURIComponent(month)}`);
+
 export const fetchUnbilledTimeCharges = (caseId: string) =>
   request<TimeCharge[]>(`/api/cases/${caseId}/timecharges/unbilled`);
 
 export const fetchCaseTimeCharges = (caseId: string) =>
   request<TimeCharge[]>(`/api/cases/${caseId}/timecharges`);
+
+// ── 案件分類 ──────────────────────────────────────────
+export const fetchCaseClassifications = () => request<CaseClassification[]>("/api/case-classifications");
+export const addCaseClassification = (name: string) =>
+  request<CaseClassification>("/api/case-classifications", { method: "POST", body: JSON.stringify({ name }) });
 
 // ── 顧客 ──────────────────────────────────────────
 export const fetchClients = () => request<Client[]>("/api/clients");
@@ -159,6 +176,10 @@ export const addDailyReport = (payload: {
   todaySuccess: string;
 }) => request<DailyReport>("/api/dailyreports", { method: "POST", body: JSON.stringify(payload) });
 export const deleteDailyReport = (id: string) => request<{ ok: true }>(`/api/dailyreports/${id}`, { method: "DELETE" });
+export const updateDailyReport = (
+  id: string,
+  payload: Partial<{ mostImportant: string; todayTasks: string; waitingCases: string; todaySuccess: string }>
+) => request<DailyReport>(`/api/dailyreports/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 
 // ── 個人別サマリー ──────────────────────────────────
 export interface PersonalSummary {
@@ -174,6 +195,8 @@ export const fetchInvoices = (caseId?: string) =>
 export const createInvoice = (payload: {
   caseId: string;
   issueDate: string;
+  honorific?: string;
+  dueDate?: string;
   sections: {
     type: string;
     customTypeLabel?: string;
@@ -183,6 +206,7 @@ export const createInvoice = (payload: {
   }[];
   notes?: string;
   billTimeChargeIds?: string[];
+  billExpenseIds?: string[];
 }) => request<Invoice>("/api/invoices", { method: "POST", body: JSON.stringify(payload) });
 export const deleteInvoice = (id: string) => request<{ ok: true }>(`/api/invoices/${id}`, { method: "DELETE" });
 export const markInvoicePaid = (id: string, paid: boolean) =>
@@ -193,6 +217,8 @@ export const fetchGoalRecords = () => request<GoalRecord[]>("/api/goals");
 export const ensureGoalRecord = (key: string, yearMonth: string) => request<GoalRecord>(`/api/goals/${key}/${yearMonth}`);
 export const setGoalOverallPercent = (key: string, yearMonth: string, overallPercent: string) =>
   request<GoalRecord>(`/api/goals/${key}/${yearMonth}`, { method: "PATCH", body: JSON.stringify({ overallPercent }) });
+export const setGoalMemo = (key: string, yearMonth: string, memo: string) =>
+  request<GoalRecord>(`/api/goals/${key}/${yearMonth}`, { method: "PATCH", body: JSON.stringify({ memo }) });
 export const addGoalItem = (key: string, yearMonth: string, text: string) =>
   request<GoalRecord["items"][number]>(`/api/goals/${key}/${yearMonth}/items`, { method: "POST", body: JSON.stringify({ text }) });
 export const removeGoalItem = (key: string, yearMonth: string, itemId: string) =>
@@ -207,12 +233,22 @@ export const updateGoalItem = (key: string, yearMonth: string, itemId: string, p
 export const fetchKnowhow = () => request<KnowhowEntry[]>("/api/knowhow");
 export const addKnowhow = (payload: { category: string; title: string; content?: string }) =>
   request<KnowhowEntry>("/api/knowhow", { method: "POST", body: JSON.stringify(payload) });
+export const updateKnowhow = (id: string, payload: Partial<{ category: string; title: string; content: string }>) =>
+  request<KnowhowEntry>(`/api/knowhow/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 export const deleteKnowhow = (id: string) => request<{ ok: true }>(`/api/knowhow/${id}`, { method: "DELETE" });
 
 export const fetchTemplates = () => request<Template[]>("/api/templates");
 export const addTemplate = (name: string) => request<Template>("/api/templates", { method: "POST", body: JSON.stringify({ name }) });
-export const saveTemplateContent = (id: string, content: string) =>
-  request<Template>(`/api/templates/${id}`, { method: "PATCH", body: JSON.stringify({ content }) });
+export const uploadTemplateFile = async (id: string, file: File): Promise<Template> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`/api/templates/${id}/upload`, { method: "POST", body: formData });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `アップロードに失敗しました (${res.status})`);
+  }
+  return res.json();
+};
 export const deleteTemplate = (id: string) => request<{ ok: true }>(`/api/templates/${id}`, { method: "DELETE" });
 
 // ── AI（経路自動計算） ────────────────────────────────

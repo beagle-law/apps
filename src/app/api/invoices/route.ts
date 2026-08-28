@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
 import { invoiceInclude, serializeInvoice } from "@/lib/invoice-query";
+import { endOfMonth } from "@/lib/dates";
+import { EXPENSE_LIKE_SECTION_TYPES } from "@/lib/constants";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -28,9 +30,12 @@ interface CreateInvoiceSectionBody {
 interface CreateInvoiceBody {
   caseId?: string;
   issueDate?: string;
+  honorific?: string;
+  dueDate?: string;
   sections?: CreateInvoiceSectionBody[];
   notes?: string;
   billTimeChargeIds?: string[];
+  billExpenseIds?: string[];
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +56,18 @@ export async function POST(req: NextRequest) {
 
   const invoiceNumber = (last?.invoiceNumber ?? 0) + 1;
 
+  // 宛名の敬称は依頼者の区分（法人/個人）から自動判定（v10 3.2）。手動指定があればそちらを優先。
+  let honorific = body.honorific?.trim();
+  if (!honorific) {
+    const client = targetCase.clientId
+      ? await prisma.client.findUnique({ where: { id: targetCase.clientId }, select: { clientType: true } })
+      : null;
+    honorific = client?.clientType === "個人" ? "様" : "御中";
+  }
+  const dueDate = body.dueDate?.trim() || endOfMonth(body.issueDate!);
+
+  const hasExpenseLikeSection = sections.some((s) => EXPENSE_LIKE_SECTION_TYPES.includes(s.type));
+
   const created = await prisma.$transaction(async (tx) => {
     const invoice = await tx.invoice.create({
       data: {
@@ -59,6 +76,8 @@ export async function POST(req: NextRequest) {
         clientName: targetCase.clientName, // 既に暗号化済みの値をそのままスナップショットとしてコピー
         caseTitle: targetCase.title,
         issueDate: body.issueDate!,
+        honorific,
+        dueDate,
         notes: body.notes?.trim() || "",
         sections: {
           create: sections.map((sec, secIdx) => ({
@@ -84,8 +103,15 @@ export async function POST(req: NextRequest) {
         data: { billed: true, invoiceId: invoice.id },
       });
     }
+    if (hasExpenseLikeSection && body.billExpenseIds?.length) {
+      await tx.expense.updateMany({
+        where: { id: { in: body.billExpenseIds }, caseId: body.caseId!, billedInInvoiceId: null },
+        data: { billedInInvoiceId: invoice.id },
+      });
+    }
     return invoice;
   });
 
-  return NextResponse.json(serializeInvoice(created), { status: 201 });
+  const withBilling = await prisma.invoice.findUnique({ where: { id: created.id }, include: invoiceInclude });
+  return NextResponse.json(serializeInvoice(withBilling!), { status: 201 });
 }

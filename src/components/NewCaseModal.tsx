@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { COLORS, FONT_MINCHO, PRIORITIES } from "@/lib/constants";
+import { COLORS, FONT_MINCHO } from "@/lib/constants";
 import { plusDaysStr } from "@/lib/dates";
 import { suggestedCaseNumberForClient } from "@/lib/business/caseNumber";
 import { TextInput } from "@/components/ui";
@@ -25,7 +25,6 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
     clientId: "",
     caseNumber: suggestedCaseNumber,
     deadline: plusDaysStr(7),
-    priority: "通常",
     initialNote: "",
     isTimeChargeCase: false,
   });
@@ -58,7 +57,6 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
         clientId: form.clientId || undefined,
         caseNumber: form.caseNumber,
         deadline: form.deadline,
-        priority: form.priority,
         initialNote: form.initialNote,
         isTimeChargeCase: form.isTimeChargeCase,
       });
@@ -109,26 +107,6 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
           <label className="text-xs" style={{ color: COLORS.slate }}>
             期限
             <TextInput type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            優先度
-            <div className="flex gap-2 mt-1">
-              {PRIORITIES.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setForm({ ...form, priority: p })}
-                  className="text-xs font-bold px-3 py-1.5 rounded-full"
-                  style={{
-                    backgroundColor: form.priority === p ? COLORS.vermillion : "transparent",
-                    color: form.priority === p ? "#fff" : COLORS.vermillion,
-                    border: `1px solid ${COLORS.vermillion}`,
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
           </label>
           <label className="text-xs" style={{ color: COLORS.slate }}>
             初回メモ（任意）

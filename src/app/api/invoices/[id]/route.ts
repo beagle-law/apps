@@ -20,6 +20,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   await prisma.$transaction([
     prisma.timeCharge.updateMany({ where: { invoiceId: id }, data: { billed: false, invoiceId: null } }),
+    prisma.expense.updateMany({ where: { billedInInvoiceId: id }, data: { billedInInvoiceId: null } }),
     prisma.invoice.delete({ where: { id } }),
   ]);
   return NextResponse.json({ ok: true });

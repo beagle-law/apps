@@ -87,7 +87,7 @@ export async function importExcelCases(prisma: PrismaClient) {
         caseNumber: raw.caseNumber || "",
         title: raw.title || "",
         clientName: encryptField(raw.clientName || ""),
-        stage: raw.stage || "新規問合せ・紹介",
+        stage: raw.stage || "受任前",
         priority: raw.priority || "通常",
         deadline: raw.deadline || "",
         ballOwner: raw.ballOwner || "事務所",

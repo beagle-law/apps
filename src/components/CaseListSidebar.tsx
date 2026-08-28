@@ -96,7 +96,7 @@ export default function CaseListSidebar({
                 borderTop: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
                 borderRight: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
                 borderBottom: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
-                borderLeft: c.priority === "至急" ? `4px solid ${COLORS.vermillion}` : `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
+                borderLeft: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
                 boxShadow: selectedId === c.id ? "0 1px 4px rgba(0,0,0,0.12)" : "none",
               }}
             >

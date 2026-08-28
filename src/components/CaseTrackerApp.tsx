@@ -12,6 +12,7 @@ import {
   StickyNote,
   Clock,
   LayoutDashboard,
+  Database,
   Target,
   BookOpen,
   FileSpreadsheet,
@@ -20,7 +21,7 @@ import {
 import { COLORS, FONT_MINCHO, FONT_GOTHIC, PERSONAL_TASK_TABS } from "@/lib/constants";
 import { suggestedCaseNumber } from "@/lib/business/caseNumber";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
-import type { Case, User } from "@/lib/types";
+import type { Case, User, CaseClassification } from "@/lib/types";
 import * as api from "@/lib/api-client";
 import CaseListSidebar from "@/components/CaseListSidebar";
 import CaseDetailPanel from "@/components/CaseDetailPanel";
@@ -30,6 +31,7 @@ import PasswordsView from "@/components/PasswordsView";
 import PersonalTaskView from "@/components/PersonalTaskView";
 import UpcomingHearingsView from "@/components/UpcomingHearingsView";
 import DashboardView from "@/components/DashboardView";
+import AnalyticsSummaryView from "@/components/AnalyticsSummaryView";
 import GoalsView from "@/components/GoalsView";
 import KnowledgeView from "@/components/KnowledgeView";
 import BillingView from "@/components/BillingView";
@@ -42,6 +44,7 @@ type View =
   | `person:${string}`
   | "upcoming"
   | "dashboard"
+  | "data"
   | "goals"
   | "knowledge"
   | "billing"
@@ -52,7 +55,8 @@ const MAIN_TABS: { key: View; label: string; icon: typeof Briefcase }[] = [
   { key: "clients", label: "顧客一覧", icon: Building2 },
   { key: "passwords", label: "パスワード管理", icon: Lock },
   { key: "upcoming", label: "今後の期日", icon: Clock },
-  { key: "dashboard", label: "ダッシュボード", icon: LayoutDashboard },
+  { key: "dashboard", label: "分析", icon: LayoutDashboard },
+  { key: "data", label: "データ", icon: Database },
   { key: "goals", label: "目標", icon: Target },
   { key: "knowledge", label: "ノウハウ・ひながた", icon: BookOpen },
   { key: "billing", label: "請求管理", icon: FileSpreadsheet },
@@ -71,13 +75,20 @@ export default function CaseTrackerApp() {
   const [ballFilter, setBallFilter] = useState("");
   const [showHiddenCases, setShowHiddenCases] = useState(false);
   const [showNewCaseModal, setShowNewCaseModal] = useState(false);
+  const [pendingClientId, setPendingClientId] = useState<string | null>(null);
+  const [classifications, setClassifications] = useState<CaseClassification[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
-        const [{ user }, caseList] = await Promise.all([api.fetchMe(), api.fetchCases()]);
+        const [{ user }, caseList, classificationList] = await Promise.all([
+          api.fetchMe(),
+          api.fetchCases(),
+          api.fetchCaseClassifications(),
+        ]);
         setCurrentUser(user);
         setCases(caseList);
+        setClassifications(classificationList);
         // ログイン後の初期表示画面は、ログインしたアカウントの個人タスク画面（v6 2.2）
         if (PERSONAL_TASK_TABS.includes(user.displayName)) {
           setView(`person:${user.displayName}`);
@@ -135,6 +146,17 @@ export default function CaseTrackerApp() {
     setSelectedId(id);
     setShowHiddenCases(false);
     setView("list");
+  };
+
+  const openClientFromCase = (clientId: string) => {
+    setPendingClientId(clientId);
+    setView("clients");
+  };
+
+  const addClassification = async (name: string) => {
+    const created = await api.addCaseClassification(name);
+    setClassifications((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "ja"))));
+    return created;
   };
 
   const doLogout = async () => {
@@ -267,6 +289,9 @@ export default function CaseTrackerApp() {
                 selectedCase={selectedCase}
                 onCaseUpdated={updateCaseInState}
                 onCaseDeleted={removeCaseFromState}
+                onOpenClient={openClientFromCase}
+                classifications={classifications}
+                onAddClassification={addClassification}
                 onError={setError}
               />
             )}
@@ -274,7 +299,9 @@ export default function CaseTrackerApp() {
         </div>
       )}
 
-      {view === "clients" && <ClientsView cases={cases} onOpenCase={openCaseFromElsewhere} onError={setError} />}
+      {view === "clients" && (
+        <ClientsView cases={cases} onOpenCase={openCaseFromElsewhere} onError={setError} initialClientId={pendingClientId} />
+      )}
 
       {view === "passwords" && <PasswordsView onError={setError} />}
 
@@ -301,9 +328,13 @@ export default function CaseTrackerApp() {
         />
       )}
 
+      {view === "data" && <AnalyticsSummaryView cases={cases} />}
+
       {view === "goals" && <GoalsView currentUser={currentUser} onError={setError} />}
 
-      {view === "knowledge" && <KnowledgeView onError={setError} />}
+      {view === "knowledge" && (
+        <KnowledgeView classifications={classifications} onAddClassification={addClassification} onError={setError} />
+      )}
 
       {view === "billing" && <BillingView onOpenCase={openCaseFromElsewhere} onError={setError} />}
 

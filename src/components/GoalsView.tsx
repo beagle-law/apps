@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { COLORS, FONT_MINCHO, GOAL_KEYS } from "@/lib/constants";
-import { currentYearMonth, formatYearMonth } from "@/lib/dates";
-import { YearMonthNav } from "@/components/ui";
+import { currentYearMonth, formatYearMonth, formatDate } from "@/lib/dates";
+import { YearMonthNav, Pill } from "@/components/ui";
 import * as api from "@/lib/api-client";
-import type { GoalRecord, User } from "@/lib/types";
+import type { GoalRecord, User, DailyReport } from "@/lib/types";
 
 interface Props {
   currentUser: User;
@@ -15,14 +15,34 @@ interface Props {
 const RESULT_CYCLE = ["", "○", "△", "×"];
 
 export default function GoalsView({ currentUser, onError }: Props) {
+  const [subView, setSubView] = useState<"goals" | "stacking">("goals");
   const [records, setRecords] = useState<GoalRecord[]>([]);
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
   const [selectedYearMonth, setSelectedYearMonth] = useState(currentYearMonth());
+  const [dailyReports, setDailyReports] = useState<DailyReport[] | null>(null);
 
   const load = () => {
     api.fetchGoalRecords().then(setRecords).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
   };
   useEffect(load, []);
+
+  // v10 4.5「積み重ね」：ログイン中の本人の日報「本日の成功」を自動的に絞り込んで表示する
+  useEffect(() => {
+    if (subView !== "stacking") return;
+    api
+      .fetchPersonalSummary(currentUser.displayName)
+      .then((res) => setDailyReports(res.dailyReports))
+      .catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
+  }, [subView, currentUser.displayName, onError]);
+
+  const saveMemo = async (key: string, yearMonth: string, memo: string) => {
+    try {
+      await api.setGoalMemo(key, yearMonth, memo);
+      load();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "保存に失敗しました");
+    }
+  };
 
   // 目標画面の閲覧制限（v6 2.3）：宮村は全部、尾崎は全社+尾崎のみ、岩下は全社+岩下のみ
   const visibleGoalKeys = GOAL_KEYS.filter((g) => {
@@ -83,8 +103,40 @@ export default function GoalsView({ currentUser, onError }: Props) {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl mx-auto flex flex-col gap-5">
-        <h2 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>目標</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>目標</h2>
+          <div className="flex gap-1.5">
+            <Pill active={subView === "goals"} color={COLORS.navy} onClick={() => setSubView("goals")}>目標</Pill>
+            <Pill active={subView === "stacking"} color={COLORS.navy} onClick={() => setSubView("stacking")}>積み重ね</Pill>
+          </div>
+        </div>
 
+        {subView === "stacking" ? (
+          <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+            <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{currentUser.displayName}さんの「本日の成功」</h3>
+            {dailyReports === null ? (
+              <p className="text-sm" style={{ color: COLORS.slate }}>読み込み中...</p>
+            ) : (
+              (() => {
+                const successes = dailyReports.filter((r) => r.todaySuccess.trim()).sort((a, b) => (a.date < b.date ? 1 : -1));
+                if (successes.length === 0) {
+                  return <p className="text-sm" style={{ color: COLORS.slate }}>まだ記録がありません。</p>;
+                }
+                return (
+                  <div className="flex flex-col gap-3">
+                    {successes.map((r) => (
+                      <div key={r.id} className="p-3 rounded text-sm" style={{ backgroundColor: COLORS.paper }}>
+                        <p className="text-xs font-bold mb-1" style={{ color: COLORS.slate }}>{formatDate(r.date)}</p>
+                        <p className="whitespace-pre-wrap">{r.todaySuccess}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        ) : (
+        <>
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>閲覧・編集する年月</h3>
           <YearMonthNav yearMonth={selectedYearMonth} onChange={setSelectedYearMonth} />
@@ -137,9 +189,22 @@ export default function GoalsView({ currentUser, onError }: Props) {
                   style={{ border: `1px solid ${COLORS.brassLight}` }}
                 />
               </label>
+              <label className="text-xs block mt-3" style={{ color: COLORS.slate }}>
+                メモ
+                <textarea
+                  key={`${g.key}-${selectedYearMonth}-memo`}
+                  defaultValue={current?.memo || ""}
+                  onBlur={(e) => saveMemo(g.key, selectedYearMonth, e.target.value)}
+                  rows={3}
+                  className="mt-1 w-full text-sm p-2 rounded outline-none resize-none"
+                  style={{ border: `1px solid ${COLORS.brassLight}` }}
+                />
+              </label>
             </div>
           );
         })}
+        </>
+        )}
       </div>
     </div>
   );

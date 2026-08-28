@@ -60,7 +60,8 @@ export default function InvoiceListForCase({ caseId, refreshKey, onError }: Prop
           return (
             <div key={inv.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
               <div className="flex-1">
-                <p>No.{inv.invoiceNumber}　{formatDate(inv.issueDate)}　{formatYen(totals.total)}</p>
+                <p>{formatDate(inv.issueDate)}　{formatYen(totals.total)}</p>
+                {inv.dueDate && <p className="text-xs" style={{ color: COLORS.slate }}>支払期限：{formatDate(inv.dueDate)}</p>}
               </div>
               <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ color: "#fff", backgroundColor: inv.paid ? COLORS.moss : COLORS.slate }}>
                 {inv.paid ? "入金済み" : "未入金"}

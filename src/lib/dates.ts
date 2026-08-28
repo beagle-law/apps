@@ -61,6 +61,14 @@ export function relativeDayLabel(dateStr: string) {
 
 export const currentYearMonth = () => new Date().toISOString().slice(0, 7);
 
+/** dateStrの月の月末日（YYYY-MM-DD）を返す。v10：請求書の支払期限デフォルト算出に使用 */
+export function endOfMonth(dateStr: string): string {
+  const [y, m] = dateStr.split("-").map(Number);
+  if (!y || !m) return dateStr;
+  const d = new Date(y, m, 0); // 翌月0日目＝当月末日
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function shiftYearMonth(ym: string, delta: number): string {
   const [y, m] = ym.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1);

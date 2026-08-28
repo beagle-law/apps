@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { User, Clock } from "lucide-react";
-import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF } from "@/lib/constants";
-import { formatDateShort, formatDateTime, todayStr } from "@/lib/dates";
+import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS } from "@/lib/constants";
+import { formatDate, formatDateShort, formatDateTime, todayStr, currentYearMonth } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes } from "@/lib/business/timecharge";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
 import type { PersonalSummary } from "@/lib/api-client";
-import type { Case } from "@/lib/types";
+import type { Case, DailyReport } from "@/lib/types";
+
+// 名前→目標画面のkeyの対応（v10 4.1：個人画面右上に本人（宮村は全社）の当月目標を表示）
+const GOAL_KEY_BY_NAME: Record<string, string> = { 宮村: "company", 尾崎: "ozaki", 岩下: "iwashita" };
 
 /** 自分のタイムチャージを案件ごとに集計する（個人画面の内訳表示、v8 3.4）。 */
 function caseBreakdown(timeCharges: PersonalSummary["timeCharges"]) {
@@ -31,6 +34,9 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
   const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", hours: "", content: "" });
   const [reportForm, setReportForm] = useState({ date: todayStr(), mostImportant: "", todayTasks: "", waitingCases: "", todaySuccess: "" });
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ mostImportant: "", todayTasks: "", waitingCases: "", todaySuccess: "" });
+  const [monthlyGoalPercent, setMonthlyGoalPercent] = useState<string>("");
 
   const load = () => {
     api.fetchPersonalSummary(personName).then(setSummary).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -38,7 +44,20 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
 
   useEffect(() => {
     load();
+    setEditingReportId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personName]);
+
+  useEffect(() => {
+    const goalKey = GOAL_KEY_BY_NAME[personName];
+    if (!goalKey) {
+      setMonthlyGoalPercent("");
+      return;
+    }
+    api
+      .ensureGoalRecord(goalKey, currentYearMonth())
+      .then((r) => setMonthlyGoalPercent(r.overallPercent))
+      .catch(() => setMonthlyGoalPercent(""));
   }, [personName]);
 
   // 日報の引き継ぎロジック（v6 3.4）：本日分が未記入なら、todayTasks/waitingCasesを前回記録から引き継ぐ。
@@ -115,13 +134,32 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
     }
   };
 
+  // v10 4.1：日報一覧の各エントリをクリックすると編集モードになり、過去の記録を事後的に編集できる
+  const startEditReport = (r: DailyReport) => {
+    setEditingReportId(r.id);
+    setEditDraft({ mostImportant: r.mostImportant, todayTasks: r.todayTasks, waitingCases: r.waitingCases, todaySuccess: r.todaySuccess });
+  };
+  const saveEditReport = async () => {
+    if (!editingReportId) return;
+    try {
+      await api.updateDailyReport(editingReportId, editDraft);
+      setEditingReportId(null);
+      load();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "保存に失敗しました");
+    }
+  };
+
   if (!summary) return null;
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto flex flex-col gap-5">
-        <div>
+        <div className="flex items-center justify-between">
           <h2 className="text-lg mb-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{personName}</h2>
+          {monthlyGoalPercent && (
+            <span className="text-xs" style={{ color: COLORS.slate }}>今月の目標達成率：{monthlyGoalPercent}%</span>
+          )}
         </div>
 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
@@ -170,7 +208,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
           <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><User size={15} /> 日報</h3>
             {summary.dailyReports.some((r) => r.date === todayStr()) ? (
-              <p className="text-xs mb-3" style={{ color: COLORS.slate }}>本日分は記録済みです。書き直す場合は下の一覧から削除してください。</p>
+              <p className="text-xs mb-3" style={{ color: COLORS.slate }}>本日分は記録済みです。下の一覧から編集できます。</p>
             ) : (
               <div className="flex flex-col gap-2 mb-3">
                 <TextInput type="date" value={reportForm.date} onChange={(e) => setReportForm({ ...reportForm, date: e.target.value })} className="w-full sm:w-40" />
@@ -180,32 +218,58 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
                 </label>
                 <label className="text-xs" style={{ color: COLORS.slate }}>
                   本日やること
-                  <textarea value={reportForm.todayTasks} onChange={(e) => setReportForm({ ...reportForm, todayTasks: e.target.value })} rows={3} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                  <textarea value={reportForm.todayTasks} onChange={(e) => setReportForm({ ...reportForm, todayTasks: e.target.value })} rows={15} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 </label>
                 <label className="text-xs" style={{ color: COLORS.slate }}>
                   待ち案件
-                  <textarea value={reportForm.waitingCases} onChange={(e) => setReportForm({ ...reportForm, waitingCases: e.target.value })} rows={3} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                  <textarea value={reportForm.waitingCases} onChange={(e) => setReportForm({ ...reportForm, waitingCases: e.target.value })} rows={7} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 </label>
                 <label className="text-xs" style={{ color: COLORS.slate }}>
-                  今日の成功
+                  本日の成功
                   <textarea value={reportForm.todaySuccess} onChange={(e) => setReportForm({ ...reportForm, todaySuccess: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 </label>
                 <button onClick={addReport} disabled={!reportHasContent} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>記録する</button>
               </div>
             )}
             <div className="flex flex-col gap-2">
-              {summary.dailyReports.map((r) => (
-                <div key={r.id} className="flex items-start justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                  <div className="flex flex-col gap-1">
-                    <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(r.createdAt)}</p>
-                    {r.mostImportant && <p><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日一番大事なこと：</span>{r.mostImportant}</p>}
-                    {r.todayTasks && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日やること：</span>{r.todayTasks}</p>}
-                    {r.waitingCases && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>待ち案件：</span>{r.waitingCases}</p>}
-                    {r.todaySuccess && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>今日の成功：</span>{r.todaySuccess}</p>}
+              {summary.dailyReports.map((r) =>
+                editingReportId === r.id ? (
+                  <div key={r.id} className="flex flex-col gap-2 text-sm p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.navy}` }}>
+                    <p className="text-xs" style={{ color: COLORS.slate }}>{formatDate(r.date)}を編集中</p>
+                    <label className="text-xs" style={{ color: COLORS.slate }}>
+                      本日一番大事なこと
+                      <textarea value={editDraft.mostImportant} onChange={(e) => setEditDraft({ ...editDraft, mostImportant: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                    </label>
+                    <label className="text-xs" style={{ color: COLORS.slate }}>
+                      本日やること
+                      <textarea value={editDraft.todayTasks} onChange={(e) => setEditDraft({ ...editDraft, todayTasks: e.target.value })} rows={8} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                    </label>
+                    <label className="text-xs" style={{ color: COLORS.slate }}>
+                      待ち案件
+                      <textarea value={editDraft.waitingCases} onChange={(e) => setEditDraft({ ...editDraft, waitingCases: e.target.value })} rows={4} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                    </label>
+                    <label className="text-xs" style={{ color: COLORS.slate }}>
+                      本日の成功
+                      <textarea value={editDraft.todaySuccess} onChange={(e) => setEditDraft({ ...editDraft, todaySuccess: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                    </label>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => setEditingReportId(null)} className="text-xs px-3 py-1.5 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
+                      <button onClick={saveEditReport} className="text-xs font-bold px-3 py-1.5 rounded" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>保存</button>
+                    </div>
                   </div>
-                  <button onClick={() => removeReport(r.id)} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
-                </div>
-              ))}
+                ) : (
+                  <div key={r.id} className="flex items-start justify-between gap-2 text-sm p-2 rounded cursor-pointer hover:opacity-90" style={{ backgroundColor: COLORS.paper }} onClick={() => startEditReport(r)}>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(r.createdAt)}</p>
+                      {r.mostImportant && <p><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日一番大事なこと：</span>{r.mostImportant}</p>}
+                      {r.todayTasks && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日やること：</span>{r.todayTasks}</p>}
+                      {r.waitingCases && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>待ち案件：</span>{r.waitingCases}</p>}
+                      {r.todaySuccess && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日の成功：</span>{r.todaySuccess}</p>}
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); removeReport(r.id); }} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
+                  </div>
+                )
+              )}
             </div>
           </div>
         )}

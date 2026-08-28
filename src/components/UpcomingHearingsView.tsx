@@ -3,7 +3,6 @@
 import { COLORS, FONT_MINCHO } from "@/lib/constants";
 import { formatDate, formatDateShort, relativeDayLabel, todayStr } from "@/lib/dates";
 import { upcomingHearings } from "@/lib/business/hearings";
-import { Badge } from "@/components/ui";
 import type { Case } from "@/lib/types";
 
 interface Props {
@@ -40,7 +39,6 @@ export default function UpcomingHearingsView({ cases, onOpenCase }: Props) {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {c.priority === "至急" && <Badge color={COLORS.vermillion} filled>至急</Badge>}
                     <span className="text-xs" style={{ color: COLORS.slate }}>No. {c.caseNumber}</span>
                   </div>
                   <p className="text-sm font-semibold mt-1" style={{ fontFamily: FONT_MINCHO }}>{c.title}</p>
