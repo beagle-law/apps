@@ -32,13 +32,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "ファイルサイズは3MBまでです" }, { status: 400 });
   }
 
+  // private Blobストア用。認証はSDKが自動解決する（Vercel上ではOIDC、ローカル等では
+  // BLOB_READ_WRITE_TOKENへ自動フォールバック）ため、tokenは明示的に渡さない。
   const blob = await put(`templates/${id}/${Date.now()}${ext}`, file, {
-    access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
+    access: "private",
   });
 
   if (existing.blobUrl) {
-    await del(existing.blobUrl, { token: process.env.BLOB_READ_WRITE_TOKEN }).catch(() => {});
+    await del(existing.blobUrl).catch(() => {});
   }
 
   const updated = await prisma.template.update({

@@ -194,7 +194,7 @@ export default function KnowledgeView({ classifications, onAddClassification, on
                     <div className="flex items-center justify-between gap-2 text-xs" style={{ color: COLORS.slate }}>
                       <span className="truncate">{t.originalFileName}（{Math.round(t.fileSize / 1024)}KB）・最終更新：{formatDate(t.updatedAt.slice(0, 10))}</span>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <a href={t.blobUrl} download={t.originalFileName} className="flex items-center gap-1 font-bold" style={{ color: COLORS.navy }}><Download size={12} /> ダウンロード</a>
+                        <a href={`/api/templates/${t.id}/download`} className="flex items-center gap-1 font-bold" style={{ color: COLORS.navy }}><Download size={12} /> ダウンロード</a>
                         <button onClick={() => fileInputs.current[t.id]?.click()} disabled={uploadingId === t.id} className="flex items-center gap-1 font-bold disabled:opacity-40" style={{ color: COLORS.navy }}>
                           <Upload size={12} /> 差し替え
                         </button>

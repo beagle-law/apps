@@ -56,7 +56,7 @@ cp .env.example .env
 | `ENCRYPTION_KEY` | パスワード管理・個人情報の暗号化鍵（32バイト=64桁の16進数。`openssl rand -hex 32` で生成） |
 | `ANTHROPIC_API_KEY` | AI機能用（任意）。未設定でもAI機能以外は問題なく動作します |
 | `ANTHROPIC_MODEL` | 使用するClaudeモデル（任意、既定値 `claude-sonnet-5`） |
-| `BLOB_READ_WRITE_TOKEN` | ひな形（Wordファイル）保存用のVercel Blobトークン。[Vercelダッシュボード](https://vercel.com/dashboard) → 対象プロジェクト → Storage → Blob → Create Store で作成・取得します。未設定の間はひな形のアップロードのみ利用できません |
+| `BLOB_READ_WRITE_TOKEN` | ひな形（Wordファイル）保存用（任意）。**Vercel上で動かす場合は不要**（Blobストアをプロジェクトに接続するとOIDC認証が自動で使われます）。ローカル開発でVercel外から接続する場合のみ、`vercel login && vercel env pull` するか、Blob Storeの`.env.local`タブから値を取得して設定してください |
 
 ### 1-4. データベースのマイグレーション
 
@@ -140,9 +140,8 @@ Vercelのプロジェクト設定 → Environment Variables に以下を設定�
 - `ENCRYPTION_KEY`
 - `ANTHROPIC_API_KEY`（任意）
 - `ANTHROPIC_MODEL`（任意）
-- `BLOB_READ_WRITE_TOKEN`（ひな形機能を使う場合は必須）
 
-`BLOB_READ_WRITE_TOKEN`は、Vercelプロジェクトの Storage タブから Blob Store を作成すると、環境変数として自動的に連携できます（手動でコピーする場合は Store の `.env.local` タブから取得してください）。
+`BLOB_READ_WRITE_TOKEN`は手動設定不要です。Vercelの **Storage** タブ（チームによっては左サイドバーの Storage）からBlobストアを作成し、**Private**アクセスを選択の上、対象プロジェクトに **Connect** してください。接続すると、Vercel上ではOIDC認証が自動的に使われ、ひな形機能がそのまま動作します（本アプリのコードもOIDCを優先し、明示的なトークンなしで認証するよう実装しています）。
 
 設定後、再デプロイしてください。
 

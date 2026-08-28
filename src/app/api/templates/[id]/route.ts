@@ -10,7 +10,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const existing = await prisma.template.findUnique({ where: { id } });
   if (existing?.blobUrl) {
-    await del(existing.blobUrl, { token: process.env.BLOB_READ_WRITE_TOKEN }).catch(() => {});
+    await del(existing.blobUrl).catch(() => {});
   }
   await prisma.template.delete({ where: { id } });
   return NextResponse.json({ ok: true });
