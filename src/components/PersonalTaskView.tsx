@@ -54,6 +54,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
   const [monthlyGoalPercent, setMonthlyGoalPercent] = useState<string>("");
   const [historyYear, setHistoryYear] = useState(String(new Date().getFullYear()));
   const [historyMonth, setHistoryMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
+  const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
 
   // v11 3.2：日付に一致する既存の日報があればそれを読み込み、なければ新規（本日のみ前回から引き継ぎ）
   const loadFormForDate = (date: string, reports: DailyReport[]) => {
@@ -187,9 +188,10 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
     }
   };
 
-  const selectHistoryDate = (date: string) => {
+  const editHistoryDate = (date: string) => {
     if (!summary?.dailyReports) return;
     loadFormForDate(date, summary.dailyReports);
+    setExpandedReportId(null);
   };
 
   if (!summary) return null;
@@ -312,17 +314,34 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
               <p className="text-sm py-2" style={{ color: COLORS.slate }}>この年月の記録はありません。</p>
             ) : (
               <div className="flex flex-col gap-1">
-                {filteredHistory.map((r) => (
-                  <div
-                    key={r.id}
-                    onClick={() => selectHistoryDate(r.date)}
-                    className="flex items-center justify-between gap-2 text-sm px-2.5 py-1.5 rounded cursor-pointer hover:opacity-80"
-                    style={{ backgroundColor: r.id === reportForm.id ? COLORS.paper : "transparent", border: `1px solid ${r.id === reportForm.id ? COLORS.navy : COLORS.brassLight}` }}
-                  >
-                    <span>{formatDate(r.date)}</span>
-                    <button onClick={(e) => { e.stopPropagation(); removeReport(r.id); }} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
-                  </div>
-                ))}
+                {filteredHistory.map((r) => {
+                  const expanded = expandedReportId === r.id;
+                  return (
+                    <div key={r.id} className="rounded overflow-hidden" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                      <div
+                        onClick={() => setExpandedReportId(expanded ? null : r.id)}
+                        className="flex items-center justify-between gap-2 text-sm px-2.5 py-1.5 cursor-pointer hover:opacity-80"
+                        style={{ backgroundColor: expanded ? COLORS.paper : "transparent" }}
+                      >
+                        <span>{formatDate(r.date)}</span>
+                        <button onClick={(e) => { e.stopPropagation(); removeReport(r.id); }} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
+                      </div>
+                      {expanded && (
+                        <div className="flex flex-col gap-1.5 text-sm p-3" style={{ backgroundColor: COLORS.paper, borderTop: `1px solid ${COLORS.brassLight}` }}>
+                          {r.mostImportant && <p><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日一番大事なこと：</span>{r.mostImportant}</p>}
+                          {r.todayTasks && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日やること：</span>{r.todayTasks}</p>}
+                          {r.waitingCases && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>待ち案件：</span>{r.waitingCases}</p>}
+                          {r.workHours && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日の業務時間・実績：</span>{r.workHours}</p>}
+                          {r.todaySuccess && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日の成功：</span>{r.todaySuccess}</p>}
+                          {![r.mostImportant, r.todayTasks, r.waitingCases, r.workHours, r.todaySuccess].some((v) => v.trim()) && (
+                            <p style={{ color: COLORS.slate }}>内容はまだ入力されていません。</p>
+                          )}
+                          <button onClick={() => editHistoryDate(r.date)} className="self-end text-xs font-bold px-2.5 py-1 rounded mt-1" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>この日を編集する</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

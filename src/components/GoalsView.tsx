@@ -84,14 +84,21 @@ export default function GoalsView({ currentUser, onError }: Props) {
       onError(e instanceof Error ? e.message : "削除に失敗しました");
     }
   };
-  const selectResult = async (key: string, yearMonth: string, itemId: string, current: string, option: string) => {
+  // v11フィードバック：毎回全件再取得すると体感が遅いため、クリック結果を即座にローカル反映し
+  // （楽観的更新）、サーバー保存は裏で行う。失敗時のみ再取得して状態を戻す。
+  const selectResult = (key: string, yearMonth: string, itemId: string, current: string, option: string) => {
     const next = current === option ? "" : option;
-    try {
-      await api.updateGoalItem(key, yearMonth, itemId, { result: next });
-      load();
-    } catch (e) {
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.key === key && r.yearMonth === yearMonth
+          ? { ...r, items: r.items.map((i) => (i.id === itemId ? { ...i, result: next } : i)) }
+          : r
+      )
+    );
+    api.updateGoalItem(key, yearMonth, itemId, { result: next }).catch((e) => {
       onError(e instanceof Error ? e.message : "更新に失敗しました");
-    }
+      load();
+    });
   };
   const saveNote = async (key: string, yearMonth: string, itemId: string, note: string) => {
     try {

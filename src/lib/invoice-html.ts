@@ -57,7 +57,8 @@ const COMMON_STYLE = `
     .inv-client-block { padding-top:24px; }
     .inv-client-name { font-size:19px; border-bottom:1px solid #333; padding-bottom:4px; min-width:220px; display:inline-block; }
     .inv-firm-block { text-align:right; white-space:pre-line; font-size:13.5px; }
-    .inv-amount-box { border-bottom:3px double #333; padding:10px 4px 14px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:baseline; }
+    .inv-narrow { width:520px; max-width:100%; }
+    .inv-amount-box { width:100%; border-bottom:3px double #333; padding:10px 4px 14px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:baseline; }
     .inv-amount-box .inv-label { font-size:16px; }
     .inv-amount-box .inv-value { font-size:26px; font-weight:bold; }
     table.inv-table { width:100%; table-layout:auto; border-collapse:collapse; margin-bottom:28px; }
@@ -143,23 +144,25 @@ ${FIRM_ADDRESS.join("\n")}
 ${FIRM_PHONE}</div>
     </div>
 
-    <div class="inv-amount-box">
-      <span class="inv-label">ご請求額</span>
-      <span class="inv-value">${yen(total)}</span>
-    </div>
+    <div class="inv-narrow">
+      <div class="inv-amount-box">
+        <span class="inv-label">ご請求額</span>
+        <span class="inv-value">${yen(total)}</span>
+      </div>
 
-    <table class="inv-table">
-      <thead>
-        <tr>${showSectionLabel ? "<th>項目</th>" : ""}<th>No.</th><th>摘要</th><th>金額</th></tr>
-      </thead>
-      <tbody>
-        ${bodyRowsHtml}
-        <tr class="inv-total-row">
-          <td colspan="${showSectionLabel ? 3 : 2}" class="total-label">税込ご請求額</td>
-          <td class="amount-cell">${yen(total)}</td>
-        </tr>
-      </tbody>
-    </table>
+      <table class="inv-table">
+        <thead>
+          <tr>${showSectionLabel ? "<th>項目</th>" : ""}<th>No.</th><th>摘要</th><th>金額</th></tr>
+        </thead>
+        <tbody>
+          ${bodyRowsHtml}
+          <tr class="inv-total-row">
+            <td colspan="${showSectionLabel ? 3 : 2}" class="total-label">税込ご請求額</td>
+            <td class="amount-cell">${yen(total)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <div class="inv-footer">${escapeHtml((inv.notes || "").trim())}</div>
 ${pageWrapperClose()}`;
