@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { COLORS, FONT_MINCHO, GOAL_KEYS } from "@/lib/constants";
 import { currentYearMonth, formatYearMonth, formatDate } from "@/lib/dates";
 import { YearMonthNav, Pill } from "@/components/ui";
@@ -12,7 +12,8 @@ interface Props {
   onError: (msg: string) => void;
 }
 
-const RESULT_CYCLE = ["", "○", "△", "×"];
+// v11 3.3：×/△/○の3ボタンを常時表示し直接選択する方式（もう一度押すと未選択に戻る）
+const RESULT_OPTIONS = ["×", "△", "○"];
 
 export default function GoalsView({ currentUser, onError }: Props) {
   const [subView, setSubView] = useState<"goals" | "stacking">("goals");
@@ -20,6 +21,9 @@ export default function GoalsView({ currentUser, onError }: Props) {
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
   const [selectedYearMonth, setSelectedYearMonth] = useState(currentYearMonth());
   const [dailyReports, setDailyReports] = useState<DailyReport[] | null>(null);
+  const [stackingYear, setStackingYear] = useState("");
+  const [stackingMonth, setStackingMonth] = useState("");
+  const [stackingDay, setStackingDay] = useState("");
 
   const load = () => {
     api.fetchGoalRecords().then(setRecords).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -53,7 +57,13 @@ export default function GoalsView({ currentUser, onError }: Props) {
     return false;
   });
 
-  const findRecord = (key: string, yearMonth: string) => records.find((r) => r.key === key && r.yearMonth === yearMonth);
+  // v11 3.3：パフォーマンス改善のため、毎回線形探索せずkey::yearMonthをキーにしたMapを事前に作成する
+  const recordsByKey = useMemo(() => {
+    const map = new Map<string, GoalRecord>();
+    for (const r of records) map.set(`${r.key}::${r.yearMonth}`, r);
+    return map;
+  }, [records]);
+  const findRecord = (key: string, yearMonth: string) => recordsByKey.get(`${key}::${yearMonth}`);
 
   const addItem = async (key: string) => {
     const text = (newItemText[`${key}-${selectedYearMonth}`] || "").trim();
@@ -74,8 +84,8 @@ export default function GoalsView({ currentUser, onError }: Props) {
       onError(e instanceof Error ? e.message : "削除に失敗しました");
     }
   };
-  const cycleResult = async (key: string, yearMonth: string, itemId: string, current: string) => {
-    const next = RESULT_CYCLE[(RESULT_CYCLE.indexOf(current) + 1) % RESULT_CYCLE.length];
+  const selectResult = async (key: string, yearMonth: string, itemId: string, current: string, option: string) => {
+    const next = current === option ? "" : option;
     try {
       await api.updateGoalItem(key, yearMonth, itemId, { result: next });
       load();
@@ -114,13 +124,49 @@ export default function GoalsView({ currentUser, onError }: Props) {
         {subView === "stacking" ? (
           <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{currentUser.displayName}さんの「本日の成功」</h3>
+
+            {dailyReports !== null && (() => {
+              const years = Array.from(new Set(dailyReports.map((r) => r.date.slice(0, 4)))).sort((a, b) => b.localeCompare(a));
+              const hasFilter = stackingYear || stackingMonth || stackingDay;
+              return (
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <select value={stackingYear} onChange={(e) => setStackingYear(e.target.value)} className="text-xs p-1.5 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                    <option value="">年（すべて）</option>
+                    {years.map((y) => <option key={y} value={y}>{y}年</option>)}
+                  </select>
+                  <select value={stackingMonth} onChange={(e) => setStackingMonth(e.target.value)} className="text-xs p-1.5 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                    <option value="">月（すべて）</option>
+                    {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => (
+                      <option key={m} value={m}>{Number(m)}月</option>
+                    ))}
+                  </select>
+                  <select value={stackingDay} onChange={(e) => setStackingDay(e.target.value)} className="text-xs p-1.5 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                    <option value="">日（すべて）</option>
+                    {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0")).map((d) => (
+                      <option key={d} value={d}>{Number(d)}日</option>
+                    ))}
+                  </select>
+                  {hasFilter && (
+                    <button onClick={() => { setStackingYear(""); setStackingMonth(""); setStackingDay(""); }} className="text-xs underline" style={{ color: COLORS.slate }}>
+                      絞り込みを解除
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+
             {dailyReports === null ? (
               <p className="text-sm" style={{ color: COLORS.slate }}>読み込み中...</p>
             ) : (
               (() => {
-                const successes = dailyReports.filter((r) => r.todaySuccess.trim()).sort((a, b) => (a.date < b.date ? 1 : -1));
+                const successes = dailyReports
+                  .filter((r) => r.todaySuccess.trim())
+                  .filter((r) => !stackingYear || r.date.slice(0, 4) === stackingYear)
+                  .filter((r) => !stackingMonth || r.date.slice(5, 7) === stackingMonth)
+                  .filter((r) => !stackingDay || r.date.slice(8, 10) === stackingDay)
+                  .sort((a, b) => (a.date < b.date ? 1 : -1));
                 if (successes.length === 0) {
-                  return <p className="text-sm" style={{ color: COLORS.slate }}>まだ記録がありません。</p>;
+                  return <p className="text-sm" style={{ color: COLORS.slate }}>該当する記録がありません。</p>;
                 }
                 return (
                   <div className="flex flex-col gap-3">
@@ -152,7 +198,22 @@ export default function GoalsView({ currentUser, onError }: Props) {
                   <div key={item.id} className="p-2 rounded text-sm" style={{ backgroundColor: COLORS.paper }}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex-1">{item.text}</span>
-                      <button onClick={() => cycleResult(g.key, selectedYearMonth, item.id, item.result)} className="text-sm font-bold w-7 h-7 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>{item.result || "－"}</button>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {RESULT_OPTIONS.map((opt) => (
+                          <button
+                            key={opt}
+                            onClick={() => selectResult(g.key, selectedYearMonth, item.id, item.result, opt)}
+                            className="text-sm font-bold w-7 h-7 rounded-full"
+                            style={{
+                              backgroundColor: item.result === opt ? COLORS.navy : "transparent",
+                              color: item.result === opt ? "#fff" : COLORS.navy,
+                              border: `1px solid ${COLORS.navy}`,
+                            }}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
                       <button onClick={() => removeItem(g.key, selectedYearMonth, item.id)} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
                     </div>
                     <textarea

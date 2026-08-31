@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { User, Clock } from "lucide-react";
 import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS } from "@/lib/constants";
-import { formatDate, formatDateShort, formatDateTime, todayStr, currentYearMonth } from "@/lib/dates";
+import { formatDate, formatDateShort, todayStr, currentYearMonth } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes } from "@/lib/business/timecharge";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
@@ -12,6 +12,9 @@ import type { Case, DailyReport } from "@/lib/types";
 
 // 名前→目標画面のkeyの対応（v10 4.1：個人画面右上に本人（宮村は全社）の当月目標を表示）
 const GOAL_KEY_BY_NAME: Record<string, string> = { 宮村: "company", 尾崎: "ozaki", 岩下: "iwashita" };
+
+const COLOR_MORNING = "#E4EDF6"; // 出勤時に記入（薄い青系）
+const COLOR_EVENING = "#F3ECDD"; // 退勤時に記入（薄い黄土色系）
 
 /** 自分のタイムチャージを案件ごとに集計する（個人画面の内訳表示、v8 3.4）。 */
 function caseBreakdown(timeCharges: PersonalSummary["timeCharges"]) {
@@ -24,6 +27,20 @@ function caseBreakdown(timeCharges: PersonalSummary["timeCharges"]) {
   return Array.from(byCase.values()).sort((a, b) => b.hours - a.hours);
 }
 
+interface ReportForm {
+  id: string | null;
+  date: string;
+  mostImportant: string;
+  todayTasks: string;
+  waitingCases: string;
+  workHours: string;
+  todaySuccess: string;
+}
+
+function emptyReportForm(date: string): ReportForm {
+  return { id: null, date, mostImportant: "", todayTasks: "", waitingCases: "", workHours: "", todaySuccess: "" };
+}
+
 interface Props {
   personName: string;
   cases: Case[];
@@ -33,18 +50,54 @@ interface Props {
 export default function PersonalTaskView({ personName, cases, onError }: Props) {
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
   const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", hours: "", content: "" });
-  const [reportForm, setReportForm] = useState({ date: todayStr(), mostImportant: "", todayTasks: "", waitingCases: "", todaySuccess: "" });
-  const [editingReportId, setEditingReportId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState({ mostImportant: "", todayTasks: "", waitingCases: "", todaySuccess: "" });
+  const [reportForm, setReportForm] = useState<ReportForm>(emptyReportForm(todayStr()));
   const [monthlyGoalPercent, setMonthlyGoalPercent] = useState<string>("");
+  const [historyYear, setHistoryYear] = useState(String(new Date().getFullYear()));
+  const [historyMonth, setHistoryMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
 
-  const load = () => {
-    api.fetchPersonalSummary(personName).then(setSummary).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
+  // v11 3.2：日付に一致する既存の日報があればそれを読み込み、なければ新規（本日のみ前回から引き継ぎ）
+  const loadFormForDate = (date: string, reports: DailyReport[]) => {
+    const existing = reports.find((r) => r.date === date);
+    if (existing) {
+      setReportForm({
+        id: existing.id,
+        date,
+        mostImportant: existing.mostImportant,
+        todayTasks: existing.todayTasks,
+        waitingCases: existing.waitingCases,
+        workHours: existing.workHours,
+        todaySuccess: existing.todaySuccess,
+      });
+      return;
+    }
+    const carryOver = date === todayStr();
+    const latest = reports[0];
+    setReportForm({
+      ...emptyReportForm(date),
+      todayTasks: carryOver ? latest?.todayTasks || "" : "",
+      waitingCases: carryOver ? latest?.waitingCases || "" : "",
+    });
   };
 
+  const refreshSummary = () => api.fetchPersonalSummary(personName).then((res) => {
+    setSummary(res);
+    return res;
+  });
+
   useEffect(() => {
-    load();
-    setEditingReportId(null);
+    let cancelled = false;
+    setSummary(null);
+    api
+      .fetchPersonalSummary(personName)
+      .then((res) => {
+        if (cancelled) return;
+        setSummary(res);
+        loadFormForDate(todayStr(), res.dailyReports || []);
+      })
+      .catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personName]);
 
@@ -59,23 +112,6 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
       .then((r) => setMonthlyGoalPercent(r.overallPercent))
       .catch(() => setMonthlyGoalPercent(""));
   }, [personName]);
-
-  // 日報の引き継ぎロジック（v6 3.4）：本日分が未記入なら、todayTasks/waitingCasesを前回記録から引き継ぐ。
-  // mostImportant/todaySuccessは引き継がない。
-  useEffect(() => {
-    if (!summary?.dailyReports) return;
-    const today = todayStr();
-    if (summary.dailyReports.some((r) => r.date === today)) return;
-    const latest = summary.dailyReports[0];
-    setReportForm({
-      date: today,
-      mostImportant: "",
-      todayTasks: latest?.todayTasks || "",
-      waitingCases: latest?.waitingCases || "",
-      todaySuccess: "",
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summary?.dailyReports]);
 
   const visibleCases = cases.filter((c) => !c.hidden);
   const timeChargeCases = visibleCases.filter((c) => c.isTimeChargeCase);
@@ -101,7 +137,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
         content: timeChargeForm.content,
       });
       setTimeChargeForm({ date: todayStr(), caseId: "", startTime: "", endTime: "", hours: "", content: "" });
-      load();
+      refreshSummary();
     } catch (e) {
       onError(e instanceof Error ? e.message : "タイムチャージの登録に失敗しました");
     }
@@ -109,48 +145,61 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
   const removeTimeCharge = async (id: string) => {
     try {
       await api.deleteTimeCharge(id);
-      load();
+      refreshSummary();
     } catch (e) {
       onError(e instanceof Error ? e.message : "削除に失敗しました");
     }
   };
 
-  const reportHasContent = [reportForm.mostImportant, reportForm.todayTasks, reportForm.waitingCases, reportForm.todaySuccess].some((v) => v.trim());
-  const addReport = async () => {
-    if (!reportHasContent) return;
-    try {
-      await api.addDailyReport(reportForm);
-      load();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "日報の登録に失敗しました");
-    }
-  };
-  const removeReport = async (id: string) => {
-    try {
-      await api.deleteDailyReport(id);
-      load();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "削除に失敗しました");
-    }
-  };
+  const reportHasContent = [reportForm.mostImportant, reportForm.todayTasks, reportForm.waitingCases, reportForm.workHours, reportForm.todaySuccess].some((v) => v.trim());
 
-  // v10 4.1：日報一覧の各エントリをクリックすると編集モードになり、過去の記録を事後的に編集できる
-  const startEditReport = (r: DailyReport) => {
-    setEditingReportId(r.id);
-    setEditDraft({ mostImportant: r.mostImportant, todayTasks: r.todayTasks, waitingCases: r.waitingCases, todaySuccess: r.todaySuccess });
-  };
-  const saveEditReport = async () => {
-    if (!editingReportId) return;
+  // v11 3.2：「記録を追加」「一時保存する」共通の保存処理。既存レコードがあればPATCH、なければPOSTして
+  // 以後の保存が同じレコードを更新するようにidを覚えておく（一時保存を繰り返しても重複しない）。
+  const saveReport = async (draft: boolean) => {
+    if (!draft && !reportHasContent) return;
     try {
-      await api.updateDailyReport(editingReportId, editDraft);
-      setEditingReportId(null);
-      load();
+      if (reportForm.id) {
+        const updated = await api.updateDailyReport(reportForm.id, {
+          mostImportant: reportForm.mostImportant,
+          todayTasks: reportForm.todayTasks,
+          waitingCases: reportForm.waitingCases,
+          workHours: reportForm.workHours,
+          todaySuccess: reportForm.todaySuccess,
+        });
+        setSummary((prev) => (prev ? { ...prev, dailyReports: (prev.dailyReports || []).map((r) => (r.id === updated.id ? updated : r)) } : prev));
+      } else {
+        const created = await api.addDailyReport({ ...reportForm, draft });
+        setReportForm((f) => ({ ...f, id: created.id }));
+        setSummary((prev) => (prev ? { ...prev, dailyReports: [created, ...(prev.dailyReports || [])] } : prev));
+      }
     } catch (e) {
       onError(e instanceof Error ? e.message : "保存に失敗しました");
     }
   };
 
+  const removeReport = async (id: string) => {
+    try {
+      await api.deleteDailyReport(id);
+      const res = await refreshSummary();
+      if (id === reportForm.id) loadFormForDate(todayStr(), res.dailyReports || []);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "削除に失敗しました");
+    }
+  };
+
+  const selectHistoryDate = (date: string) => {
+    if (!summary?.dailyReports) return;
+    loadFormForDate(date, summary.dailyReports);
+  };
+
   if (!summary) return null;
+
+  const filteredHistory = (summary.dailyReports || [])
+    .filter((r) => r.date.startsWith(`${historyYear}-${historyMonth}`))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+  const historyYears = Array.from(
+    new Set((summary.dailyReports || []).map((r) => r.date.slice(0, 4)).concat(String(new Date().getFullYear())))
+  ).sort((a, b) => b.localeCompare(a));
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -207,10 +256,11 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
         {DAILY_REPORT_STAFF.includes(personName) && summary.dailyReports && (
           <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><User size={15} /> 日報</h3>
-            {summary.dailyReports.some((r) => r.date === todayStr()) ? (
-              <p className="text-xs mb-3" style={{ color: COLORS.slate }}>本日分は記録済みです。下の一覧から編集できます。</p>
-            ) : (
-              <div className="flex flex-col gap-2 mb-3">
+
+            <div className="flex flex-col gap-3 mb-4">
+              {/* 出勤時に記入 */}
+              <div className="rounded p-3 flex flex-col gap-2" style={{ backgroundColor: COLOR_MORNING }}>
+                <p className="text-xs font-bold" style={{ color: COLORS.navy }}>出勤時に記入</p>
                 <TextInput type="date" value={reportForm.date} onChange={(e) => setReportForm({ ...reportForm, date: e.target.value })} className="w-full sm:w-40" />
                 <label className="text-xs" style={{ color: COLORS.slate }}>
                   本日一番大事なこと
@@ -224,53 +274,57 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
                   待ち案件
                   <textarea value={reportForm.waitingCases} onChange={(e) => setReportForm({ ...reportForm, waitingCases: e.target.value })} rows={7} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 </label>
+              </div>
+
+              {/* 退勤時に記入 */}
+              <div className="rounded p-3 flex flex-col gap-2" style={{ backgroundColor: COLOR_EVENING }}>
+                <p className="text-xs font-bold" style={{ color: COLORS.navy }}>退勤時に記入</p>
+                <label className="text-xs" style={{ color: COLORS.slate }}>
+                  本日の業務時間・実績
+                  <textarea value={reportForm.workHours} onChange={(e) => setReportForm({ ...reportForm, workHours: e.target.value })} rows={3} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                </label>
                 <label className="text-xs" style={{ color: COLORS.slate }}>
                   本日の成功
                   <textarea value={reportForm.todaySuccess} onChange={(e) => setReportForm({ ...reportForm, todaySuccess: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 </label>
-                <button onClick={addReport} disabled={!reportHasContent} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>記録する</button>
               </div>
-            )}
-            <div className="flex flex-col gap-2">
-              {summary.dailyReports.map((r) =>
-                editingReportId === r.id ? (
-                  <div key={r.id} className="flex flex-col gap-2 text-sm p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.navy}` }}>
-                    <p className="text-xs" style={{ color: COLORS.slate }}>{formatDate(r.date)}を編集中</p>
-                    <label className="text-xs" style={{ color: COLORS.slate }}>
-                      本日一番大事なこと
-                      <textarea value={editDraft.mostImportant} onChange={(e) => setEditDraft({ ...editDraft, mostImportant: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-                    </label>
-                    <label className="text-xs" style={{ color: COLORS.slate }}>
-                      本日やること
-                      <textarea value={editDraft.todayTasks} onChange={(e) => setEditDraft({ ...editDraft, todayTasks: e.target.value })} rows={8} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-                    </label>
-                    <label className="text-xs" style={{ color: COLORS.slate }}>
-                      待ち案件
-                      <textarea value={editDraft.waitingCases} onChange={(e) => setEditDraft({ ...editDraft, waitingCases: e.target.value })} rows={4} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-                    </label>
-                    <label className="text-xs" style={{ color: COLORS.slate }}>
-                      本日の成功
-                      <textarea value={editDraft.todaySuccess} onChange={(e) => setEditDraft({ ...editDraft, todaySuccess: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-                    </label>
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => setEditingReportId(null)} className="text-xs px-3 py-1.5 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
-                      <button onClick={saveEditReport} className="text-xs font-bold px-3 py-1.5 rounded" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>保存</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div key={r.id} className="flex items-start justify-between gap-2 text-sm p-2 rounded cursor-pointer hover:opacity-90" style={{ backgroundColor: COLORS.paper }} onClick={() => startEditReport(r)}>
-                    <div className="flex flex-col gap-1">
-                      <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(r.createdAt)}</p>
-                      {r.mostImportant && <p><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日一番大事なこと：</span>{r.mostImportant}</p>}
-                      {r.todayTasks && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日やること：</span>{r.todayTasks}</p>}
-                      {r.waitingCases && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>待ち案件：</span>{r.waitingCases}</p>}
-                      {r.todaySuccess && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日の成功：</span>{r.todaySuccess}</p>}
-                    </div>
+
+              <div className="flex flex-col items-end gap-1.5">
+                <button onClick={() => saveReport(false)} disabled={!reportHasContent} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+                  {reportForm.id ? "更新する" : "記録を追加"}
+                </button>
+                <button onClick={() => saveReport(true)} className="text-xs font-bold px-3 py-1.5 rounded" style={{ border: `1px solid ${COLORS.brassLight}`, color: COLORS.slate }}>一時保存する</button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 mb-2 pt-3" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
+              <p className="text-xs font-bold" style={{ color: COLORS.slate }}>過去の記録</p>
+              <select value={historyYear} onChange={(e) => setHistoryYear(e.target.value)} className="text-xs p-1 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                {historyYears.map((y) => <option key={y} value={y}>{y}年</option>)}
+              </select>
+              <select value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="text-xs p-1 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => (
+                  <option key={m} value={m}>{Number(m)}月</option>
+                ))}
+              </select>
+            </div>
+            {filteredHistory.length === 0 ? (
+              <p className="text-sm py-2" style={{ color: COLORS.slate }}>この年月の記録はありません。</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {filteredHistory.map((r) => (
+                  <div
+                    key={r.id}
+                    onClick={() => selectHistoryDate(r.date)}
+                    className="flex items-center justify-between gap-2 text-sm px-2.5 py-1.5 rounded cursor-pointer hover:opacity-80"
+                    style={{ backgroundColor: r.id === reportForm.id ? COLORS.paper : "transparent", border: `1px solid ${r.id === reportForm.id ? COLORS.navy : COLORS.brassLight}` }}
+                  >
+                    <span>{formatDate(r.date)}</span>
                     <button onClick={(e) => { e.stopPropagation(); removeReport(r.id); }} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
                   </div>
-                )
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -77,6 +77,32 @@ export default function CaseTrackerApp() {
   const [showNewCaseModal, setShowNewCaseModal] = useState(false);
   const [pendingClientId, setPendingClientId] = useState<string | null>(null);
   const [classifications, setClassifications] = useState<CaseClassification[]>([]);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [isDesktopLayout, setIsDesktopLayout] = useState(false);
+  const [resizingSidebar, setResizingSidebar] = useState(false);
+
+  // 案件一覧幅の判定はmdブレークポイント（768px）に合わせる（v11 3.1：狭い画面では1列表示になりハンドルは非表示）
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktopLayout(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!resizingSidebar) return;
+    const onMove = (e: MouseEvent) => {
+      setSidebarWidth(Math.min(600, Math.max(180, e.clientX)));
+    };
+    const onUp = () => setResizingSidebar(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [resizingSidebar]);
 
   useEffect(() => {
     (async () => {
@@ -263,7 +289,7 @@ export default function CaseTrackerApp() {
       )}
 
       {view === "list" && (
-        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row flex-1 overflow-hidden" style={resizingSidebar ? { cursor: "col-resize", userSelect: "none" } : undefined}>
           <CaseListSidebar
             allCases={cases}
             cases={filteredCases}
@@ -277,7 +303,16 @@ export default function CaseTrackerApp() {
             onSelect={setSelectedId}
             onToggleHidden={toggleCaseHidden}
             onNewCase={() => setShowNewCaseModal(true)}
+            widthPx={isDesktopLayout ? sidebarWidth : undefined}
           />
+          {isDesktopLayout && (
+            <div
+              onMouseDown={() => setResizingSidebar(true)}
+              className="flex-shrink-0 hidden md:block"
+              style={{ width: 5, cursor: "col-resize", backgroundColor: resizingSidebar ? COLORS.brass : COLORS.brassLight }}
+              title="ドラッグして案件一覧の幅を調整"
+            />
+          )}
           <main className="flex-1 overflow-y-auto p-6">
             {!selectedCase ? (
               <div className="h-full flex flex-col items-center justify-center gap-4 text-center py-20">

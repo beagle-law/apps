@@ -18,12 +18,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     mostImportant?: string;
     todayTasks?: string;
     waitingCases?: string;
+    workHours?: string;
     todaySuccess?: string;
   };
   const data: typeof body = {};
   if (body.mostImportant !== undefined) data.mostImportant = body.mostImportant.trim();
   if (body.todayTasks !== undefined) data.todayTasks = body.todayTasks.trim();
   if (body.waitingCases !== undefined) data.waitingCases = body.waitingCases.trim();
+  if (body.workHours !== undefined) data.workHours = body.workHours.trim();
   if (body.todaySuccess !== undefined) data.todaySuccess = body.todaySuccess.trim();
 
   const updated = await prisma.dailyReport.update({ where: { id }, data });

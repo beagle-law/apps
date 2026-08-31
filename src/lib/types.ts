@@ -138,6 +138,7 @@ export interface DailyReport {
   mostImportant: string;
   todayTasks: string;
   waitingCases: string;
+  workHours: string;
   todaySuccess: string;
   createdAt: string;
 }

@@ -173,12 +173,14 @@ export const addDailyReport = (payload: {
   mostImportant: string;
   todayTasks: string;
   waitingCases: string;
+  workHours: string;
   todaySuccess: string;
+  draft?: boolean;
 }) => request<DailyReport>("/api/dailyreports", { method: "POST", body: JSON.stringify(payload) });
 export const deleteDailyReport = (id: string) => request<{ ok: true }>(`/api/dailyreports/${id}`, { method: "DELETE" });
 export const updateDailyReport = (
   id: string,
-  payload: Partial<{ mostImportant: string; todayTasks: string; waitingCases: string; todaySuccess: string }>
+  payload: Partial<{ mostImportant: string; todayTasks: string; waitingCases: string; workHours: string; todaySuccess: string }>
 ) => request<DailyReport>(`/api/dailyreports/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 
 // ── 個人別サマリー ──────────────────────────────────

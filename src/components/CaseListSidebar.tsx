@@ -17,6 +17,7 @@ interface Props {
   onSelect: (id: string) => void;
   onToggleHidden: (id: string) => void;
   onNewCase: () => void;
+  widthPx?: number;
 }
 
 export default function CaseListSidebar({
@@ -32,13 +33,14 @@ export default function CaseListSidebar({
   onSelect,
   onToggleHidden,
   onNewCase,
+  widthPx,
 }: Props) {
   const hiddenCount = allCases.filter((c) => c.hidden).length;
 
   return (
     <aside
-      className="w-full md:w-80 flex flex-col border-b md:border-b-0 md:border-r"
-      style={{ borderColor: COLORS.brassLight, backgroundColor: "#EAE4D6" }}
+      className="w-full md:w-80 flex-shrink-0 flex flex-col border-b md:border-b-0 md:border-r"
+      style={{ borderColor: COLORS.brassLight, backgroundColor: "#EAE4D6", width: widthPx }}
     >
       <div className="p-3 flex flex-col gap-2">
         <div className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>

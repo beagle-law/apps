@@ -8,12 +8,6 @@ const FIRM_REG_NUMBER = "登録番号　T5810678070063";
 const FIRM_ADDRESS = ["〒103-0025", "東京都中央区日本橋茅場町1丁目6番3号KTビル404号"];
 const FIRM_PHONE = "03-6869-1076";
 
-const BANK_INFO = `銀行：三井住友銀行
-支店：東京中央支店（支店番号：015）
-名義：ベンゴシ　ミヤムラ　ヨリミツ
-口座種別：普通
-口座番号：9548121`;
-
 const yen = formatYen;
 
 function escapeHtml(s: string) {
@@ -52,8 +46,10 @@ export interface InvoiceForHtml {
   expenses?: InvoiceExpenseRowForHtml[];
 }
 
-// 請求書PDF共通スタイル（v10 3.2：全体的に文字サイズを拡大。No./摘要/金額は横・縦とも中央揃え。
-// 「税込ご請求額」ラベルは右揃え）
+// 請求書PDF共通スタイル。
+// v10：全体的に文字サイズを拡大。No./摘要/金額は横・縦とも中央揃え。「税込ご請求額」ラベルは右揃え。
+// v11 3.5：セルは縦方向すべて中央揃えを維持しつつ、摘要列の内容は左揃えに変更。表はtable-layout:auto、
+// 項目（第N）列は約44pxに圧縮、摘要列は自動幅。表内文字サイズを17〜18px程度に拡大。
 const COMMON_STYLE = `
     .inv-root * { box-sizing: border-box; }
     .inv-root h1 { text-align:center; font-size:26px; letter-spacing:0.3em; margin:0 0 28px; }
@@ -64,14 +60,14 @@ const COMMON_STYLE = `
     .inv-amount-box { border-bottom:3px double #333; padding:10px 4px 14px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:baseline; }
     .inv-amount-box .inv-label { font-size:16px; }
     .inv-amount-box .inv-value { font-size:26px; font-weight:bold; }
-    table.inv-table { width:100%; border-collapse:collapse; margin-bottom:28px; }
-    table.inv-table th, table.inv-table td { border:1px solid #888; padding:8px 10px; font-size:14px; vertical-align:middle; }
+    table.inv-table { width:100%; table-layout:auto; border-collapse:collapse; margin-bottom:28px; }
+    table.inv-table th, table.inv-table td { border:1px solid #888; padding:8px 10px; font-size:17.5px; vertical-align:middle; }
     table.inv-table th { background:#f1ede4; text-align:center; }
-    .section-cell { text-align:center; white-space:nowrap; }
+    .section-cell { text-align:center; white-space:nowrap; width:44px; }
     .no-cell { text-align:center; width:36px; }
-    .desc-cell { text-align:center; }
+    .desc-cell { text-align:left; }
     .amount-cell { text-align:center; white-space:nowrap; width:130px; }
-    .inv-total-row td { font-weight:bold; font-size:17px; border-top:3px double #333; }
+    .inv-total-row td { font-weight:bold; font-size:18px; border-top:3px double #333; }
     .inv-total-row .total-label { text-align:right; }
     .inv-footer { white-space:pre-line; font-size:13.5px; color:#333; }
     .inv-attachment-title { text-align:center; font-size:18px; letter-spacing:0.15em; margin:0 0 20px; }
@@ -131,7 +127,6 @@ export function buildInvoiceElement(inv: InvoiceForHtml): string {
     })
     .join("");
 
-  const notesBlock = inv.notes?.trim() ? `\n\n${inv.notes.trim()}` : "";
   const dueDateLine = inv.dueDate ? `\nお支払期限　${escapeHtml(formatDate(inv.dueDate))}` : "";
 
   return `${pageWrapperOpen()}
@@ -166,12 +161,7 @@ ${FIRM_PHONE}</div>
       </tbody>
     </table>
 
-    <div class="inv-footer">お支払いは下記銀行口座へ振り込みくださいますようお願い申し上げます。
-
-${BANK_INFO}
-
-恐れ入りますが振込手数料は貴社にてご負担ください。
-なお、実費の差額については、訴訟終結後ご返金いたします。${notesBlock}</div>
+    <div class="inv-footer">${escapeHtml((inv.notes || "").trim())}</div>
 ${pageWrapperClose()}`;
 }
 

@@ -45,7 +45,7 @@ import { formatDate, formatDateShort, formatDateTime, relativeDayLabel, todayStr
 import type { Case, Contact, TimeCharge, Expense, CustomField, CaseClassification } from "@/lib/types";
 import { emptyContact } from "@/lib/types";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
-import { invoiceTotal, buildTimeChargeItem, formatYen } from "@/lib/business/invoice";
+import { invoiceTotal, buildTimeChargeItem, formatYen, DEFAULT_INVOICE_NOTES } from "@/lib/business/invoice";
 import { summarizeByPerson } from "@/lib/business/timecharge";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
@@ -141,7 +141,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // 請求書作成ドラフト（v9：区分方式、v10：宛名敬称・支払期限・実費区分を追加）
-  const [invoiceForm, setInvoiceForm] = useState({ issueDate: todayStr(), honorific: "", dueDate: "", notes: "" });
+  const [invoiceForm, setInvoiceForm] = useState({ issueDate: todayStr(), honorific: "", dueDate: "", notes: DEFAULT_INVOICE_NOTES });
   const [invoiceSections, setInvoiceSections] = useState<SectionDraft[]>([newSectionDraft(false)]);
   const [unbilledTimeCharges, setUnbilledTimeCharges] = useState<TimeCharge[]>([]);
   const [unbilledExpenses, setUnbilledExpenses] = useState<Expense[]>([]);
@@ -162,7 +162,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       courtClerk: { ...emptyContact(), ...selectedCase.courtClerk },
     });
     setConfirmDelete(false);
-    setInvoiceForm({ issueDate: todayStr(), honorific: "", dueDate: "", notes: "" });
+    setInvoiceForm({ issueDate: todayStr(), honorific: "", dueDate: "", notes: DEFAULT_INVOICE_NOTES });
     setBillTimeChargeIds([]);
     setTcMonth(currentYearMonth());
     setExpMonth(currentYearMonth());
@@ -439,7 +439,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       const wasWithholdingDefault = invoiceSections[0]?.applyWithholding ?? false;
       setInvoiceSections([newSectionDraft(wasWithholdingDefault)]);
       setBillTimeChargeIds([]);
-      setInvoiceForm({ issueDate: todayStr(), honorific: "", dueDate: "", notes: "" });
+      setInvoiceForm({ issueDate: todayStr(), honorific: "", dueDate: "", notes: DEFAULT_INVOICE_NOTES });
       const remaining = await api.fetchUnbilledTimeCharges(selectedCase.id);
       setUnbilledTimeCharges(remaining);
       setUnbilledExpenses([]);
@@ -794,8 +794,8 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         </button>
 
         <label className="text-xs block mb-3" style={{ color: COLORS.slate }}>
-          備考
-          <textarea value={invoiceForm.notes} onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+          備考（請求書の一番下にそのまま出力されます）
+          <textarea value={invoiceForm.notes} onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })} rows={9} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
         </label>
 
         {hasAnyInvoiceItem && (
