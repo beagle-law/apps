@@ -181,7 +181,6 @@ export const addDailyReport = (payload: {
   workHours: string;
   remainingTasks: string;
   todaySuccess: string;
-  draft?: boolean;
 }) => request<DailyReport>("/api/dailyreports", { method: "POST", body: JSON.stringify(payload) });
 export const deleteDailyReport = (id: string) => request<{ ok: true }>(`/api/dailyreports/${id}`, { method: "DELETE" });
 export const updateDailyReport = (

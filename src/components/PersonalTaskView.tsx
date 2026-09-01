@@ -156,10 +156,10 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
 
   const reportHasContent = [reportForm.mostImportant, reportForm.todayTasks, reportForm.waitingCases, reportForm.workHours, reportForm.remainingTasks, reportForm.todaySuccess].some((v) => v.trim());
 
-  // v11 3.2：「記録を追加」「一時保存する」共通の保存処理。既存レコードがあればPATCH、なければPOSTして
-  // 以後の保存が同じレコードを更新するようにidを覚えておく（一時保存を繰り返しても重複しない）。
-  const saveReport = async (draft: boolean) => {
-    if (!draft && !reportHasContent) return;
+  // 日付に一致する既存の日報があればPATCH、なければPOSTして
+  // 以後の保存が同じレコードを更新するようにidを覚えておく。
+  const saveReport = async () => {
+    if (!reportHasContent) return;
     try {
       if (reportForm.id) {
         const updated = await api.updateDailyReport(reportForm.id, {
@@ -172,7 +172,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
         });
         setSummary((prev) => (prev ? { ...prev, dailyReports: (prev.dailyReports || []).map((r) => (r.id === updated.id ? updated : r)) } : prev));
       } else {
-        const created = await api.addDailyReport({ ...reportForm, draft });
+        const created = await api.addDailyReport(reportForm);
         setReportForm((f) => ({ ...f, id: created.id }));
         setSummary((prev) => (prev ? { ...prev, dailyReports: [created, ...(prev.dailyReports || [])] } : prev));
       }
@@ -266,7 +266,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
               {/* 出勤時に記入 */}
               <div className="rounded p-3 flex flex-col gap-2" style={{ backgroundColor: COLOR_MORNING }}>
                 <p className="text-xs font-bold" style={{ color: COLORS.navy }}>出勤時に記入</p>
-                <TextInput type="date" value={reportForm.date} onChange={(e) => setReportForm({ ...reportForm, date: e.target.value })} className="w-full sm:w-40" />
+                <TextInput type="date" value={reportForm.date} onChange={(e) => loadFormForDate(e.target.value, summary.dailyReports || [])} className="w-full sm:w-40" />
                 <label className="text-xs" style={{ color: COLORS.slate }}>
                   本日一番大事なこと
                   <textarea value={reportForm.mostImportant} onChange={(e) => setReportForm({ ...reportForm, mostImportant: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
@@ -299,10 +299,9 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
               </div>
 
               <div className="flex flex-col items-end gap-1.5">
-                <button onClick={() => saveReport(false)} disabled={!reportHasContent} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+                <button onClick={() => saveReport()} disabled={!reportHasContent} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
                   {reportForm.id ? "更新する" : "記録を追加"}
                 </button>
-                <button onClick={() => saveReport(true)} className="text-xs font-bold px-3 py-1.5 rounded" style={{ border: `1px solid ${COLORS.brassLight}`, color: COLORS.slate }}>一時保存する</button>
               </div>
             </div>
 

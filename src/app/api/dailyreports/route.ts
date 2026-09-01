@@ -19,12 +19,11 @@ export async function POST(req: NextRequest) {
     workHours?: string;
     remainingTasks?: string;
     todaySuccess?: string;
-    draft?: boolean; // v11 3.2：一時保存（空欄・書きかけでも保存できる）
   };
   if (!body.date) {
     return NextResponse.json({ error: "日付は必須です" }, { status: 400 });
   }
-  if (!body.draft && ![body.mostImportant, body.todayTasks, body.waitingCases, body.workHours, body.remainingTasks, body.todaySuccess].some((v) => v?.trim())) {
+  if (![body.mostImportant, body.todayTasks, body.waitingCases, body.workHours, body.remainingTasks, body.todaySuccess].some((v) => v?.trim())) {
     return NextResponse.json({ error: "いずれかの項目を入力してください" }, { status: 400 });
   }
 
