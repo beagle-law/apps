@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Download, Receipt, FileText, History } from "lucide-react";
 import { COLORS, FONT_MINCHO, INVOICE_SECTION_TYPES } from "@/lib/constants";
-import { formatDate, formatDateShort, todayStr } from "@/lib/dates";
+import { formatDate, formatDateShort, formatYearMonth, todayStr } from "@/lib/dates";
 import { TextInput } from "@/components/ui";
 import { invoiceTotal, buildTimeChargeItem, formatYen, DEFAULT_INVOICE_NOTES } from "@/lib/business/invoice";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
@@ -48,7 +48,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
   const [unbilledTimeCharges, setUnbilledTimeCharges] = useState<TimeCharge[]>([]);
   const [timeChargeRateDraft, setTimeChargeRateDraft] = useState("");
   const [billTimeChargeIds, setBillTimeChargeIds] = useState<string[]>([]);
-  const [invoiceForm, setInvoiceForm] = useState({ issueDate: todayStr(), dueDate: "", addressee: client.companyName, honorific: "", notes: DEFAULT_INVOICE_NOTES });
+  const [invoiceForm, setInvoiceForm] = useState({ issueDate: todayStr(), billingMonth: "", dueDate: "", addressee: client.companyName, honorific: "", notes: DEFAULT_INVOICE_NOTES });
   const [invoiceSections, setInvoiceSections] = useState<SectionDraft[]>([newSectionDraft(client.clientType === "法人")]);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
 
@@ -60,7 +60,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
     refreshInvoices();
     api.fetchClientUnbilledTimeCharges(client.id).then(setUnbilledTimeCharges).catch(() => setUnbilledTimeCharges([]));
     setBillTimeChargeIds([]);
-    setInvoiceForm({ issueDate: todayStr(), dueDate: "", addressee: client.companyName, honorific: "", notes: DEFAULT_INVOICE_NOTES });
+    setInvoiceForm({ issueDate: todayStr(), billingMonth: "", dueDate: "", addressee: client.companyName, honorific: "", notes: DEFAULT_INVOICE_NOTES });
     setInvoiceSections([newSectionDraft(client.clientType === "法人")]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
@@ -159,6 +159,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
         clientId: client.id,
         addressee: invoiceForm.addressee.trim(),
         issueDate: invoiceForm.issueDate,
+        billingMonth: invoiceForm.billingMonth || undefined,
         honorific: invoiceForm.honorific || undefined,
         dueDate: invoiceForm.dueDate || undefined,
         sections: cleanedSections,
@@ -170,7 +171,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
       const wasWithholdingDefault = invoiceSections[0]?.applyWithholding ?? false;
       setInvoiceSections([newSectionDraft(wasWithholdingDefault)]);
       setBillTimeChargeIds([]);
-      setInvoiceForm({ issueDate: todayStr(), dueDate: "", addressee: client.companyName, honorific: "", notes: DEFAULT_INVOICE_NOTES });
+      setInvoiceForm({ issueDate: todayStr(), billingMonth: "", dueDate: "", addressee: client.companyName, honorific: "", notes: DEFAULT_INVOICE_NOTES });
       api.fetchClientUnbilledTimeCharges(client.id).then(setUnbilledTimeCharges).catch(() => setUnbilledTimeCharges([]));
       refreshExpenses();
       refreshInvoices();
@@ -257,6 +258,16 @@ export default function ClientInvoicing({ client, onError }: Props) {
           <label className="text-xs" style={{ color: COLORS.slate }}>
             支払期限（空欄で発行月末）
             <TextInput type="date" value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })} className="mt-1 w-full sm:w-48" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            請求対象月（任意）
+            <input
+              type="month"
+              value={invoiceForm.billingMonth}
+              onChange={(e) => setInvoiceForm({ ...invoiceForm, billingMonth: e.target.value })}
+              className="mt-1 w-full sm:w-48 text-sm p-2 rounded outline-none block"
+              style={{ border: `1px solid ${COLORS.brassLight}` }}
+            />
           </label>
         </div>
         <div className="flex flex-wrap gap-3 mb-3">
@@ -377,7 +388,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
               return (
                 <div key={inv.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
                   <div className="flex-1">
-                    <p>{formatDate(inv.issueDate)}　{formatYen(totals.total)}</p>
+                    <p>{formatDate(inv.issueDate)}　{formatYen(totals.total)}{inv.billingMonth && `　（${formatYearMonth(inv.billingMonth)}分）`}</p>
                     {inv.dueDate && <p className="text-xs" style={{ color: COLORS.slate }}>支払期限：{formatDate(inv.dueDate)}{inv.paidAt && `　入金日：${formatDate(inv.paidAt)}`}</p>}
                   </div>
                   <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ color: "#fff", backgroundColor: inv.paid ? COLORS.moss : COLORS.slate }}>

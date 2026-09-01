@@ -208,6 +208,7 @@ export const createInvoice = (payload: {
   clientId: string;
   addressee?: string;
   issueDate: string;
+  billingMonth?: string;
   honorific?: string;
   dueDate?: string;
   sections: {

@@ -1,5 +1,5 @@
 import { invoiceTotal, formatYen, type InvoiceSectionInput } from "@/lib/business/invoice";
-import { formatDate } from "@/lib/dates";
+import { formatDate, formatYearMonth } from "@/lib/dates";
 import { EXPENSE_LIKE_SECTION_TYPES } from "@/lib/constants";
 
 const FIRM_NAME = "Beagle総合法律事務所";
@@ -40,6 +40,7 @@ export interface InvoiceForHtml {
   clientName: string;
   caseTitle: string;
   issueDate: string;
+  billingMonth?: string; // 請求対象月（YYYY-MM、任意）。設定時のみPDFに表示
   honorific: string;
   dueDate: string;
   sections: InvoiceSectionInput[];
@@ -131,6 +132,7 @@ export function buildInvoiceElement(inv: InvoiceForHtml): string {
     .join("");
 
   const dueDateLine = inv.dueDate ? `\nお支払期限　${escapeHtml(formatDate(inv.dueDate))}` : "";
+  const billingMonthLine = inv.billingMonth ? `\nご請求対象月　${escapeHtml(formatYearMonth(inv.billingMonth))}分` : "";
 
   return `${pageWrapperOpen()}
     <h1>ご請求書</h1>
@@ -138,7 +140,7 @@ export function buildInvoiceElement(inv: InvoiceForHtml): string {
       <div class="inv-client-block">
         <span class="inv-client-name">${escapeHtml(inv.clientName)}　${escapeHtml(inv.honorific || "御中")}</span>
       </div>
-      <div class="inv-firm-block">ご請求日　${escapeHtml(formatDate(inv.issueDate))}${dueDateLine}
+      <div class="inv-firm-block">ご請求日　${escapeHtml(formatDate(inv.issueDate))}${billingMonthLine}${dueDateLine}
 ${FIRM_NAME}
 ${FIRM_LAWYER}
 ${FIRM_REG_NUMBER}

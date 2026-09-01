@@ -33,6 +33,7 @@ interface CreateInvoiceBody {
   clientId?: string;
   addressee?: string;
   issueDate?: string;
+  billingMonth?: string;
   honorific?: string;
   dueDate?: string;
   sections?: CreateInvoiceSectionBody[];
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
         clientName: encryptField(printedName),
         addressee,
         issueDate: body.issueDate!,
+        billingMonth: body.billingMonth?.trim() || "",
         honorific,
         dueDate,
         notes: body.notes?.trim() || "",

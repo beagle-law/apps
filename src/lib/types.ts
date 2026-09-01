@@ -247,6 +247,7 @@ export interface Invoice {
   addressee: string;
   caseTitle: string; // v12で非推奨・表示しない
   issueDate: string;
+  billingMonth: string; // 請求対象月（YYYY-MM、任意）
   honorific: string;
   dueDate: string;
   notes: string;

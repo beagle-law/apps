@@ -22,6 +22,7 @@ export function serializeInvoice(inv: FullInvoice) {
     addressee: inv.addressee,
     caseTitle: inv.caseTitle,
     issueDate: inv.issueDate,
+    billingMonth: inv.billingMonth,
     honorific: inv.honorific,
     dueDate: inv.dueDate,
     notes: inv.notes,

@@ -319,6 +319,7 @@ model Invoice {
   addressee     String   @default("") // 宛先の自由入力欄（v12 3.1）。空欄なら顧客名を使用
   caseTitle     String   @default("") // 廃止・表示しない（過去データ互換用に残置）
   issueDate     String
+  billingMonth  String   @default("") // 請求対象月（YYYY-MM）。任意項目、すべての請求書に必須ではない
   honorific     String   @default("御中") // 宛名の敬称「御中」|「様」（v10 3.2）
   dueDate       String   @default("") // 支払期限（v10 3.2）
   notes         String   @default("")
