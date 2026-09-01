@@ -2,7 +2,7 @@ import type {
   Case,
   Contact,
   Client,
-  Expense,
+  ExpenseWithCase,
   PasswordEntry,
   TimeCharge,
   DailyReport,
@@ -132,11 +132,8 @@ export const addExpense = (
 export const deleteExpense = (caseId: string, expenseId: string) =>
   request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "DELETE" });
 
-export const fetchUnbilledExpenses = (caseId: string, month: string) =>
-  request<Expense[]>(`/api/cases/${caseId}/expenses/unbilled?month=${encodeURIComponent(month)}`);
-
-export const fetchUnbilledTimeCharges = (caseId: string) =>
-  request<TimeCharge[]>(`/api/cases/${caseId}/timecharges/unbilled`);
+export const setExpenseCheckedForBilling = (caseId: string, expenseId: string, checkedForBilling: boolean) =>
+  request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "PATCH", body: JSON.stringify({ checkedForBilling }) });
 
 export const fetchCaseTimeCharges = (caseId: string) =>
   request<TimeCharge[]>(`/api/cases/${caseId}/timecharges`);
@@ -153,6 +150,14 @@ export const createClient = (payload: Partial<Omit<Client, "id" | "clientNumber"
 export const patchClient = (id: string, payload: Partial<Omit<Client, "id" | "clientNumber" | "createdAt">>) =>
   request<Client>(`/api/clients/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 export const deleteClientApi = (id: string) => request<{ ok: true }>(`/api/clients/${id}`, { method: "DELETE" });
+
+// v12 4.1：顧客詳細の実費履歴・タイムチャージ合算（請求書機能の顧客紐づけ化）
+export const fetchClientExpenseHistory = (clientId: string) =>
+  request<ExpenseWithCase[]>(`/api/clients/${clientId}/expenses`);
+export const selectAllClientExpenses = (clientId: string, checked: boolean) =>
+  request<{ ok: true }>(`/api/clients/${clientId}/expenses/select-all`, { method: "POST", body: JSON.stringify({ checked }) });
+export const fetchClientUnbilledTimeCharges = (clientId: string) =>
+  request<TimeCharge[]>(`/api/clients/${clientId}/timecharges/unbilled`);
 
 // ── パスワード管理 ──────────────────────────────────
 export const fetchPasswords = () => request<PasswordEntry[]>("/api/passwords");
@@ -191,11 +196,17 @@ export interface PersonalSummary {
 }
 export const fetchPersonalSummary = (name: string) => request<PersonalSummary>(`/api/personal/${encodeURIComponent(name)}/summary`);
 
-// ── 請求書 ──────────────────────────────────────────
-export const fetchInvoices = (caseId?: string) =>
-  request<Invoice[]>(`/api/invoices${caseId ? `?caseId=${encodeURIComponent(caseId)}` : ""}`);
+// ── 請求書（v12：顧客に紐づけて作成） ──────────────────
+export const fetchInvoices = (opts?: { clientId?: string; caseId?: string }) => {
+  const params = new URLSearchParams();
+  if (opts?.clientId) params.set("clientId", opts.clientId);
+  if (opts?.caseId) params.set("caseId", opts.caseId);
+  const qs = params.toString();
+  return request<Invoice[]>(`/api/invoices${qs ? `?${qs}` : ""}`);
+};
 export const createInvoice = (payload: {
-  caseId: string;
+  clientId: string;
+  addressee?: string;
   issueDate: string;
   honorific?: string;
   dueDate?: string;

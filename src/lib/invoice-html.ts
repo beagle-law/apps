@@ -30,7 +30,9 @@ export interface InvoiceExpenseRowForHtml {
   date: string;
   category: string;
   amount: number;
-  notes: string;
+  origin: string;
+  destination: string;
+  route: string;
 }
 
 export interface InvoiceForHtml {
@@ -185,22 +187,23 @@ export function buildTimeChargeAttachment(rows: InvoiceTimeChargeRowForHtml[]): 
 ${pageWrapperClose()}`;
 }
 
-/** 別紙「実費一覧」（v10 3.2）。案件No.・依頼者名などは含めない。 */
+/** 別紙「実費一覧」（v10 3.2、v12 3.3で列を「日付／金額／目的／経路」に変更）。案件No.・依頼者名などは含めない。 */
 export function buildExpenseAttachment(rows: InvoiceExpenseRowForHtml[]): string {
+  const routeDisplay = (r: InvoiceExpenseRowForHtml) => r.route || (r.origin && r.destination ? `${r.origin}→${r.destination}` : r.origin || r.destination || "");
   const bodyRows = rows
     .map(
       (r) =>
-        `<tr><td>${escapeHtml(formatDate(r.date))}</td><td class="desc-cell">${escapeHtml(r.category)}</td><td class="amount-cell">${yen(r.amount)}</td><td class="desc-cell">${escapeHtml(r.notes)}</td></tr>`
+        `<tr><td>${escapeHtml(formatDate(r.date))}</td><td class="amount-cell">${yen(r.amount)}</td><td class="desc-cell">${escapeHtml(r.category)}</td><td class="desc-cell">${escapeHtml(routeDisplay(r))}</td></tr>`
     )
     .join("");
   const total = rows.reduce((s, r) => s + r.amount, 0);
   return `${pageWrapperOpen()}
     <h2 class="inv-attachment-title">別紙　実費一覧</h2>
     <table class="inv-table">
-      <thead><tr><th>日付</th><th>内訳</th><th>金額</th><th>備考</th></tr></thead>
+      <thead><tr><th>日付</th><th>金額</th><th>目的</th><th>経路</th></tr></thead>
       <tbody>
         ${bodyRows}
-        <tr class="inv-total-row"><td colspan="2" class="total-label">合計</td><td class="amount-cell">${yen(total)}</td><td></td></tr>
+        <tr class="inv-total-row"><td class="total-label">合計</td><td class="amount-cell">${yen(total)}</td><td colspan="2"></td></tr>
       </tbody>
     </table>
 ${pageWrapperClose()}`;

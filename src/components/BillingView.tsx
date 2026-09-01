@@ -11,10 +11,11 @@ import type { Invoice } from "@/lib/types";
 
 interface Props {
   onOpenCase: (id: string) => void;
+  onOpenClient: (clientId: string) => void;
   onError: (msg: string) => void;
 }
 
-export default function BillingView({ onOpenCase, onError }: Props) {
+export default function BillingView({ onOpenCase, onOpenClient, onError }: Props) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [showPaid, setShowPaid] = useState(false);
 
@@ -92,8 +93,8 @@ export default function BillingView({ onOpenCase, onError }: Props) {
                   <div className="flex flex-col gap-2">
                     {rows.map((inv) => (
                       <div key={inv.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                        <button onClick={() => onOpenCase(inv.caseId)} className="flex-1 text-left">
-                          <p>{inv.clientName}　{inv.caseTitle}</p>
+                        <button onClick={() => (inv.clientId ? onOpenClient(inv.clientId) : inv.caseId ? onOpenCase(inv.caseId) : undefined)} className="flex-1 text-left">
+                          <p>{inv.clientName}{inv.caseTitle ? `　${inv.caseTitle}` : ""}</p>
                           <p className="text-xs" style={{ color: COLORS.slate }}>
                             {formatDate(inv.issueDate)}
                             {inv.dueDate && `　支払期限：${formatDate(inv.dueDate)}`}

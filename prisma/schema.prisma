@@ -58,7 +58,8 @@ model Client {
   notes         String   @default("")
   createdAt     DateTime @default(now())
 
-  cases Case[]
+  cases    Case[]
+  invoices Invoice[]
 }
 
 // ─────────────────────────────────────────────────────────
@@ -168,6 +169,7 @@ model Expense {
 
   billedInInvoiceId String?  // この実費が反映済みの請求書（v10 3.3）
   invoice            Invoice? @relation(fields: [billedInInvoiceId], references: [id], onDelete: SetNull)
+  checkedForBilling Boolean  @default(false) // 顧客詳細「実費履歴」の請求チェック（v12 3.2）
 
   @@index([caseId])
   @@index([billedInInvoiceId])
@@ -304,17 +306,23 @@ model CaseClassification {
 // 請求書
 // ─────────────────────────────────────────────────────────
 
+// v12 3.1：請求書の紐づけ先を「案件」から「顧客」に変更。clientIdが主キー、caseIdは
+// v11以前のデータ互換のためのフォールバックとして残置（表示・遷移は clientId 優先）。
 model Invoice {
   id            String   @id @default(cuid())
   invoiceNumber Int      @unique
-  caseId        String
-  case          Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  clientName    String // 発行時点のスナップショット、暗号化
-  caseTitle     String
+  clientId      String?
+  client        Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  caseId        String? // 廃止（v11以前の過去データ互換用）
+  case          Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  clientName    String // 発行時点のスナップショット（暗号化）。addresseeまたは顧客名から決定
+  addressee     String   @default("") // 宛先の自由入力欄（v12 3.1）。空欄なら顧客名を使用
+  caseTitle     String   @default("") // 廃止・表示しない（過去データ互換用に残置）
   issueDate     String
   honorific     String   @default("御中") // 宛名の敬称「御中」|「様」（v10 3.2）
   dueDate       String   @default("") // 支払期限（v10 3.2）
   notes         String   @default("")
+  sourceExpenseIds Json  @default("[]") // 作成時点で請求チェックが入っていた実費ID一覧（v12 3.1）
   paid          Boolean  @default(false)
   paidAt        String   @default("")
   createdAt     DateTime @default(now())
@@ -323,6 +331,7 @@ model Invoice {
   timeCharges TimeCharge[]
   expenses    Expense[]
 
+  @@index([clientId])
   @@index([caseId])
 }
 

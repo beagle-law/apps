@@ -17,7 +17,15 @@ export interface Expense {
   route: string;
   notes: string;
   billedInInvoiceId: string | null;
+  checkedForBilling: boolean;
   createdAt: string;
+}
+
+// 顧客詳細「実費履歴」用（v12 3.2）：案件を横断した実費一覧に、由来案件の情報を添えたもの。
+export interface ExpenseWithCase extends Expense {
+  caseId: string;
+  caseTitle: string;
+  caseNumber: string;
 }
 
 export interface UpdateLog {
@@ -224,19 +232,25 @@ export interface InvoiceExpenseRow {
   date: string;
   category: string;
   amount: number;
+  origin: string;
+  destination: string;
+  route: string;
   notes: string;
 }
 
 export interface Invoice {
   id: string;
   invoiceNumber: number;
-  caseId: string;
+  clientId: string | null;
+  caseId: string | null; // v12で非推奨（clientIdのない過去データのみ使用）
   clientName: string;
-  caseTitle: string;
+  addressee: string;
+  caseTitle: string; // v12で非推奨・表示しない
   issueDate: string;
   honorific: string;
   dueDate: string;
   notes: string;
+  sourceExpenseIds: string[];
   paid: boolean;
   paidAt: string;
   createdAt: string;

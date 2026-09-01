@@ -371,7 +371,7 @@ export default function CaseTrackerApp() {
         <KnowledgeView classifications={classifications} onAddClassification={addClassification} onError={setError} />
       )}
 
-      {view === "billing" && <BillingView onOpenCase={openCaseFromElsewhere} onError={setError} />}
+      {view === "billing" && <BillingView onOpenCase={openCaseFromElsewhere} onOpenClient={openClientFromCase} onError={setError} />}
 
       {view === "settings" && <SettingsView currentUser={currentUser} onError={setError} />}
 

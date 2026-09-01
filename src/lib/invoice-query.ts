@@ -16,13 +16,16 @@ export function serializeInvoice(inv: FullInvoice) {
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
+    clientId: inv.clientId,
     caseId: inv.caseId,
     clientName: decryptField(inv.clientName),
+    addressee: inv.addressee,
     caseTitle: inv.caseTitle,
     issueDate: inv.issueDate,
     honorific: inv.honorific,
     dueDate: inv.dueDate,
     notes: inv.notes,
+    sourceExpenseIds: Array.isArray(inv.sourceExpenseIds) ? inv.sourceExpenseIds : [],
     paid: inv.paid,
     paidAt: inv.paidAt,
     createdAt: inv.createdAt.toISOString(),
@@ -44,12 +47,15 @@ export function serializeInvoice(inv: FullInvoice) {
       content: tc.content,
       personName: tc.personName,
     })),
-    // 別紙「実費一覧」用（v10 3.2）
+    // 別紙「実費一覧」用（v10 3.2、v12 3.3で列を日付／金額／目的／経路に変更）
     expenses: inv.expenses.map((e) => ({
       id: e.id,
       date: e.date,
       category: e.category,
       amount: e.amount,
+      origin: e.origin,
+      destination: e.destination,
+      route: e.route,
       notes: e.notes,
     })),
   };
