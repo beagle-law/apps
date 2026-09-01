@@ -34,11 +34,12 @@ interface ReportForm {
   todayTasks: string;
   waitingCases: string;
   workHours: string;
+  remainingTasks: string;
   todaySuccess: string;
 }
 
 function emptyReportForm(date: string): ReportForm {
-  return { id: null, date, mostImportant: "", todayTasks: "", waitingCases: "", workHours: "", todaySuccess: "" };
+  return { id: null, date, mostImportant: "", todayTasks: "", waitingCases: "", workHours: "", remainingTasks: "", todaySuccess: "" };
 }
 
 interface Props {
@@ -67,6 +68,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
         todayTasks: existing.todayTasks,
         waitingCases: existing.waitingCases,
         workHours: existing.workHours,
+        remainingTasks: existing.remainingTasks,
         todaySuccess: existing.todaySuccess,
       });
       return;
@@ -152,7 +154,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
     }
   };
 
-  const reportHasContent = [reportForm.mostImportant, reportForm.todayTasks, reportForm.waitingCases, reportForm.workHours, reportForm.todaySuccess].some((v) => v.trim());
+  const reportHasContent = [reportForm.mostImportant, reportForm.todayTasks, reportForm.waitingCases, reportForm.workHours, reportForm.remainingTasks, reportForm.todaySuccess].some((v) => v.trim());
 
   // v11 3.2：「記録を追加」「一時保存する」共通の保存処理。既存レコードがあればPATCH、なければPOSTして
   // 以後の保存が同じレコードを更新するようにidを覚えておく（一時保存を繰り返しても重複しない）。
@@ -165,6 +167,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
           todayTasks: reportForm.todayTasks,
           waitingCases: reportForm.waitingCases,
           workHours: reportForm.workHours,
+          remainingTasks: reportForm.remainingTasks,
           todaySuccess: reportForm.todaySuccess,
         });
         setSummary((prev) => (prev ? { ...prev, dailyReports: (prev.dailyReports || []).map((r) => (r.id === updated.id ? updated : r)) } : prev));
@@ -286,6 +289,10 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
                   <textarea value={reportForm.workHours} onChange={(e) => setReportForm({ ...reportForm, workHours: e.target.value })} rows={3} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 </label>
                 <label className="text-xs" style={{ color: COLORS.slate }}>
+                  本日時点での残タスク
+                  <textarea value={reportForm.remainingTasks} onChange={(e) => setReportForm({ ...reportForm, remainingTasks: e.target.value })} rows={4} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                </label>
+                <label className="text-xs" style={{ color: COLORS.slate }}>
                   本日の成功
                   <textarea value={reportForm.todaySuccess} onChange={(e) => setReportForm({ ...reportForm, todaySuccess: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 </label>
@@ -332,8 +339,9 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
                           {r.todayTasks && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日やること：</span>{r.todayTasks}</p>}
                           {r.waitingCases && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>待ち案件：</span>{r.waitingCases}</p>}
                           {r.workHours && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日の業務時間・実績：</span>{r.workHours}</p>}
+                          {r.remainingTasks && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日時点での残タスク：</span>{r.remainingTasks}</p>}
                           {r.todaySuccess && <p className="whitespace-pre-wrap"><span className="text-xs font-bold" style={{ color: COLORS.slate }}>本日の成功：</span>{r.todaySuccess}</p>}
-                          {![r.mostImportant, r.todayTasks, r.waitingCases, r.workHours, r.todaySuccess].some((v) => v.trim()) && (
+                          {![r.mostImportant, r.todayTasks, r.waitingCases, r.workHours, r.remainingTasks, r.todaySuccess].some((v) => v.trim()) && (
                             <p style={{ color: COLORS.slate }}>内容はまだ入力されていません。</p>
                           )}
                           <button onClick={() => editHistoryDate(r.date)} className="self-end text-xs font-bold px-2.5 py-1 rounded mt-1" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>この日を編集する</button>

@@ -147,6 +147,7 @@ export interface DailyReport {
   todayTasks: string;
   waitingCases: string;
   workHours: string;
+  remainingTasks: string;
   todaySuccess: string;
   createdAt: string;
 }

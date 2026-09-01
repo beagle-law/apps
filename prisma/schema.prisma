@@ -220,6 +220,7 @@ model DailyReport {
   todayTasks    String   @default("") // 本日やること（未記入日は前回から引き継ぎ）
   waitingCases  String   @default("") // 待ち案件（未記入日は前回から引き継ぎ）
   workHours     String   @default("") // 本日の業務時間・実績（退勤時記入、v11 3.2）
+  remainingTasks String  @default("") // 本日時点での残タスク（退勤時記入）
   todaySuccess  String   @default("") // 今日の成功（引き継がない）
   createdAt     DateTime @default(now())
 
