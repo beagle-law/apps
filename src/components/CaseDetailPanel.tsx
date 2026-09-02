@@ -82,6 +82,8 @@ function financeDraftFromCase(c: Case) {
 
 export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDeleted, onOpenClient, classifications, onAddClassification, onError }: Props) {
   const [newUpdateText, setNewUpdateText] = useState("");
+  const [titleDraft, setTitleDraft] = useState(selectedCase.title);
+  const [caseNumberDraft, setCaseNumberDraft] = useState(selectedCase.caseNumber);
   const [claimMemoDraft, setClaimMemoDraft] = useState(selectedCase.claimMemo);
   const [financeDraft, setFinanceDraft] = useState(financeDraftFromCase(selectedCase));
   const [financeSaved, setFinanceSaved] = useState(true);
@@ -110,6 +112,8 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
+    setTitleDraft(selectedCase.title);
+    setCaseNumberDraft(selectedCase.caseNumber);
     setClaimMemoDraft(selectedCase.claimMemo);
     setFinanceDraft(financeDraftFromCase(selectedCase));
     setFinanceSaved(true);
@@ -150,6 +154,23 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   };
   const toggleHidden = () => {
     run(() => api.patchCase(selectedCase.id, { hidden: !selectedCase.hidden }));
+  };
+  const saveTitle = () => {
+    const next = titleDraft.trim();
+    if (!next || next === selectedCase.title) {
+      setTitleDraft(selectedCase.title);
+      return;
+    }
+    run(() => api.patchCase(selectedCase.id, { title: next }));
+  };
+  // v13：顧客から複数案件が生じた場合に「213-1」のような枝番を任意で付加できるよう、案件Noを直接編集可能にする。
+  const saveCaseNumber = () => {
+    const next = caseNumberDraft.trim();
+    if (!next || next === selectedCase.caseNumber) {
+      setCaseNumberDraft(selectedCase.caseNumber);
+      return;
+    }
+    run(() => api.patchCase(selectedCase.id, { caseNumber: next }));
   };
 
   const cycleEngagement = (field: "poaStatus" | "contractStatus" | "retainerStatus", list: readonly string[]) => {
@@ -302,16 +323,30 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       {/* Header */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs flex items-center gap-2" style={{ color: COLORS.slate }}>
-              案件No. {selectedCase.caseNumber}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-xs" style={{ color: COLORS.slate }}>
+              <span className="flex-shrink-0">案件No.</span>
+              <input
+                type="text"
+                value={caseNumberDraft}
+                onChange={(e) => setCaseNumberDraft(e.target.value)}
+                onBlur={saveCaseNumber}
+                title="枝番（例：213-1）を任意で付加できます"
+                className="text-xs px-1.5 py-0.5 rounded outline-none"
+                style={{ border: `1px solid ${COLORS.brassLight}`, width: 100 }}
+              />
               {selectedCase.isPrivate && (
                 <Badge color={COLORS.brass}>個人メモ</Badge>
               )}
-            </p>
-            <h2 className="text-xl mt-1" style={{ fontFamily: FONT_MINCHO, letterSpacing: "0.02em" }}>
-              {selectedCase.title}
-            </h2>
+            </div>
+            <input
+              type="text"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={saveTitle}
+              className="text-xl mt-1 w-full rounded outline-none px-1.5 py-1"
+              style={{ fontFamily: FONT_MINCHO, letterSpacing: "0.02em", border: `1px solid ${COLORS.brassLight}` }}
+            />
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={toggleHidden} className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }} title={selectedCase.hidden ? "一覧に表示する" : "一覧から非表示にする"}>

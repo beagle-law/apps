@@ -61,6 +61,8 @@ export const createCase = (payload: {
 export const patchCase = (
   id: string,
   payload: Partial<{
+    title: string;
+    caseNumber: string;
     stage: string;
     priority: string;
     ballOwner: string;

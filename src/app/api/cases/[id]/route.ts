@@ -9,6 +9,8 @@ import { ENGAGEMENT_FIELD_LABEL } from "@/lib/constants";
 type EngagementField = "poaStatus" | "contractStatus" | "retainerStatus";
 
 interface PatchCaseBody {
+  title?: string;
+  caseNumber?: string;
   stage?: string;
   priority?: string;
   ballOwner?: string;
@@ -47,6 +49,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = (await req.json()) as PatchCaseBody;
 
   const data: Prisma.CaseUpdateInput = {};
+  if (body.title !== undefined && body.title.trim()) data.title = body.title.trim();
+  if (body.caseNumber !== undefined && body.caseNumber.trim()) data.caseNumber = body.caseNumber.trim();
   if (body.stage !== undefined) data.stage = body.stage;
   if (body.priority !== undefined) data.priority = body.priority;
   if (body.ballOwner !== undefined) {
