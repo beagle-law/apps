@@ -123,6 +123,12 @@ export const addHearing = (
   payload: { date: string; content: string; docDeadline?: string; nextHearingDate?: string }
 ) => request<Case>(`/api/cases/${id}/hearings`, { method: "POST", body: JSON.stringify(payload) });
 
+export const updateHearing = (
+  id: string,
+  hearingId: string,
+  payload: Partial<{ date: string; content: string; docDeadline: string; nextHearingDate: string }>
+) => request<Case>(`/api/cases/${id}/hearings/${hearingId}`, { method: "PATCH", body: JSON.stringify(payload) });
+
 export const deleteHearing = (id: string, hearingId: string) =>
   request<Case>(`/api/cases/${id}/hearings/${hearingId}`, { method: "DELETE" });
 

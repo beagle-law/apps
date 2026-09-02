@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Plus,
   Save,
+  Pencil,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -91,6 +92,8 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [courtInfoSaved, setCourtInfoSaved] = useState(true);
   const [newClassificationInput, setNewClassificationInput] = useState("");
   const [newHearing, setNewHearing] = useState({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
+  const [editingHearingId, setEditingHearingId] = useState<string | null>(null);
+  const [hearingDraft, setHearingDraft] = useState({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   const [newExpenseForm, setNewExpenseForm] = useState({
     date: "",
     amount: "",
@@ -125,6 +128,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       courtClerk: { ...emptyContact(), ...selectedCase.courtClerk },
     });
     setConfirmDelete(false);
+    setEditingHearingId(null);
     setTcMonth(currentYearMonth());
     setExpMonth(currentYearMonth());
     api.fetchCaseTimeCharges(selectedCase.id).then(setCaseTimeCharges).catch(() => setCaseTimeCharges([]));
@@ -260,6 +264,22 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     setNewHearing({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   };
   const removeHearing = (hearingId: string) => run(() => api.deleteHearing(selectedCase.id, hearingId));
+
+  const startEditHearing = (h: { id: string; date: string; content: string; docDeadline: string; nextHearingDate: string }) => {
+    setEditingHearingId(h.id);
+    setHearingDraft({ date: h.date, content: h.content, docDeadline: h.docDeadline, nextHearingDate: h.nextHearingDate });
+  };
+  const cancelEditHearing = () => setEditingHearingId(null);
+  const saveHearingEdit = () => {
+    if (!editingHearingId || !hearingDraft.date || !hearingDraft.content.trim()) return;
+    api
+      .updateHearing(selectedCase.id, editingHearingId, hearingDraft)
+      .then((updated) => {
+        onCaseUpdated(updated);
+        setEditingHearingId(null);
+      })
+      .catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
+  };
 
   const addExpenseEntry = () => {
     if (!newExpenseForm.date || !newExpenseForm.category || !newExpenseForm.amount) return;
@@ -762,21 +782,51 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <p className="text-sm py-2" style={{ color: COLORS.slate }}>登録された期日はありません。</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {[...selectedCase.hearings].sort((a, b) => (a.date < b.date ? 1 : -1)).map((h) => (
-              <div key={h.id} className="flex items-start justify-between gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
-                <div>
-                  <p className="font-bold" style={{ color: COLORS.slate }}>{formatDate(h.date)}（{relativeDayLabel(h.date)}）記録</p>
-                  <p className="mt-0.5 whitespace-pre-wrap">{h.content}</p>
-                  {h.docDeadline && (
-                    <p className="text-xs mt-0.5" style={{ color: h.docDeadline < todayStr() ? COLORS.vermillion : COLORS.slate }}>書面提出期限：{formatDate(h.docDeadline)}</p>
-                  )}
-                  {h.nextHearingDate && (
-                    <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: COLORS.vermillion }}><Calendar size={11} /> 次回裁判期日：{formatDate(h.nextHearingDate)}</p>
-                  )}
+            {[...selectedCase.hearings].sort((a, b) => (a.date < b.date ? 1 : -1)).map((h) =>
+              editingHearingId === h.id ? (
+                <div key={h.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <label className="text-xs" style={{ color: COLORS.slate }}>
+                      期日
+                      <TextInput type="date" value={hearingDraft.date} onChange={(e) => setHearingDraft({ ...hearingDraft, date: e.target.value })} className="mt-1 w-full" />
+                    </label>
+                    <label className="text-xs" style={{ color: COLORS.slate }}>
+                      書面提出期限
+                      <TextInput type="date" value={hearingDraft.docDeadline} onChange={(e) => setHearingDraft({ ...hearingDraft, docDeadline: e.target.value })} className="mt-1 w-full" />
+                    </label>
+                    <label className="text-xs" style={{ color: COLORS.slate }}>
+                      次回裁判期日
+                      <TextInput type="date" value={hearingDraft.nextHearingDate} onChange={(e) => setHearingDraft({ ...hearingDraft, nextHearingDate: e.target.value })} className="mt-1 w-full" />
+                    </label>
+                  </div>
+                  <label className="text-xs" style={{ color: COLORS.slate }}>
+                    内容
+                    <textarea value={hearingDraft.content} onChange={(e) => setHearingDraft({ ...hearingDraft, content: e.target.value })} rows={4} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={cancelEditHearing} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
+                    <button onClick={saveHearingEdit} disabled={!hearingDraft.date || !hearingDraft.content.trim()} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
+                  </div>
                 </div>
-                <button onClick={() => removeHearing(h.id)} style={{ color: COLORS.slate }} className="flex-shrink-0"><X size={14} /></button>
-              </div>
-            ))}
+              ) : (
+                <div key={h.id} className="flex items-start justify-between gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
+                  <div>
+                    <p className="font-bold" style={{ color: COLORS.slate }}>{formatDate(h.date)}（{relativeDayLabel(h.date)}）記録</p>
+                    <p className="mt-0.5 whitespace-pre-wrap">{h.content}</p>
+                    {h.docDeadline && (
+                      <p className="text-xs mt-0.5" style={{ color: h.docDeadline < todayStr() ? COLORS.vermillion : COLORS.slate }}>書面提出期限：{formatDate(h.docDeadline)}</p>
+                    )}
+                    {h.nextHearingDate && (
+                      <p className="text-xs mt-0.5 flex items-center gap-1" style={{ color: COLORS.vermillion }}><Calendar size={11} /> 次回裁判期日：{formatDate(h.nextHearingDate)}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => startEditHearing(h)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={13} /></button>
+                    <button onClick={() => removeHearing(h.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                  </div>
+                </div>
+              )
+            )}
           </div>
         )}
       </div>
