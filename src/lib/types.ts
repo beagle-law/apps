@@ -36,6 +36,13 @@ export interface UpdateLog {
   auto: boolean;
 }
 
+export interface ClaimMemoEntry {
+  id: string;
+  content: string;
+  author: string;
+  createdAt: string;
+}
+
 export interface Contact {
   name: string;
   affiliation: string;
@@ -78,6 +85,7 @@ export interface Case {
   retainerStatus: string;
 
   claimMemo: string;
+  claimMemos: ClaimMemoEntry[];
 
   caseClassification: string;
   opposingParty: string;
@@ -179,12 +187,22 @@ export interface GoalRecord {
   items: GoalItem[];
 }
 
+export interface KnowhowImage {
+  id: string;
+  blobUrl: string;
+  originalFileName: string;
+  fileSize: number;
+  mimeType: string;
+  createdAt: string;
+}
+
 export interface KnowhowEntry {
   id: string;
   category: string;
   title: string;
   content: string;
   createdAt: string;
+  images: KnowhowImage[];
 }
 
 export interface Template {

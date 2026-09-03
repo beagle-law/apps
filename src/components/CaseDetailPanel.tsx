@@ -23,7 +23,6 @@ import {
   Save,
   Pencil,
 } from "lucide-react";
-import * as XLSX from "xlsx";
 import {
   COLORS,
   FONT_MINCHO,
@@ -85,11 +84,12 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [newUpdateText, setNewUpdateText] = useState("");
   const [titleDraft, setTitleDraft] = useState(selectedCase.title);
   const [caseNumberDraft, setCaseNumberDraft] = useState(selectedCase.caseNumber);
-  const [claimMemoDraft, setClaimMemoDraft] = useState(selectedCase.claimMemo);
   const [financeDraft, setFinanceDraft] = useState(financeDraftFromCase(selectedCase));
   const [financeSaved, setFinanceSaved] = useState(true);
-  const [claimMemoSaved, setClaimMemoSaved] = useState(true);
   const [courtInfoSaved, setCourtInfoSaved] = useState(true);
+  const [newClaimMemoText, setNewClaimMemoText] = useState("");
+  const [editingClaimMemoId, setEditingClaimMemoId] = useState<string | null>(null);
+  const [claimMemoEditDraft, setClaimMemoEditDraft] = useState("");
   const [newClassificationInput, setNewClassificationInput] = useState("");
   const [newHearing, setNewHearing] = useState({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   const [editingHearingId, setEditingHearingId] = useState<string | null>(null);
@@ -117,11 +117,11 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   useEffect(() => {
     setTitleDraft(selectedCase.title);
     setCaseNumberDraft(selectedCase.caseNumber);
-    setClaimMemoDraft(selectedCase.claimMemo);
     setFinanceDraft(financeDraftFromCase(selectedCase));
     setFinanceSaved(true);
-    setClaimMemoSaved(true);
     setCourtInfoSaved(true);
+    setNewClaimMemoText("");
+    setEditingClaimMemoId(null);
     setTimeChargeRateSaved(String(selectedCase.timeChargeRate ?? ""));
     setCourtInfoDraft({
       courtCaseNumber: selectedCase.courtCaseNumber || "",
@@ -197,12 +197,24 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       .catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
   };
 
-  const saveClaimMemo = () => {
+  const addClaimMemoEntry = () => {
+    if (!newClaimMemoText.trim()) return;
+    run(() => api.addClaimMemo(selectedCase.id, newClaimMemoText.trim()));
+    setNewClaimMemoText("");
+  };
+  const removeClaimMemoEntry = (memoId: string) => run(() => api.deleteClaimMemo(selectedCase.id, memoId));
+  const startEditClaimMemo = (m: { id: string; content: string }) => {
+    setEditingClaimMemoId(m.id);
+    setClaimMemoEditDraft(m.content);
+  };
+  const cancelEditClaimMemo = () => setEditingClaimMemoId(null);
+  const saveClaimMemoEdit = () => {
+    if (!editingClaimMemoId || !claimMemoEditDraft.trim()) return;
     api
-      .patchClaimMemo(selectedCase.id, claimMemoDraft)
+      .updateClaimMemo(selectedCase.id, editingClaimMemoId, claimMemoEditDraft.trim())
       .then((updated) => {
         onCaseUpdated(updated);
-        setClaimMemoSaved(true);
+        setEditingClaimMemoId(null);
       })
       .catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
   };
@@ -311,7 +323,9 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     }
   };
 
-  const exportExpensesToExcel = () => {
+  // xlsxはサイズが大きいため、アプリ起動時の読み込みを軽くする目的で使用時にのみ読み込む。
+  const exportExpensesToExcel = async () => {
+    const XLSX = await import("xlsx");
     const rows: (string | number)[][] = [
       ["実費一覧"],
       [`案件No.${selectedCase.caseNumber}`, selectedCase.title, `依頼者：${selectedCase.clientName}`],
@@ -429,6 +443,26 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         </div>
       </div>
 
+      {/* 受任関連チェック */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>受任関連チェック</h3>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">委任状</span>
+            <button onClick={() => cycleEngagement("poaStatus", POA_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.poaStatus) }}>{selectedCase.poaStatus}</button>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">委任契約書</span>
+            <button onClick={() => cycleEngagement("contractStatus", CONTRACT_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.contractStatus) }}>{selectedCase.contractStatus}</button>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">預り金</span>
+            <button onClick={() => cycleEngagement("retainerStatus", RETAINER_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.retainerStatus) }}>{selectedCase.retainerStatus}</button>
+          </div>
+        </div>
+        <p className="text-xs mt-3" style={{ color: COLORS.slate }}>クリックで状態を切り替えます。</p>
+      </div>
+
       {/* 経過記録 */}
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>経過記録</h3>
@@ -454,46 +488,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             ))}
           </div>
         )}
-      </div>
-
-      {/* 主張予定メモ */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
-          <button onClick={saveClaimMemo} disabled={claimMemoSaved} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
-        </div>
-        <textarea
-          value={claimMemoDraft}
-          onChange={(e) => {
-            setClaimMemoDraft(e.target.value);
-            setClaimMemoSaved(false);
-          }}
-          rows={4}
-          placeholder="主張予定のメモを自由に記入..."
-          className="w-full text-sm p-2 rounded outline-none resize-none"
-          style={{ border: `1px solid ${COLORS.brassLight}` }}
-        />
-        <p className="text-xs mt-2" style={{ color: COLORS.slate }}>「保存」ボタンでまとめて保存されます（履歴は残りません）</p>
-      </div>
-
-      {/* 受任関連チェック */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>受任関連チェック</h3>
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm">委任状</span>
-            <button onClick={() => cycleEngagement("poaStatus", POA_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.poaStatus) }}>{selectedCase.poaStatus}</button>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">委任契約書</span>
-            <button onClick={() => cycleEngagement("contractStatus", CONTRACT_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.contractStatus) }}>{selectedCase.contractStatus}</button>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">預り金</span>
-            <button onClick={() => cycleEngagement("retainerStatus", RETAINER_STATUSES)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ color: "#fff", backgroundColor: engagementStatusColor(selectedCase.retainerStatus) }}>{selectedCase.retainerStatus}</button>
-          </div>
-        </div>
-        <p className="text-xs mt-3" style={{ color: COLORS.slate }}>クリックで状態を切り替えます。</p>
       </div>
     </div>
 
@@ -599,6 +593,45 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             </>
           );
         })()}
+      </div>
+
+      {/* 主張予定メモ（v13：積み重ね式に変更。細かいメモを都度追加し、過去のものも個別に編集・削除できる） */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
+        <div className="flex flex-col gap-2 mb-4">
+          <textarea value={newClaimMemoText} onChange={(e) => setNewClaimMemoText(e.target.value)} placeholder="主張予定のメモを自由に記入..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+          <button onClick={addClaimMemoEntry} disabled={!newClaimMemoText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+            <Send size={13} /> メモを追加
+          </button>
+        </div>
+        {selectedCase.claimMemos.length === 0 ? (
+          <p className="text-sm py-2" style={{ color: COLORS.slate }}>まだメモがありません。</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {selectedCase.claimMemos.map((m) =>
+              editingClaimMemoId === m.id ? (
+                <div key={m.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+                  <textarea value={claimMemoEditDraft} onChange={(e) => setClaimMemoEditDraft(e.target.value)} rows={3} className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={cancelEditClaimMemo} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
+                    <button onClick={saveClaimMemoEdit} disabled={!claimMemoEditDraft.trim()} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
+                  </div>
+                </div>
+              ) : (
+                <div key={m.id} className="text-sm p-2.5 rounded group" style={{ backgroundColor: COLORS.paper }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(m.createdAt)}{m.author && <>　<span className="font-bold">{m.author}</span></>}</p>
+                    <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition">
+                      <button onClick={() => startEditClaimMemo(m)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={13} /></button>
+                      <button onClick={() => removeClaimMemoEntry(m.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                    </div>
+                  </div>
+                  <p className="mt-0.5 whitespace-pre-wrap">{m.content}</p>
+                </div>
+              )
+            )}
+          </div>
+        )}
       </div>
 
     </div>

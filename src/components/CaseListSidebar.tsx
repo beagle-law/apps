@@ -39,7 +39,7 @@ export default function CaseListSidebar({
 
   return (
     <aside
-      className="w-full md:w-80 flex-shrink-0 flex flex-col border-b md:border-b-0 md:border-r"
+      className="w-full md:w-80 max-h-[45vh] md:max-h-none flex-shrink-0 flex flex-col border-b md:border-b-0 md:border-r"
       style={{ borderColor: COLORS.brassLight, backgroundColor: "#EAE4D6", width: widthPx }}
     >
       <div className="p-3 flex flex-col gap-2">

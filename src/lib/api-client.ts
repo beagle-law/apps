@@ -8,6 +8,7 @@ import type {
   DailyReport,
   GoalRecord,
   KnowhowEntry,
+  KnowhowImage,
   Template,
   Invoice,
   User,
@@ -109,8 +110,15 @@ export const patchFinance = (
   }>
 ) => request<Case>(`/api/cases/${id}/finance`, { method: "PATCH", body: JSON.stringify(payload) });
 
-export const patchClaimMemo = (id: string, claimMemo: string) =>
-  request<Case>(`/api/cases/${id}/claim-memo`, { method: "PATCH", body: JSON.stringify({ claimMemo }) });
+// v13：主張予定メモを単一テキストから積み重ね式の一覧に変更（経過記録と同様のパターン）。
+export const addClaimMemo = (id: string, content: string) =>
+  request<Case>(`/api/cases/${id}/claim-memos`, { method: "POST", body: JSON.stringify({ content }) });
+
+export const updateClaimMemo = (id: string, memoId: string, content: string) =>
+  request<Case>(`/api/cases/${id}/claim-memos/${memoId}`, { method: "PATCH", body: JSON.stringify({ content }) });
+
+export const deleteClaimMemo = (id: string, memoId: string) =>
+  request<Case>(`/api/cases/${id}/claim-memos/${memoId}`, { method: "DELETE" });
 
 export const addUpdate = (id: string, note: string) =>
   request<Case>(`/api/cases/${id}/updates`, { method: "POST", body: JSON.stringify({ note }) });
@@ -258,6 +266,20 @@ export const addKnowhow = (payload: { category: string; title: string; content?:
 export const updateKnowhow = (id: string, payload: Partial<{ category: string; title: string; content: string }>) =>
   request<KnowhowEntry>(`/api/knowhow/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 export const deleteKnowhow = (id: string) => request<{ ok: true }>(`/api/knowhow/${id}`, { method: "DELETE" });
+
+// v13：ノウハウへのスクリーンショット等の画像添付
+export const uploadKnowhowImage = async (knowhowId: string, file: File): Promise<KnowhowImage> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`/api/knowhow/${knowhowId}/images`, { method: "POST", body: formData });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `アップロードに失敗しました (${res.status})`);
+  }
+  return res.json();
+};
+export const deleteKnowhowImage = (knowhowId: string, imageId: string) =>
+  request<{ ok: true }>(`/api/knowhow/${knowhowId}/images/${imageId}`, { method: "DELETE" });
 
 export const fetchTemplates = () => request<Template[]>("/api/templates");
 export const addTemplate = (name: string) => request<Template>("/api/templates", { method: "POST", body: JSON.stringify({ name }) });

@@ -102,8 +102,9 @@ model Case {
   contractStatus String @default("対応不要")
   retainerStatus String @default("対応不要")
 
-  // 主張予定メモ
+  // 主張予定メモ（v13で単一テキストから積み重ね式のメモ一覧に変更。claimMemoは旧データ互換のため残置・未使用）
   claimMemo String @default("")
+  claimMemos ClaimMemoEntry[]
 
   // 案件情報（v4：相手方代理人情報はここに一本化。旧opposingCounselName/opposingCounselContact*は廃止）
   caseClassification         String  @default("")
@@ -152,6 +153,18 @@ model Hearing {
 
   @@index([caseId])
   @@index([date])
+}
+
+// 主張予定メモ（v13）：経過記録と同様に積み重ね式で記録し、後から個別に編集・削除できる。
+model ClaimMemoEntry {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  content   String
+  author    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
 }
 
 model Expense {
@@ -281,7 +294,23 @@ model KnowhowEntry {
   content   String
   createdAt DateTime @default(now())
 
+  images KnowhowImage[]
+
   @@index([category])
+}
+
+// ノウハウへのスクリーンショット等の画像添付（v13）。実ファイルはVercel Blob（private）に保存する。
+model KnowhowImage {
+  id               String       @id @default(cuid())
+  knowhowId        String
+  knowhow          KnowhowEntry @relation(fields: [knowhowId], references: [id], onDelete: Cascade)
+  blobUrl          String
+  originalFileName String       @default("")
+  fileSize         Int          @default(0)
+  mimeType         String       @default("")
+  createdAt        DateTime     @default(now())
+
+  @@index([knowhowId])
 }
 
 // v10でWordファイルアップロード方式に全面変更（3.4）。実ファイルはVercel Blobに保存し、

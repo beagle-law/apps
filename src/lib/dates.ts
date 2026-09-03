@@ -1,9 +1,19 @@
-export const todayStr = () => new Date().toISOString().slice(0, 10);
+// ローカルのカレンダー日付をYYYY-MM-DDにする。toISOString()はUTC基準のため、
+// 日本時間の深夜〜朝9時ごろは前日の日付になってしまうバグがあった（日報のデフォルト日付が
+// 出勤日と1日ずれる不具合の原因）。
+function localDateStr(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export const todayStr = () => localDateStr(new Date());
 
 export const plusDaysStr = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 };
 
 export function formatDate(dateStr?: string | null) {
@@ -59,7 +69,7 @@ export function relativeDayLabel(dateStr: string) {
   return `${diff}日後`;
 }
 
-export const currentYearMonth = () => new Date().toISOString().slice(0, 7);
+export const currentYearMonth = () => todayStr().slice(0, 7);
 
 /** dateStrの月の月末日（YYYY-MM-DD）を返す。v10：請求書の支払期限デフォルト算出に使用 */
 export function endOfMonth(dateStr: string): string {

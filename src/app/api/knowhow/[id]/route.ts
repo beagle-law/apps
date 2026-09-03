@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { del } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -14,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.title !== undefined) data.title = body.title.trim();
   if (body.content !== undefined) data.content = body.content;
 
-  const updated = await prisma.knowhowEntry.update({ where: { id }, data });
+  const updated = await prisma.knowhowEntry.update({ where: { id }, data, include: { images: true } });
   return NextResponse.json(updated);
 }
 
@@ -23,6 +24,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
 
   const { id } = await params;
+  const images = await prisma.knowhowImage.findMany({ where: { knowhowId: id } });
+  await Promise.all(images.map((img) => del(img.blobUrl).catch(() => {})));
   await prisma.knowhowEntry.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

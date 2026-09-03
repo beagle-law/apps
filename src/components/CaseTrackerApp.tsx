@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Briefcase,
   Loader2,
@@ -25,17 +26,20 @@ import type { Case, User, CaseClassification } from "@/lib/types";
 import * as api from "@/lib/api-client";
 import CaseListSidebar from "@/components/CaseListSidebar";
 import CaseDetailPanel from "@/components/CaseDetailPanel";
-import NewCaseModal from "@/components/NewCaseModal";
-import ClientsView from "@/components/ClientsView";
-import PasswordsView from "@/components/PasswordsView";
-import PersonalTaskView from "@/components/PersonalTaskView";
-import UpcomingHearingsView from "@/components/UpcomingHearingsView";
-import DashboardView from "@/components/DashboardView";
-import AnalyticsSummaryView from "@/components/AnalyticsSummaryView";
-import GoalsView from "@/components/GoalsView";
-import KnowledgeView from "@/components/KnowledgeView";
-import BillingView from "@/components/BillingView";
-import SettingsView from "@/components/SettingsView";
+
+// v13：初回起動時の読み込みを軽くするため、既定表示の「案件一覧」以外の画面は
+// タブを開いたときに初めて読み込む（各画面が個別に抱える重い依存も連動して遅延読み込みされる）。
+const NewCaseModal = dynamic(() => import("@/components/NewCaseModal"), { ssr: false });
+const ClientsView = dynamic(() => import("@/components/ClientsView"), { ssr: false });
+const PasswordsView = dynamic(() => import("@/components/PasswordsView"), { ssr: false });
+const PersonalTaskView = dynamic(() => import("@/components/PersonalTaskView"), { ssr: false });
+const UpcomingHearingsView = dynamic(() => import("@/components/UpcomingHearingsView"), { ssr: false });
+const DashboardView = dynamic(() => import("@/components/DashboardView"), { ssr: false });
+const AnalyticsSummaryView = dynamic(() => import("@/components/AnalyticsSummaryView"), { ssr: false });
+const GoalsView = dynamic(() => import("@/components/GoalsView"), { ssr: false });
+const KnowledgeView = dynamic(() => import("@/components/KnowledgeView"), { ssr: false });
+const BillingView = dynamic(() => import("@/components/BillingView"), { ssr: false });
+const SettingsView = dynamic(() => import("@/components/SettingsView"), { ssr: false });
 
 type View =
   | "list"

@@ -5,6 +5,7 @@ export const caseInclude = {
   hearings: { orderBy: { date: "asc" } },
   expenses: { orderBy: { date: "asc" } },
   updates: { orderBy: { timestamp: "desc" } },
+  claimMemos: { orderBy: { createdAt: "desc" } },
 } satisfies Prisma.CaseInclude;
 
 export type FullCase = Prisma.CaseGetPayload<{ include: typeof caseInclude }>;
@@ -43,6 +44,7 @@ export function serializeCase(c: FullCase) {
     retainerStatus: c.retainerStatus,
 
     claimMemo: c.claimMemo,
+    claimMemos: c.claimMemos.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() })),
 
     caseClassification: c.caseClassification,
     opposingParty: decryptField(c.opposingParty),

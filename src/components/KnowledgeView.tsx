@@ -26,6 +26,8 @@ export default function KnowledgeView({ classifications, onAddClassification, on
   const [newTemplateName, setNewTemplateName] = useState("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
+  const knowhowFileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     api.fetchKnowhow().then(setKnowhow).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -69,6 +71,31 @@ export default function KnowledgeView({ classifications, onAddClassification, on
       setEditingId(null);
     } catch (e) {
       onError(e instanceof Error ? e.message : "保存に失敗しました");
+    }
+  };
+
+  // v13：ノウハウにスクリーンショット等の画像を添付できるようにする。
+  const uploadKnowhowImage = async (knowhowId: string, file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      onError("ファイルサイズは5MBまでです");
+      return;
+    }
+    setUploadingImageId(knowhowId);
+    try {
+      const image = await api.uploadKnowhowImage(knowhowId, file);
+      setKnowhow((prev) => prev.map((k) => (k.id === knowhowId ? { ...k, images: [...k.images, image] } : k)));
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "アップロードに失敗しました");
+    } finally {
+      setUploadingImageId(null);
+    }
+  };
+  const removeKnowhowImage = async (knowhowId: string, imageId: string) => {
+    try {
+      await api.deleteKnowhowImage(knowhowId, imageId);
+      setKnowhow((prev) => prev.map((k) => (k.id === knowhowId ? { ...k, images: k.images.filter((i) => i.id !== imageId) } : k)));
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "削除に失敗しました");
     }
   };
 
@@ -158,7 +185,16 @@ export default function KnowledgeView({ classifications, onAddClassification, on
                   <div key={k.id} className="rounded p-4" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.navy}` }}>
                     <TextInput type="text" value={editDraft.title} onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })} className="w-full mb-2" />
                     <textarea value={editDraft.content} onChange={(e) => setEditDraft({ ...editDraft, content: e.target.value })} rows={4} className="w-full text-sm p-2 rounded outline-none resize-none mb-2" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-                    <div className="flex justify-end gap-2">
+                    <KnowhowImageGallery
+                      knowhowId={k.id}
+                      images={k.images}
+                      uploading={uploadingImageId === k.id}
+                      fileInputRef={(el) => { knowhowFileInputs.current[k.id] = el; }}
+                      onSelectFile={() => knowhowFileInputs.current[k.id]?.click()}
+                      onUpload={(file) => uploadKnowhowImage(k.id, file)}
+                      onRemove={(imageId) => removeKnowhowImage(k.id, imageId)}
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
                       <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1.5 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
                       <button onClick={saveEditKnowhow} disabled={!editDraft.title.trim()} className="text-xs font-bold px-3 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>保存</button>
                     </div>
@@ -171,6 +207,17 @@ export default function KnowledgeView({ classifications, onAddClassification, on
                     </div>
                     {k.content && <p className="text-sm mt-1 whitespace-pre-wrap">{k.content}</p>}
                     <p className="text-xs mt-2" style={{ color: COLORS.slate }}>{formatDate(k.createdAt.slice(0, 10))}</p>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <KnowhowImageGallery
+                        knowhowId={k.id}
+                        images={k.images}
+                        uploading={uploadingImageId === k.id}
+                        fileInputRef={(el) => { knowhowFileInputs.current[k.id] = el; }}
+                        onSelectFile={() => knowhowFileInputs.current[k.id]?.click()}
+                        onUpload={(file) => uploadKnowhowImage(k.id, file)}
+                        onRemove={(imageId) => removeKnowhowImage(k.id, imageId)}
+                      />
+                    </div>
                   </div>
                 )
               )}
@@ -227,6 +274,67 @@ export default function KnowledgeView({ classifications, onAddClassification, on
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// v13：ノウハウのスクリーンショット等の画像添付欄（登録済みの一覧・編集フォームの両方から共用）。
+function KnowhowImageGallery({
+  knowhowId,
+  images,
+  uploading,
+  fileInputRef,
+  onSelectFile,
+  onUpload,
+  onRemove,
+}: {
+  knowhowId: string;
+  images: KnowhowEntry["images"];
+  uploading: boolean;
+  fileInputRef: (el: HTMLInputElement | null) => void;
+  onSelectFile: () => void;
+  onUpload: (file: File) => void;
+  onRemove: (imageId: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 mt-2">
+      {images.map((img) => (
+        <div key={img.id} className="relative group">
+          <img
+            src={`/api/knowhow/${knowhowId}/images/${img.id}`}
+            alt={img.originalFileName}
+            className="rounded object-cover"
+            style={{ width: 64, height: 64, border: `1px solid ${COLORS.brassLight}` }}
+          />
+          <button
+            onClick={() => onRemove(img.id)}
+            className="absolute -top-1.5 -right-1.5 rounded-full opacity-0 group-hover:opacity-100 transition"
+            style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}
+          >
+            <X size={11} />
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={onSelectFile}
+        disabled={uploading}
+        title="画像を追加"
+        className="flex items-center justify-center rounded disabled:opacity-40"
+        style={{ width: 64, height: 64, border: `1px dashed ${COLORS.brassLight}`, color: COLORS.navy }}
+      >
+        <Upload size={15} />
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onUpload(file);
+          e.target.value = "";
+        }}
+      />
     </div>
   );
 }
