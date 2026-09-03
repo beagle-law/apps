@@ -28,6 +28,10 @@ export default function KnowledgeView({ classifications, onAddClassification, on
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
   const knowhowFileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [newKnowhowFiles, setNewKnowhowFiles] = useState<{ file: File; previewUrl: string }[]>([]);
+  const newKnowhowFileInput = useRef<HTMLInputElement | null>(null);
+  const [savingNewKnowhow, setSavingNewKnowhow] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ knowhowId: string; image: KnowhowEntry["images"][number] } | null>(null);
 
   useEffect(() => {
     api.fetchKnowhow().then(setKnowhow).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -41,13 +45,41 @@ export default function KnowledgeView({ classifications, onAddClassification, on
 
   const addKnowhowEntry = async () => {
     if (!newKnowhow.title.trim() || !category) return;
+    setSavingNewKnowhow(true);
     try {
-      const created = await api.addKnowhow({ category, title: newKnowhow.title, content: newKnowhow.content });
-      setKnowhow((prev) => [created, ...prev]);
+      let entry = await api.addKnowhow({ category, title: newKnowhow.title, content: newKnowhow.content });
+      for (const { file } of newKnowhowFiles) {
+        try {
+          const image = await api.uploadKnowhowImage(entry.id, file);
+          entry = { ...entry, images: [...entry.images, image] };
+        } catch (e) {
+          onError(e instanceof Error ? e.message : "画像のアップロードに失敗しました");
+        }
+      }
+      setKnowhow((prev) => [entry, ...prev]);
       setNewKnowhow({ title: "", content: "" });
+      newKnowhowFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+      setNewKnowhowFiles([]);
     } catch (e) {
       onError(e instanceof Error ? e.message : "登録に失敗しました");
+    } finally {
+      setSavingNewKnowhow(false);
     }
+  };
+  // v13：新規登録の段階でも画像を添付できるよう、登録前はローカルにファイルを保持しておき
+  // 登録完了後（IDが確定してから）にまとめてアップロードする。
+  const stageNewKnowhowFile = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      onError("ファイルサイズは5MBまでです");
+      return;
+    }
+    setNewKnowhowFiles((prev) => [...prev, { file, previewUrl: URL.createObjectURL(file) }]);
+  };
+  const unstageNewKnowhowFile = (idx: number) => {
+    setNewKnowhowFiles((prev) => {
+      URL.revokeObjectURL(prev[idx].previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
   };
   const removeKnowhow = async (id: string) => {
     try {
@@ -146,6 +178,7 @@ export default function KnowledgeView({ classifications, onAddClassification, on
   };
 
   return (
+    <>
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto">
         <h2 className="text-lg mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>ノウハウ・ひながた</h2>
@@ -177,7 +210,38 @@ export default function KnowledgeView({ classifications, onAddClassification, on
             <div className="rounded p-5 mb-4" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
               <TextInput type="text" placeholder="タイトル" value={newKnowhow.title} onChange={(e) => setNewKnowhow({ ...newKnowhow, title: e.target.value })} className="w-full mb-2" />
               <textarea value={newKnowhow.content} onChange={(e) => setNewKnowhow({ ...newKnowhow, content: e.target.value })} rows={3} placeholder="内容" className="w-full text-sm p-2 rounded outline-none resize-none mb-2" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-              <button onClick={addKnowhowEntry} disabled={!newKnowhow.title.trim() || !category} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>登録する</button>
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                {newKnowhowFiles.map((f, i) => (
+                  <div key={i} className="relative group">
+                    <img src={f.previewUrl} alt={f.file.name} className="rounded object-cover" style={{ width: 64, height: 64, border: `1px solid ${COLORS.brassLight}` }} />
+                    <button onClick={() => unstageNewKnowhowFile(i)} className="absolute -top-1.5 -right-1.5 rounded-full opacity-0 group-hover:opacity-100 transition" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => newKnowhowFileInput.current?.click()}
+                  title="画像を追加"
+                  className="flex items-center justify-center rounded"
+                  style={{ width: 64, height: 64, border: `1px dashed ${COLORS.brassLight}`, color: COLORS.navy }}
+                >
+                  <Upload size={15} />
+                </button>
+                <input
+                  ref={newKnowhowFileInput}
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) stageNewKnowhowFile(file);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <button onClick={addKnowhowEntry} disabled={!newKnowhow.title.trim() || !category || savingNewKnowhow} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+                {savingNewKnowhow ? "登録中..." : "登録する"}
+              </button>
             </div>
             <div className="flex flex-col gap-2">
               {knowhow.filter((k) => k.category === category).map((k) =>
@@ -193,6 +257,7 @@ export default function KnowledgeView({ classifications, onAddClassification, on
                       onSelectFile={() => knowhowFileInputs.current[k.id]?.click()}
                       onUpload={(file) => uploadKnowhowImage(k.id, file)}
                       onRemove={(imageId) => removeKnowhowImage(k.id, imageId)}
+                      onImageClick={(image) => setLightboxImage({ knowhowId: k.id, image })}
                     />
                     <div className="flex justify-end gap-2 mt-2">
                       <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1.5 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
@@ -216,6 +281,7 @@ export default function KnowledgeView({ classifications, onAddClassification, on
                         onSelectFile={() => knowhowFileInputs.current[k.id]?.click()}
                         onUpload={(file) => uploadKnowhowImage(k.id, file)}
                         onRemove={(imageId) => removeKnowhowImage(k.id, imageId)}
+                        onImageClick={(image) => setLightboxImage({ knowhowId: k.id, image })}
                       />
                     </div>
                   </div>
@@ -275,6 +341,42 @@ export default function KnowledgeView({ classifications, onAddClassification, on
         )}
       </div>
     </div>
+
+    {/* v13：ノウハウ画像の拡大表示・ダウンロード */}
+    {lightboxImage && (
+      <div
+        className="fixed inset-0 z-30 flex items-center justify-center p-4"
+        style={{ backgroundColor: "rgba(27,42,74,0.8)" }}
+        onClick={() => setLightboxImage(null)}
+      >
+        <div className="flex flex-col items-center gap-3 max-w-3xl max-h-full" onClick={(e) => e.stopPropagation()}>
+          <img
+            src={`/api/knowhow/${lightboxImage.knowhowId}/images/${lightboxImage.image.id}`}
+            alt={lightboxImage.image.originalFileName}
+            className="rounded"
+            style={{ maxWidth: "100%", maxHeight: "80vh" }}
+          />
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/knowhow/${lightboxImage.knowhowId}/images/${lightboxImage.image.id}`}
+              download={lightboxImage.image.originalFileName || undefined}
+              className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded"
+              style={{ backgroundColor: COLORS.card, color: COLORS.navy }}
+            >
+              <Download size={14} /> ダウンロード
+            </a>
+            <button
+              onClick={() => setLightboxImage(null)}
+              className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded"
+              style={{ backgroundColor: COLORS.card, color: COLORS.slate }}
+            >
+              <X size={14} /> 閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -287,6 +389,7 @@ function KnowhowImageGallery({
   onSelectFile,
   onUpload,
   onRemove,
+  onImageClick,
 }: {
   knowhowId: string;
   images: KnowhowEntry["images"];
@@ -295,6 +398,7 @@ function KnowhowImageGallery({
   onSelectFile: () => void;
   onUpload: (file: File) => void;
   onRemove: (imageId: string) => void;
+  onImageClick: (image: KnowhowEntry["images"][number]) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -303,7 +407,8 @@ function KnowhowImageGallery({
           <img
             src={`/api/knowhow/${knowhowId}/images/${img.id}`}
             alt={img.originalFileName}
-            className="rounded object-cover"
+            onClick={() => onImageClick(img)}
+            className="rounded object-cover cursor-pointer"
             style={{ width: 64, height: 64, border: `1px solid ${COLORS.brassLight}` }}
           />
           <button
