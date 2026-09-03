@@ -2,10 +2,12 @@ import { PrismaClient } from "@prisma/client";
 import { clientNumberFromCaseNumbers } from "../src/lib/business/caseNumber";
 
 /**
- * 顧客番号の一括補正（要件定義書v7 3.7）：
- * 顧客番号は、その顧客に紐づく案件の実番号（数字のみのもの）のうち最小値を採用する。
- * 案件を持たない顧客（顧客No.0の内部レコードを含む）は対象外（7章の未確定事項）。
- * 一意制約に抵触する一時衝突を避けるため、いったん負の仮番号へ退避してから確定させる。
+ * 顧客番号の一括補正（v13 3.1）：
+ * 顧客番号は、その顧客に紐づく案件の番号（枝番を除いた基本番号）と一致させる。
+ * 複数案件の基本番号が一致しない場合は空欄（null）にする。
+ * 案件を持たない顧客（顧客No.0の内部レコードを含む）は対象外。
+ * 一意制約に抵触する一時衝突を避けるため、数値へ変更する対象はいったん負の仮番号へ退避してから確定させる
+ * （空欄にする対象はnull同士が競合しないためそのまま確定できる）。
  */
 export async function recomputeAllClientNumbers(prisma: PrismaClient) {
   const clients = await prisma.client.findMany({
@@ -25,13 +27,13 @@ export async function recomputeAllClientNumbers(prisma: PrismaClient) {
     caseNumbersByClient.set(c.clientId, list);
   }
 
-  const targets: { id: string; from: number; to: number }[] = [];
+  const targets: { id: string; from: number | null; to: number | null }[] = [];
   for (const client of clients) {
     const caseNumbers = caseNumbersByClient.get(client.id);
     if (!caseNumbers) continue; // 案件を持たない顧客はスキップ
-    const min = clientNumberFromCaseNumbers(caseNumbers);
-    if (min === null || min === client.clientNumber) continue;
-    targets.push({ id: client.id, from: client.clientNumber, to: min });
+    const derived = clientNumberFromCaseNumbers(caseNumbers);
+    if (derived === client.clientNumber) continue;
+    targets.push({ id: client.id, from: client.clientNumber, to: derived });
   }
 
   if (targets.length === 0) {
@@ -39,16 +41,25 @@ export async function recomputeAllClientNumbers(prisma: PrismaClient) {
     return;
   }
 
+  const nullTargets = targets.filter((t) => t.to === null);
+  const numericTargets = targets.filter((t): t is { id: string; from: number | null; to: number } => t.to !== null);
+
+  // 空欄にする対象：nullはユニーク制約に抵触しないため、そのまま確定できる
+  await Promise.all(nullTargets.map((t) => prisma.client.update({ where: { id: t.id }, data: { clientNumber: null } })));
+  console.log(`顧客番号を ${nullTargets.length} 件、空欄に補正しました。`);
+
+  if (numericTargets.length === 0) return;
+
   // フェーズ1：一時的に負の仮番号へ退避（一意制約の衝突回避）
   await Promise.all(
-    targets.map((t, idx) => prisma.client.update({ where: { id: t.id }, data: { clientNumber: -(idx + 1) } }))
+    numericTargets.map((t, idx) => prisma.client.update({ where: { id: t.id }, data: { clientNumber: -(idx + 1) } }))
   );
 
   // フェーズ2：本来の番号を確定。重複が残る場合は元の番号に戻す（負の仮番号のまま放置しない）
   let applied = 0;
-  const skipped: typeof targets = [];
-  const stillNegative: typeof targets = [];
-  for (const t of targets) {
+  const skipped: typeof numericTargets = [];
+  const stillNegative: typeof numericTargets = [];
+  for (const t of numericTargets) {
     try {
       await prisma.client.update({ where: { id: t.id }, data: { clientNumber: t.to } });
       applied++;

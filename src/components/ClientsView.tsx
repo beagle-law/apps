@@ -65,7 +65,7 @@ export default function ClientsView({ cases, onOpenCase, onError, initialClientI
     return (
       c.companyName.toLowerCase().includes(q) ||
       c.contactName.toLowerCase().includes(q) ||
-      String(c.clientNumber).includes(q)
+      (c.clientNumber !== null && String(c.clientNumber).includes(q))
     );
   });
 
@@ -73,7 +73,7 @@ export default function ClientsView({ cases, onOpenCase, onError, initialClientI
     if (!newForm.companyName.trim()) return;
     try {
       const created = await api.createClient(newForm);
-      setClients((prev) => [...prev, created].sort((a, b) => a.clientNumber - b.clientNumber));
+      setClients((prev) => [...prev, created].sort((a, b) => (a.clientNumber ?? Infinity) - (b.clientNumber ?? Infinity)));
       setShowNewModal(false);
       setNewForm(emptyForm);
       setSelectedId(created.id);
@@ -123,6 +123,7 @@ export default function ClientsView({ cases, onOpenCase, onError, initialClientI
           {filtered.length === 0 && <p className="text-sm text-center py-8" style={{ color: COLORS.slate }}>該当する顧客がいません</p>}
           {filtered.map((c) => (
             <button key={c.id} onClick={() => setSelectedId(c.id)} className="text-left px-2.5 py-1.5 rounded flex items-center gap-2 text-sm" style={{ backgroundColor: COLORS.card, border: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}` }}>
+              <span className="flex-shrink-0" style={{ color: COLORS.slate }}>No.{c.clientNumber ?? "－"}</span>
               <span className="font-semibold truncate" style={{ fontFamily: FONT_MINCHO }}>{c.companyName}</span>
             </button>
           ))}
@@ -138,7 +139,8 @@ export default function ClientsView({ cases, onOpenCase, onError, initialClientI
         ) : (
           <div className="max-w-xl mx-auto flex flex-col gap-5">
             <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-              <div className="flex items-start justify-end mb-4">
+              <div className="flex items-start justify-between mb-4">
+                <p className="text-xs" style={{ color: COLORS.slate }}>顧客No. {draft.clientNumber ?? "－"}</p>
                 {confirmDeleteId === draft.id ? (
                   <div className="flex items-center gap-1 text-xs">
                     <button onClick={() => deleteClient(draft.id)} className="underline font-bold" style={{ color: COLORS.vermillion }}>削除確定</button>

@@ -45,7 +45,7 @@ model AuditLog {
 
 model Client {
   id            String   @id @default(cuid())
-  clientNumber  Int      @unique
+  clientNumber  Int?     @unique // 紐づく案件番号（枝番除く）から自動算出。一致しない場合は空欄（v13 3.1）
   companyName   String // 企業名又は屋号（v4でtradeNameを統合）
   clientType    String   @default("法人") // "法人" | "個人"（源泉所得税の要否判定に使用）
   address       String   @default("") // 暗号化

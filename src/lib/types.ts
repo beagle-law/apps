@@ -118,7 +118,7 @@ export const emptyContact = (): Contact => ({ name: "", affiliation: "", phone: 
 
 export interface Client {
   id: string;
-  clientNumber: number;
+  clientNumber: number | null;
   companyName: string;
   clientType: string; // "法人" | "個人"
   address: string;

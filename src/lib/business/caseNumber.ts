@@ -38,17 +38,27 @@ export function suggestedCaseNumberForClient(
 export const NEW_CLIENT_NUMBER_FLOOR = 231;
 
 /** 新規顧客番号の提案：既存の最大値+1か、NEW_CLIENT_NUMBER_FLOORのいずれか大きい方。 */
-export function suggestedNewClientNumber(existingClientNumbers: number[]): number {
-  const max = Math.max(0, ...existingClientNumbers);
+export function suggestedNewClientNumber(existingClientNumbers: (number | null)[]): number {
+  const numeric = existingClientNumbers.filter((n): n is number => n !== null);
+  const max = Math.max(0, ...numeric);
   return Math.max(max + 1, NEW_CLIENT_NUMBER_FLOOR);
 }
 
+/** 案件番号の枝番（"213-1"の"-1"部分）を除いた基本番号を返す。 */
+export function baseCaseNumber(caseNumber: string): string {
+  const dashIndex = caseNumber.indexOf("-");
+  return dashIndex === -1 ? caseNumber : caseNumber.slice(0, dashIndex);
+}
+
 /**
- * 顧客番号は、その顧客に紐づく案件の実番号（数字のみのもの）のうち最小値を採用する（v7 3.7）。
- * 数字のみの案件番号が1つもない場合はnullを返す（呼び出し側で既存値を維持する等の判断に使う）。
+ * 顧客番号は、その顧客に紐づく案件の番号（枝番を除いた基本番号）と一致させる（v13 3.1）。
+ * 数字のみの基本番号が1つもない場合、または複数案件の基本番号が一致しない場合はnullを返し、
+ * 呼び出し側で空欄扱いとする。
  */
 export function clientNumberFromCaseNumbers(caseNumbers: string[]): number | null {
-  const numeric = caseNumbers.filter((n) => /^\d+$/.test(n)).map((n) => parseInt(n, 10));
-  if (numeric.length === 0) return null;
-  return Math.min(...numeric);
+  const bases = caseNumbers.map(baseCaseNumber).filter((n) => /^\d+$/.test(n));
+  if (bases.length === 0) return null;
+  const unique = new Set(bases);
+  if (unique.size > 1) return null;
+  return parseInt(bases[0], 10);
 }

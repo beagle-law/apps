@@ -41,9 +41,11 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
     }
     const client = clients.find((c) => c.id === clientId);
     if (!client) return;
-    // v6 3.6：顧客を選択した場合、1件目は顧客番号そのまま、2件目以降は「顧客番号-連番」を提案する
+    // v6 3.6：顧客を選択した場合、1件目は顧客番号そのまま、2件目以降は「顧客番号-連番」を提案する。
+    // 顧客No.が未確定（空欄）の顧客は通常の採番にフォールバックする。
     const existingCaseCount = cases.filter((c) => c.clientId === clientId).length;
-    const caseNumber = suggestedCaseNumberForClient(client.clientNumber, existingCaseCount);
+    const caseNumber =
+      client.clientNumber !== null ? suggestedCaseNumberForClient(client.clientNumber, existingCaseCount) : suggestedCaseNumber;
     setForm((f) => ({ ...f, clientId, clientName: client.companyName, caseNumber }));
   };
 
@@ -88,7 +90,7 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
             >
               <option value="">選択しない</option>
               {clients.map((c) => (
-                <option key={c.id} value={c.id}>No.{c.clientNumber}　{c.companyName}</option>
+                <option key={c.id} value={c.id}>{c.clientNumber !== null ? `No.${c.clientNumber}　` : ""}{c.companyName}</option>
               ))}
             </select>
           </label>

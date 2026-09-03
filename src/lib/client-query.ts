@@ -2,7 +2,7 @@ import { decryptField } from "@/lib/crypto";
 
 interface RawClient {
   id: string;
-  clientNumber: number;
+  clientNumber: number | null;
   companyName: string;
   clientType: string;
   address: string;

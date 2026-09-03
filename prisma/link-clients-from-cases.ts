@@ -20,7 +20,7 @@ export async function linkClientsFromCases(prisma: PrismaClient) {
 
   const existingClients = await prisma.client.findMany({ select: { id: true, companyName: true, clientNumber: true } });
   const nameToClientId = new Map(existingClients.map((c) => [c.companyName, c.id]));
-  let nextClientNumber = Math.max(0, ...existingClients.map((c) => c.clientNumber)) + 1;
+  let nextClientNumber = Math.max(0, ...existingClients.map((c) => c.clientNumber ?? 0)) + 1;
 
   const uniqueNames = [...new Set(targets.map((t) => t.name))];
   let created = 0;
