@@ -6,6 +6,7 @@ import { encryptField } from "@/lib/crypto";
 import { serializeClient } from "@/lib/client-query";
 
 interface PatchClientBody {
+  clientNumber?: number | null;
   companyName?: string;
   clientType?: string;
   address?: string;
@@ -26,6 +27,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = (await req.json()) as PatchClientBody;
 
   const data: Prisma.ClientUpdateInput = {};
+  if (body.clientNumber !== undefined) data.clientNumber = body.clientNumber;
   if (body.companyName !== undefined) data.companyName = body.companyName;
   if (body.clientType !== undefined) data.clientType = body.clientType;
   if (body.address !== undefined) data.address = encryptField(body.address);
@@ -37,8 +39,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.referrerName !== undefined) data.referrerName = body.source === "紹介" || body.source === undefined ? body.referrerName : "";
   if (body.notes !== undefined) data.notes = body.notes;
 
-  const updated = await prisma.client.update({ where: { id }, data });
-  return NextResponse.json(serializeClient(updated));
+  try {
+    const updated = await prisma.client.update({ where: { id }, data });
+    return NextResponse.json(serializeClient(updated));
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json({ error: "この顧客No.は既に他の顧客が使用しています" }, { status: 409 });
+    }
+    throw e;
+  }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

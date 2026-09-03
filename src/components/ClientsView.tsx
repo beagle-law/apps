@@ -140,7 +140,23 @@ export default function ClientsView({ cases, onOpenCase, onError, initialClientI
           <div className="max-w-xl mx-auto flex flex-col gap-5">
             <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
               <div className="flex items-start justify-between mb-4">
-                <p className="text-xs" style={{ color: COLORS.slate }}>顧客No. {draft.clientNumber ?? "－"}</p>
+                <div className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
+                  <span className="flex-shrink-0">顧客No.</span>
+                  <input
+                    type="text"
+                    value={draft.clientNumber === null ? "" : String(draft.clientNumber)}
+                    onChange={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== "" && !/^\d+$/.test(v)) return;
+                      setDraft({ ...draft, clientNumber: v === "" ? null : parseInt(v, 10) });
+                    }}
+                    onBlur={saveDraft}
+                    placeholder="－"
+                    title="通常は紐づく案件No.から自動算出されます。手動でも修正できます。"
+                    className="text-xs px-1.5 py-0.5 rounded outline-none"
+                    style={{ border: `1px solid ${COLORS.brassLight}`, width: 60 }}
+                  />
+                </div>
                 {confirmDeleteId === draft.id ? (
                   <div className="flex items-center gap-1 text-xs">
                     <button onClick={() => deleteClient(draft.id)} className="underline font-bold" style={{ color: COLORS.vermillion }}>削除確定</button>

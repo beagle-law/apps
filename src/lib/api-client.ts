@@ -163,7 +163,7 @@ export const addCaseClassification = (name: string) =>
 export const fetchClients = () => request<Client[]>("/api/clients");
 export const createClient = (payload: Partial<Omit<Client, "id" | "clientNumber" | "createdAt">> & { companyName: string }) =>
   request<Client>("/api/clients", { method: "POST", body: JSON.stringify(payload) });
-export const patchClient = (id: string, payload: Partial<Omit<Client, "id" | "clientNumber" | "createdAt">>) =>
+export const patchClient = (id: string, payload: Partial<Omit<Client, "id" | "createdAt">>) =>
   request<Client>(`/api/clients/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 export const deleteClientApi = (id: string) => request<{ ok: true }>(`/api/clients/${id}`, { method: "DELETE" });
 
