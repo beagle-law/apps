@@ -6,6 +6,7 @@ import type {
   PasswordEntry,
   TimeCharge,
   DailyReport,
+  AttendanceRecord,
   GoalRecord,
   KnowhowEntry,
   KnowhowImage,
@@ -120,6 +121,28 @@ export const updateClaimMemo = (id: string, memoId: string, content: string) =>
 export const deleteClaimMemo = (id: string, memoId: string) =>
   request<Case>(`/api/cases/${id}/claim-memos/${memoId}`, { method: "DELETE" });
 
+// v14：主張予定メモへのスクリーンショット等の画像添付
+export const uploadClaimMemoImage = async (caseId: string, memoId: string, file: File): Promise<Case> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`/api/cases/${caseId}/claim-memos/${memoId}/images`, { method: "POST", body: formData });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `アップロードに失敗しました (${res.status})`);
+  }
+  return res.json();
+};
+export const deleteClaimMemoImage = (caseId: string, memoId: string, imageId: string) =>
+  request<Case>(`/api/cases/${caseId}/claim-memos/${memoId}/images/${imageId}`, { method: "DELETE" });
+
+// v14：次回予定（期日以外の予定）
+export const addCasePlan = (id: string, payload: { date: string; content: string }) =>
+  request<Case>(`/api/cases/${id}/plans`, { method: "POST", body: JSON.stringify(payload) });
+export const updateCasePlan = (id: string, planId: string, payload: Partial<{ date: string; content: string }>) =>
+  request<Case>(`/api/cases/${id}/plans/${planId}`, { method: "PATCH", body: JSON.stringify(payload) });
+export const deleteCasePlan = (id: string, planId: string) =>
+  request<Case>(`/api/cases/${id}/plans/${planId}`, { method: "DELETE" });
+
 export const addUpdate = (id: string, note: string) =>
   request<Case>(`/api/cases/${id}/updates`, { method: "POST", body: JSON.stringify({ note }) });
 
@@ -182,6 +205,14 @@ export const createPassword = (payload: Omit<PasswordEntry, "id" | "createdAt">)
 export const patchPassword = (id: string, payload: Partial<Omit<PasswordEntry, "id" | "createdAt">>) =>
   request<PasswordEntry>(`/api/passwords/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 export const deletePassword = (id: string) => request<{ ok: true }>(`/api/passwords/${id}`, { method: "DELETE" });
+
+// ── 勤怠 ──────────────────────────────────────────
+export const fetchAttendance = (personName: string, month: string) =>
+  request<AttendanceRecord[]>(`/api/attendance/${encodeURIComponent(personName)}?month=${month}`);
+export const saveAttendance = (
+  personName: string,
+  payload: { date: string; clockIn: string; clockOut: string; breakStart: string; breakEnd: string }
+) => request<AttendanceRecord>(`/api/attendance/${encodeURIComponent(personName)}`, { method: "POST", body: JSON.stringify(payload) });
 
 // ── タイムチャージ・日報 ──────────────────────────
 export const addTimeCharge = (payload: { date: string; caseId: string; startTime?: string; endTime?: string; hours: number; content?: string }) =>

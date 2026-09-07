@@ -1,5 +1,5 @@
 import { todayStr, plusDaysStr } from "@/lib/dates";
-import type { Case, Hearing } from "@/lib/types";
+import type { Case, Hearing, CasePlan } from "@/lib/types";
 
 /**
  * Mirrors the prototype's nextHearing(): among hearings whose
@@ -26,4 +26,28 @@ export function hearingsNext7DaysCount<T extends { hearings: Case["hearings"] }>
   const t7 = plusDaysStr(7);
   return upcomingHearings(cases).filter((x) => x.hearing.nextHearingDate >= t && x.hearing.nextHearingDate <= t7)
     .length;
+}
+
+// v14：「今後の期日」タブに、次回裁判期日（Hearing）と次回予定（CasePlan、期日以外の予定）を
+// 合わせて日付順に表示するための統合リスト。
+export type UpcomingItem<T> =
+  | { kind: "hearing"; case: T; date: string; content: string; docDeadline: string; id: string }
+  | { kind: "plan"; case: T; date: string; content: string; id: string };
+
+export function upcomingItems<T extends { hearings: Case["hearings"]; plans: CasePlan[] }>(cases: T[]): UpcomingItem<T>[] {
+  const t = todayStr();
+  const hearingItems: UpcomingItem<T>[] = upcomingHearings(cases).map(({ case: c, hearing: h }) => ({
+    kind: "hearing",
+    case: c,
+    date: h.nextHearingDate,
+    content: h.content,
+    docDeadline: h.docDeadline,
+    id: h.id,
+  }));
+  const planItems: UpcomingItem<T>[] = cases.flatMap((c) =>
+    (c.plans || [])
+      .filter((p) => p.date >= t)
+      .map((p) => ({ kind: "plan" as const, case: c, date: p.date, content: p.content, id: p.id }))
+  );
+  return [...hearingItems, ...planItems].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }

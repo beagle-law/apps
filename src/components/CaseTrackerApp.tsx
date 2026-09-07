@@ -169,8 +169,15 @@ export default function CaseTrackerApp() {
           c.caseNumber.toLowerCase().includes(q)
       );
     }
-    return sortCasesByCaseNumber(list);
-  }, [cases, ballFilter, showHiddenCases, searchQuery]);
+    const sorted = sortCasesByCaseNumber(list);
+    // v14：自分の個人メモはよく使うため、一覧の先頭に固定表示する
+    const myMemoIdx = sorted.findIndex((c) => c.isPrivate && c.ownerId === currentUser?.id);
+    if (myMemoIdx > 0) {
+      const [memo] = sorted.splice(myMemoIdx, 1);
+      sorted.unshift(memo);
+    }
+    return sorted;
+  }, [cases, ballFilter, showHiddenCases, searchQuery, currentUser]);
 
   const openCaseFromElsewhere = (id: string) => {
     setSelectedId(id);
@@ -231,9 +238,6 @@ export default function CaseTrackerApp() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm" style={{ color: "#fff" }}>{currentUser.displayName}さん{isAdmin ? "（管理者）" : ""}</span>
-          <button onClick={openPrivateMemo} className="p-1.5 rounded hover:opacity-80" style={{ color: COLORS.brassLight }} title="個人メモ（自分しか見えません）">
-            <StickyNote size={16} />
-          </button>
           <button onClick={doLogout} className="p-1.5 rounded hover:opacity-80" style={{ color: COLORS.brassLight }} title="ログアウト">
             <LogOut size={16} />
           </button>
@@ -258,6 +262,14 @@ export default function CaseTrackerApp() {
             </button>
           );
         })}
+        <button
+          onClick={openPrivateMemo}
+          className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 transition whitespace-nowrap"
+          style={{ color: "#fff", opacity: 0.85 }}
+          title="個人メモ（自分しか見えません）"
+        >
+          <StickyNote size={15} /> 個人メモ
+        </button>
       </nav>
 
       <nav className="flex items-center gap-1 px-5 flex-shrink-0 overflow-x-auto" style={{ backgroundColor: COLORS.navyLight }}>

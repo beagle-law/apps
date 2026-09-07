@@ -134,11 +134,25 @@ model Case {
   updates     UpdateLog[]
   timeCharges TimeCharge[]
   invoices    Invoice[]
+  plans       CasePlan[]
 
   @@index([stage])
   @@index([caseNumber])
   @@index([clientId])
   @@index([ownerId])
+}
+
+// 次回予定（v14）：期日以外の予定（訪問・打合せ等）を案件に紐づけて記録する。「今後の期日」タブに期日と合わせて表示する。
+model CasePlan {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  date      String // YYYY-MM-DD
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+  @@index([date])
 }
 
 model Hearing {
@@ -164,7 +178,23 @@ model ClaimMemoEntry {
   author    String   @default("")
   createdAt DateTime @default(now())
 
+  images ClaimMemoImage[]
+
   @@index([caseId])
+}
+
+// 主張予定メモへのスクリーンショット等の画像添付（v14）。実ファイルはVercel Blob（private）に保存する。
+model ClaimMemoImage {
+  id               String         @id @default(cuid())
+  claimMemoId      String
+  claimMemo        ClaimMemoEntry @relation(fields: [claimMemoId], references: [id], onDelete: Cascade)
+  blobUrl          String
+  originalFileName String         @default("")
+  fileSize         Int            @default(0)
+  mimeType         String         @default("")
+  createdAt        DateTime       @default(now())
+
+  @@index([claimMemoId])
 }
 
 model Expense {
@@ -237,6 +267,22 @@ model DailyReport {
   todaySuccess  String   @default("") // 今日の成功（引き継がない）
   createdAt     DateTime @default(now())
 
+  @@index([personName])
+}
+
+// 勤怠（v14）：出勤・退勤・休憩の時刻を記録し、稼働時間を自動算出する。月次でExcel出力し給与明細作成に使う。
+model AttendanceRecord {
+  id         String   @id @default(cuid())
+  personName String
+  date       String // YYYY-MM-DD
+  clockIn    String   @default("") // "HH:MM"
+  clockOut   String   @default("")
+  breakStart String   @default("")
+  breakEnd   String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([personName, date])
   @@index([personName])
 }
 

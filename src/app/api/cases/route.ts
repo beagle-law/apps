@@ -4,7 +4,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
 import { caseVisibilityFilter } from "@/lib/case-access";
 import { suggestedCaseNumber } from "@/lib/business/caseNumber";
-import { recomputeClientNumberFromLinkedCases } from "@/lib/business/recompute-client-number";
 import { encryptField } from "@/lib/crypto";
 
 export async function GET() {
@@ -63,10 +62,6 @@ export async function POST(req: NextRequest) {
     },
     include: caseInclude,
   });
-
-  if (created.clientId) {
-    await recomputeClientNumberFromLinkedCases(prisma, created.clientId);
-  }
 
   return NextResponse.json(serializeCase(created), { status: 201 });
 }

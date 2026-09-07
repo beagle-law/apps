@@ -103,12 +103,17 @@ export default function CaseListSidebar({
               }}
             >
               <div className="flex items-center gap-2 text-xs">
-                <span className="flex-shrink-0" style={{ color: COLORS.slate }}>No.{c.caseNumber}</span>
-                <p className="text-sm font-semibold leading-snug truncate flex-1" style={{ fontFamily: FONT_MINCHO }}>
-                  {c.title}{c.isPrivate && "　個人メモ"}
-                </p>
+                <span className="flex-shrink-0" style={{ color: COLORS.slate }}>
+                  {c.clientNumber !== null ? `顧客No.${c.clientNumber}　` : ""}案件No.{c.caseNumber}
+                </span>
                 <span className="font-bold flex-shrink-0" style={{ color: BALL_COLOR[c.ballOwner] }}>{c.ballOwner}{c.ballAssignee ? `：${c.ballAssignee}` : ""}</span>
               </div>
+              {!c.isPrivate && c.clientName && (
+                <p className="text-xs truncate" style={{ color: COLORS.slate }}>{c.clientName}</p>
+              )}
+              <p className="text-sm font-semibold leading-snug truncate" style={{ fontFamily: FONT_MINCHO }}>
+                {c.title}{c.isPrivate && "　個人メモ"}
+              </p>
             </button>
             <button
               onClick={(e) => {

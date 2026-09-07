@@ -79,6 +79,13 @@ export function endOfMonth(dateStr: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** 指定した日付（YYYY-MM-DD）からn日ずらした日付を返す（v14：日報の前日／翌日への移動に使用）。 */
+export function shiftDateStr(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return localDateStr(d);
+}
+
 export function shiftYearMonth(ym: string, delta: number): string {
   const [y, m] = ym.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1);

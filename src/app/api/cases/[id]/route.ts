@@ -5,7 +5,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
 import { ENGAGEMENT_FIELD_LABEL } from "@/lib/constants";
-import { recomputeClientNumberFromLinkedCases } from "@/lib/business/recompute-client-number";
 
 type EngagementField = "poaStatus" | "contractStatus" | "retainerStatus";
 
@@ -105,11 +104,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   });
 
-  // 案件No.を編集した場合、紐づく顧客の顧客No.（案件番号から算出）も再計算する（v13 3.1）。
-  if (body.caseNumber !== undefined && existing.clientId) {
-    await recomputeClientNumberFromLinkedCases(prisma, existing.clientId);
-  }
-
   const updated = await prisma.case.findUnique({ where: { id }, include: caseInclude });
   return NextResponse.json(serializeCase(updated!));
 }
@@ -123,11 +117,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
 
   await prisma.case.delete({ where: { id } });
-
-  // 案件削除で紐づく案件番号の構成が変わるため、顧客No.も再計算する（v13 3.1）。
-  if (existing.clientId) {
-    await recomputeClientNumberFromLinkedCases(prisma, existing.clientId);
-  }
 
   return NextResponse.json({ ok: true });
 }

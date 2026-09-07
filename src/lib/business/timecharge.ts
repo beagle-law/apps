@@ -30,8 +30,11 @@ export function normalizeTimeInput(raw: string): string {
 /** 開始・終了時刻（"HH:MM"）から稼働時間を時間単位・小数第2位までで算出する（日をまたぐ場合は+24時間）。 */
 export function calcHoursFromTimes(startTime: string, endTime: string): string {
   if (!startTime || !endTime) return "";
-  const [sh, sm] = startTime.split(":").map(Number);
-  const [eh, em] = endTime.split(":").map(Number);
+  const startParts = startTime.split(":");
+  const endParts = endTime.split(":");
+  if (startParts.length !== 2 || endParts.length !== 2) return "";
+  const [sh, sm] = startParts.map(Number);
+  const [eh, em] = endParts.map(Number);
   if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return "";
   let diffMinutes = eh * 60 + em - (sh * 60 + sm);
   if (diffMinutes < 0) diffMinutes += 24 * 60;

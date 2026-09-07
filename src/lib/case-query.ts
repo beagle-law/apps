@@ -5,7 +5,10 @@ export const caseInclude = {
   hearings: { orderBy: { date: "asc" } },
   expenses: { orderBy: { date: "asc" } },
   updates: { orderBy: { timestamp: "desc" } },
-  claimMemos: { orderBy: { createdAt: "desc" } },
+  claimMemos: { orderBy: { createdAt: "desc" }, include: { images: { orderBy: { createdAt: "asc" } } } },
+  plans: { orderBy: { date: "asc" } },
+  // v14：案件一覧に顧客No.・顧客名（最新）を表示するため、顧客を軽く同時取得する（⑥⑦）。
+  client: { select: { clientNumber: true, companyName: true } },
 } satisfies Prisma.CaseInclude;
 
 export type FullCase = Prisma.CaseGetPayload<{ include: typeof caseInclude }>;
@@ -15,7 +18,11 @@ export function serializeCase(c: FullCase) {
     id: c.id,
     caseNumber: c.caseNumber,
     title: c.title,
-    clientName: decryptField(c.clientName),
+    // 顧客に紐づいている場合は顧客名の最新値を表示する（過去に依頼者名を編集しても
+    // 案件側に反映されなかった不具合の修正、v14）。未紐付けの案件は登録時のスナップショットを使う。
+    // Client.companyNameは暗号化していないフィールドのため、Case.clientName（暗号化）と異なり復号しない。
+    clientName: c.client ? c.client.companyName : decryptField(c.clientName),
+    clientNumber: c.client?.clientNumber ?? null,
     clientId: c.clientId ?? "",
     stage: c.stage,
     closedDate: c.closedDate,
@@ -44,7 +51,11 @@ export function serializeCase(c: FullCase) {
     retainerStatus: c.retainerStatus,
 
     claimMemo: c.claimMemo,
-    claimMemos: c.claimMemos.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() })),
+    claimMemos: c.claimMemos.map((m) => ({
+      ...m,
+      createdAt: m.createdAt.toISOString(),
+      images: m.images.map((img) => ({ ...img, createdAt: img.createdAt.toISOString() })),
+    })),
 
     caseClassification: c.caseClassification,
     opposingParty: decryptField(c.opposingParty),
@@ -71,6 +82,7 @@ export function serializeCase(c: FullCase) {
     hearings: c.hearings,
     expenses: c.expenses.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
     updates: c.updates.map((u) => ({ ...u, timestamp: u.timestamp.toISOString() })),
+    plans: c.plans.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
   };
 }
 

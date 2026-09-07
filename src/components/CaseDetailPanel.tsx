@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X,
   Trash2,
@@ -22,6 +22,9 @@ import {
   Plus,
   Save,
   Pencil,
+  Upload,
+  Download,
+  CalendarClock,
 } from "lucide-react";
 import {
   COLORS,
@@ -90,6 +93,12 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [newClaimMemoText, setNewClaimMemoText] = useState("");
   const [editingClaimMemoId, setEditingClaimMemoId] = useState<string | null>(null);
   const [claimMemoEditDraft, setClaimMemoEditDraft] = useState("");
+  const [uploadingClaimMemoImageId, setUploadingClaimMemoImageId] = useState<string | null>(null);
+  const claimMemoFileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [claimMemoLightbox, setClaimMemoLightbox] = useState<{ memoId: string; image: Case["claimMemos"][number]["images"][number] } | null>(null);
+  const [newPlan, setNewPlan] = useState({ date: "", content: "" });
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [planEditDraft, setPlanEditDraft] = useState({ date: "", content: "" });
   const [newClassificationInput, setNewClassificationInput] = useState("");
   const [newHearing, setNewHearing] = useState({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   const [editingHearingId, setEditingHearingId] = useState<string | null>(null);
@@ -122,6 +131,9 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     setCourtInfoSaved(true);
     setNewClaimMemoText("");
     setEditingClaimMemoId(null);
+    setClaimMemoLightbox(null);
+    setNewPlan({ date: "", content: "" });
+    setEditingPlanId(null);
     setTimeChargeRateSaved(String(selectedCase.timeChargeRate ?? ""));
     setCourtInfoDraft({
       courtCaseNumber: selectedCase.courtCaseNumber || "",
@@ -215,6 +227,48 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       .then((updated) => {
         onCaseUpdated(updated);
         setEditingClaimMemoId(null);
+      })
+      .catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
+  };
+
+  // v14：主張予定メモへのスクリーンショット等の画像添付
+  const uploadClaimMemoImage = async (memoId: string, file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      onError("ファイルサイズは5MBまでです");
+      return;
+    }
+    setUploadingClaimMemoImageId(memoId);
+    try {
+      const updated = await api.uploadClaimMemoImage(selectedCase.id, memoId, file);
+      onCaseUpdated(updated);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "アップロードに失敗しました");
+    } finally {
+      setUploadingClaimMemoImageId(null);
+    }
+  };
+  const removeClaimMemoImage = (memoId: string, imageId: string) =>
+    run(() => api.deleteClaimMemoImage(selectedCase.id, memoId, imageId));
+
+  // v14：次回予定（期日以外の予定。片岡様案件で「10/2 警察訪問」のように使う）
+  const addPlanEntry = () => {
+    if (!newPlan.date || !newPlan.content.trim()) return;
+    run(() => api.addCasePlan(selectedCase.id, newPlan));
+    setNewPlan({ date: "", content: "" });
+  };
+  const removePlanEntry = (planId: string) => run(() => api.deleteCasePlan(selectedCase.id, planId));
+  const startEditPlan = (p: { id: string; date: string; content: string }) => {
+    setEditingPlanId(p.id);
+    setPlanEditDraft({ date: p.date, content: p.content });
+  };
+  const cancelEditPlan = () => setEditingPlanId(null);
+  const savePlanEdit = () => {
+    if (!editingPlanId || !planEditDraft.date || !planEditDraft.content.trim()) return;
+    api
+      .updateCasePlan(selectedCase.id, editingPlanId, planEditDraft)
+      .then((updated) => {
+        onCaseUpdated(updated);
+        setEditingPlanId(null);
       })
       .catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
   };
@@ -351,7 +405,148 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     }
   };
 
+  // 主張予定メモカード（v13：積み重ね式。v14：画像添付に対応）。通常表示・個人メモの簡易表示の両方から使う。
+  const claimMemoCard = (
+    <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+      <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
+      <div className="flex flex-col gap-2 mb-4">
+        <textarea value={newClaimMemoText} onChange={(e) => setNewClaimMemoText(e.target.value)} placeholder="主張予定のメモを自由に記入..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+        <button onClick={addClaimMemoEntry} disabled={!newClaimMemoText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+          <Send size={13} /> メモを追加
+        </button>
+      </div>
+      {selectedCase.claimMemos.length === 0 ? (
+        <p className="text-sm py-2" style={{ color: COLORS.slate }}>まだメモがありません。</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {selectedCase.claimMemos.map((m) =>
+            editingClaimMemoId === m.id ? (
+              <div key={m.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+                <textarea value={claimMemoEditDraft} onChange={(e) => setClaimMemoEditDraft(e.target.value)} rows={3} className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                <div className="flex justify-end gap-2">
+                  <button onClick={cancelEditClaimMemo} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
+                  <button onClick={saveClaimMemoEdit} disabled={!claimMemoEditDraft.trim()} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
+                </div>
+              </div>
+            ) : (
+              <div key={m.id} className="text-sm p-2.5 rounded group" style={{ backgroundColor: COLORS.paper }}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(m.createdAt)}{m.author && <>　<span className="font-bold">{m.author}</span></>}</p>
+                  <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition">
+                    <button onClick={() => startEditClaimMemo(m)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={13} /></button>
+                    <button onClick={() => removeClaimMemoEntry(m.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                  </div>
+                </div>
+                <p className="mt-0.5 whitespace-pre-wrap">{m.content}</p>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  {m.images.map((img) => (
+                    <div key={img.id} className="relative group/img">
+                      <img
+                        src={`/api/cases/${selectedCase.id}/claim-memos/${m.id}/images/${img.id}`}
+                        alt={img.originalFileName}
+                        onClick={() => setClaimMemoLightbox({ memoId: m.id, image: img })}
+                        className="rounded object-cover cursor-pointer"
+                        style={{ width: 56, height: 56, border: `1px solid ${COLORS.brassLight}` }}
+                      />
+                      <button
+                        onClick={() => removeClaimMemoImage(m.id, img.id)}
+                        className="absolute -top-1.5 -right-1.5 rounded-full opacity-0 group-hover/img:opacity-100 transition"
+                        style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => claimMemoFileInputs.current[m.id]?.click()}
+                    disabled={uploadingClaimMemoImageId === m.id}
+                    title="画像を追加"
+                    className="flex items-center justify-center rounded disabled:opacity-40"
+                    style={{ width: 56, height: 56, border: `1px dashed ${COLORS.brassLight}`, color: COLORS.navy }}
+                  >
+                    <Upload size={14} />
+                  </button>
+                  <input
+                    ref={(el) => { claimMemoFileInputs.current[m.id] = el; }}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadClaimMemoImage(m.id, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // v14：個人メモ（isPrivate）は主張予定メモだけで十分なため、他のカードを省いた簡易表示にする。
+  if (selectedCase.isPrivate) {
+    return (
+      <>
+        <div className="max-w-2xl mx-auto flex flex-col gap-5">
+          <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <Badge color={COLORS.brass}>個人メモ</Badge>
+                <input
+                  type="text"
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={saveTitle}
+                  className="text-xl mt-1 w-full rounded outline-none px-1.5 py-1"
+                  style={{ fontFamily: FONT_MINCHO, letterSpacing: "0.02em", border: `1px solid ${COLORS.brassLight}` }}
+                />
+              </div>
+            </div>
+          </div>
+          {claimMemoCard}
+        </div>
+        {claimMemoLightbox && (
+          <div
+            className="fixed inset-0 z-30 flex items-center justify-center p-4"
+            style={{ backgroundColor: "rgba(27,42,74,0.8)" }}
+            onClick={() => setClaimMemoLightbox(null)}
+          >
+            <div className="flex flex-col items-center gap-3 max-w-3xl max-h-full" onClick={(e) => e.stopPropagation()}>
+              <img
+                src={`/api/cases/${selectedCase.id}/claim-memos/${claimMemoLightbox.memoId}/images/${claimMemoLightbox.image.id}`}
+                alt={claimMemoLightbox.image.originalFileName}
+                className="rounded"
+                style={{ maxWidth: "100%", maxHeight: "80vh" }}
+              />
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/cases/${selectedCase.id}/claim-memos/${claimMemoLightbox.memoId}/images/${claimMemoLightbox.image.id}`}
+                  download={claimMemoLightbox.image.originalFileName || undefined}
+                  className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded"
+                  style={{ backgroundColor: COLORS.card, color: COLORS.navy }}
+                >
+                  <Download size={14} /> ダウンロード
+                </a>
+                <button
+                  onClick={() => setClaimMemoLightbox(null)}
+                  className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded"
+                  style={{ backgroundColor: COLORS.card, color: COLORS.slate }}
+                >
+                  <X size={14} /> 閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
+    <>
     <div className="max-w-2xl lg:max-w-none mx-auto grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
     <div className="flex flex-col gap-5">
       {/* Header */}
@@ -441,6 +636,50 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             </div>
           )}
         </div>
+      </div>
+
+      {/* 次回予定（v14：期日以外の予定。「今後の期日」タブでも一緒に表示される） */}
+      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
+          <CalendarClock size={15} /> 次回予定
+        </h3>
+        <div className="flex flex-col sm:flex-row gap-2 mb-2">
+          <TextInput type="date" value={newPlan.date} onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })} className="sm:w-40" />
+          <TextInput type="text" placeholder="内容（例：警察訪問）" value={newPlan.content} onChange={(e) => setNewPlan({ ...newPlan, content: e.target.value })} className="flex-1" />
+          <button onClick={addPlanEntry} disabled={!newPlan.date || !newPlan.content.trim()} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>予定を追加</button>
+        </div>
+
+        {selectedCase.plans.length === 0 ? (
+          <p className="text-sm py-2" style={{ color: COLORS.slate }}>登録された予定はありません。</p>
+        ) : (
+          <div className="flex flex-col gap-2 mt-2">
+            {[...selectedCase.plans].sort((a, b) => (a.date < b.date ? -1 : 1)).map((p) =>
+              editingPlanId === p.id ? (
+                <div key={p.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <TextInput type="date" value={planEditDraft.date} onChange={(e) => setPlanEditDraft({ ...planEditDraft, date: e.target.value })} className="sm:w-40" />
+                    <TextInput type="text" value={planEditDraft.content} onChange={(e) => setPlanEditDraft({ ...planEditDraft, content: e.target.value })} className="flex-1" />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={cancelEditPlan} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
+                    <button onClick={savePlanEdit} disabled={!planEditDraft.date || !planEditDraft.content.trim()} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
+                  </div>
+                </div>
+              ) : (
+                <div key={p.id} className="flex items-center justify-between gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
+                  <div>
+                    <span className="text-xs font-bold" style={{ color: p.date < todayStr() ? COLORS.vermillion : COLORS.navy }}>{formatDate(p.date)}（{relativeDayLabel(p.date)}）</span>
+                    <span className="ml-2">{p.content}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => startEditPlan(p)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={13} /></button>
+                    <button onClick={() => removePlanEntry(p.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        )}
       </div>
 
       {/* 受任関連チェック */}
@@ -595,44 +834,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         })()}
       </div>
 
-      {/* 主張予定メモ（v13：積み重ね式に変更。細かいメモを都度追加し、過去のものも個別に編集・削除できる） */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
-        <div className="flex flex-col gap-2 mb-4">
-          <textarea value={newClaimMemoText} onChange={(e) => setNewClaimMemoText(e.target.value)} placeholder="主張予定のメモを自由に記入..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-          <button onClick={addClaimMemoEntry} disabled={!newClaimMemoText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
-            <Send size={13} /> メモを追加
-          </button>
-        </div>
-        {selectedCase.claimMemos.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: COLORS.slate }}>まだメモがありません。</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {selectedCase.claimMemos.map((m) =>
-              editingClaimMemoId === m.id ? (
-                <div key={m.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
-                  <textarea value={claimMemoEditDraft} onChange={(e) => setClaimMemoEditDraft(e.target.value)} rows={3} className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-                  <div className="flex justify-end gap-2">
-                    <button onClick={cancelEditClaimMemo} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
-                    <button onClick={saveClaimMemoEdit} disabled={!claimMemoEditDraft.trim()} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
-                  </div>
-                </div>
-              ) : (
-                <div key={m.id} className="text-sm p-2.5 rounded group" style={{ backgroundColor: COLORS.paper }}>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(m.createdAt)}{m.author && <>　<span className="font-bold">{m.author}</span></>}</p>
-                    <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition">
-                      <button onClick={() => startEditClaimMemo(m)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={13} /></button>
-                      <button onClick={() => removeClaimMemoEntry(m.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
-                    </div>
-                  </div>
-                  <p className="mt-0.5 whitespace-pre-wrap">{m.content}</p>
-                </div>
-              )
-            )}
-          </div>
-        )}
-      </div>
+      {claimMemoCard}
 
     </div>
 
@@ -865,5 +1067,39 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       </div>
     </div>
     </div>
+    {claimMemoLightbox && (
+      <div
+        className="fixed inset-0 z-30 flex items-center justify-center p-4"
+        style={{ backgroundColor: "rgba(27,42,74,0.8)" }}
+        onClick={() => setClaimMemoLightbox(null)}
+      >
+        <div className="flex flex-col items-center gap-3 max-w-3xl max-h-full" onClick={(e) => e.stopPropagation()}>
+          <img
+            src={`/api/cases/${selectedCase.id}/claim-memos/${claimMemoLightbox.memoId}/images/${claimMemoLightbox.image.id}`}
+            alt={claimMemoLightbox.image.originalFileName}
+            className="rounded"
+            style={{ maxWidth: "100%", maxHeight: "80vh" }}
+          />
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/cases/${selectedCase.id}/claim-memos/${claimMemoLightbox.memoId}/images/${claimMemoLightbox.image.id}`}
+              download={claimMemoLightbox.image.originalFileName || undefined}
+              className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded"
+              style={{ backgroundColor: COLORS.card, color: COLORS.navy }}
+            >
+              <Download size={14} /> ダウンロード
+            </a>
+            <button
+              onClick={() => setClaimMemoLightbox(null)}
+              className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded"
+              style={{ backgroundColor: COLORS.card, color: COLORS.slate }}
+            >
+              <X size={14} /> 閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

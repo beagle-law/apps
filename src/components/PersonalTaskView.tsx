@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Clock } from "lucide-react";
+import { User, Clock, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS } from "@/lib/constants";
-import { formatDate, formatDateShort, todayStr, currentYearMonth } from "@/lib/dates";
+import { formatDate, formatDateShort, todayStr, currentYearMonth, shiftDateStr, formatYearMonth } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes } from "@/lib/business/timecharge";
+import { calcWorkedHours } from "@/lib/business/attendance";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
 import type { PersonalSummary } from "@/lib/api-client";
-import type { Case, DailyReport } from "@/lib/types";
+import type { Case, DailyReport, AttendanceRecord } from "@/lib/types";
 
 // 名前→目標画面のkeyの対応（v10 4.1：個人画面右上に本人（宮村は全社）の当月目標を表示）
 const GOAL_KEY_BY_NAME: Record<string, string> = { 宮村: "company", 尾崎: "ozaki", 岩下: "iwashita" };
@@ -56,6 +57,10 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
   const [historyYear, setHistoryYear] = useState(String(new Date().getFullYear()));
   const [historyMonth, setHistoryMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
+  const [monthAttendance, setMonthAttendance] = useState<AttendanceRecord[]>([]);
+  const [attendanceDraft, setAttendanceDraft] = useState({ clockIn: "", clockOut: "", breakStart: "", breakEnd: "" });
+  const [savingAttendance, setSavingAttendance] = useState(false);
+  const [exportingAttendance, setExportingAttendance] = useState(false);
 
   // v11 3.2：日付に一致する既存の日報があればそれを読み込み、なければ新規（本日のみ前回から引き継ぎ）
   const loadFormForDate = (date: string, reports: DailyReport[]) => {
@@ -115,6 +120,85 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
       .then((r) => setMonthlyGoalPercent(r.overallPercent))
       .catch(() => setMonthlyGoalPercent(""));
   }, [personName]);
+
+  // v14：勤怠。表示中の日付が属する月の記録をまとめて取得し、当日分の入力欄に反映する。
+  const attendanceMonth = reportForm.date.slice(0, 7);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .fetchAttendance(personName, attendanceMonth)
+      .then((records) => {
+        if (!cancelled) setMonthAttendance(records);
+      })
+      .catch(() => {
+        if (!cancelled) setMonthAttendance([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [personName, attendanceMonth]);
+
+  useEffect(() => {
+    const existing = monthAttendance.find((r) => r.date === reportForm.date);
+    setAttendanceDraft({
+      clockIn: existing?.clockIn || "",
+      clockOut: existing?.clockOut || "",
+      breakStart: existing?.breakStart || "",
+      breakEnd: existing?.breakEnd || "",
+    });
+  }, [reportForm.date, monthAttendance]);
+
+  const applyAttendanceTime = (field: keyof typeof attendanceDraft, raw: string) => {
+    setAttendanceDraft((prev) => ({ ...prev, [field]: normalizeTimeInput(raw) }));
+  };
+
+  const saveAttendanceRecord = async () => {
+    // onBlurでの整形前にボタンを押した場合に備え、保存直前にも念のため半角化・整形する。
+    const normalized = {
+      clockIn: normalizeTimeInput(attendanceDraft.clockIn),
+      clockOut: normalizeTimeInput(attendanceDraft.clockOut),
+      breakStart: normalizeTimeInput(attendanceDraft.breakStart),
+      breakEnd: normalizeTimeInput(attendanceDraft.breakEnd),
+    };
+    setAttendanceDraft(normalized);
+    setSavingAttendance(true);
+    try {
+      const saved = await api.saveAttendance(personName, { date: reportForm.date, ...normalized });
+      setMonthAttendance((prev) => {
+        const idx = prev.findIndex((r) => r.date === saved.date);
+        if (idx === -1) return [...prev, saved].sort((a, b) => (a.date < b.date ? -1 : 1));
+        return prev.map((r, i) => (i === idx ? saved : r));
+      });
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "勤怠の保存に失敗しました");
+    } finally {
+      setSavingAttendance(false);
+    }
+  };
+
+  // xlsxはサイズが大きいため、アプリ起動時の読み込みを軽くする目的で使用時にのみ読み込む。
+  const exportMonthAttendance = async () => {
+    setExportingAttendance(true);
+    try {
+      const records = await api.fetchAttendance(personName, attendanceMonth);
+      const XLSX = await import("xlsx");
+      const rows: (string | number)[][] = [
+        [`勤怠データ　${personName}　${formatYearMonth(attendanceMonth)}`],
+        [],
+        ["日付", "出勤", "退勤", "休憩開始", "休憩終了", "稼働時間"],
+        ...records.map((r) => [r.date, r.clockIn, r.clockOut, r.breakStart, r.breakEnd, calcWorkedHours(r.clockIn, r.clockOut, r.breakStart, r.breakEnd)]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "勤怠");
+      XLSX.writeFile(wb, `勤怠_${personName}_${attendanceMonth}.xlsx`);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "出力に失敗しました");
+    } finally {
+      setExportingAttendance(false);
+    }
+  };
 
   const visibleCases = cases.filter((c) => !c.hidden);
   const timeChargeCases = visibleCases.filter((c) => c.isTimeChargeCase);
@@ -216,6 +300,47 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
           )}
         </div>
 
+        {/* 勤怠（v14） */}
+        <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="text-sm font-bold flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Clock size={15} /> 勤怠（{formatDateShort(reportForm.date)}）</h3>
+            <button onClick={exportMonthAttendance} disabled={exportingAttendance} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>
+              <Download size={12} /> {formatYearMonth(attendanceMonth)}分をダウンロード
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            <label className="text-xs" style={{ color: COLORS.slate }}>
+              出勤
+              <TextInput type="text" placeholder="例：900" value={attendanceDraft.clockIn} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, clockIn: e.target.value })} onBlur={(e) => applyAttendanceTime("clockIn", e.target.value)} className="mt-1 w-full" />
+            </label>
+            <label className="text-xs" style={{ color: COLORS.slate }}>
+              退勤
+              <TextInput type="text" placeholder="例：1830" value={attendanceDraft.clockOut} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, clockOut: e.target.value })} onBlur={(e) => applyAttendanceTime("clockOut", e.target.value)} className="mt-1 w-full" />
+            </label>
+            <label className="text-xs" style={{ color: COLORS.slate }}>
+              休憩開始
+              <TextInput type="text" placeholder="例：1200" value={attendanceDraft.breakStart} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, breakStart: e.target.value })} onBlur={(e) => applyAttendanceTime("breakStart", e.target.value)} className="mt-1 w-full" />
+            </label>
+            <label className="text-xs" style={{ color: COLORS.slate }}>
+              休憩終了
+              <TextInput type="text" placeholder="例：1300" value={attendanceDraft.breakEnd} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, breakEnd: e.target.value })} onBlur={(e) => applyAttendanceTime("breakEnd", e.target.value)} className="mt-1 w-full" />
+            </label>
+          </div>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            {(() => {
+              const worked = calcWorkedHours(attendanceDraft.clockIn, attendanceDraft.clockOut, attendanceDraft.breakStart, attendanceDraft.breakEnd);
+              return worked ? (
+                <p className="text-sm font-bold">稼働時間：{worked}時間</p>
+              ) : (
+                <p className="text-xs" style={{ color: COLORS.slate }}>出勤・退勤を入力すると稼働時間が表示されます</p>
+              );
+            })()}
+            <button onClick={saveAttendanceRecord} disabled={savingAttendance} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+              {savingAttendance ? "保存中..." : "保存"}
+            </button>
+          </div>
+        </div>
+
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Clock size={15} /> タイムチャージ</h3>
           <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-3">
@@ -266,7 +391,11 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
               {/* 出勤時に記入 */}
               <div className="rounded p-3 flex flex-col gap-2" style={{ backgroundColor: COLOR_MORNING }}>
                 <p className="text-xs font-bold" style={{ color: COLORS.navy }}>出勤時に記入</p>
-                <TextInput type="date" value={reportForm.date} onChange={(e) => loadFormForDate(e.target.value, summary.dailyReports || [])} className="w-full sm:w-40" />
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => loadFormForDate(shiftDateStr(reportForm.date, -1), summary.dailyReports || [])} style={{ color: COLORS.slate }} title="前日"><ChevronLeft size={16} /></button>
+                  <TextInput type="date" value={reportForm.date} onChange={(e) => loadFormForDate(e.target.value, summary.dailyReports || [])} className="w-full sm:w-40" />
+                  <button type="button" onClick={() => loadFormForDate(shiftDateStr(reportForm.date, 1), summary.dailyReports || [])} style={{ color: COLORS.slate }} title="翌日"><ChevronRight size={16} /></button>
+                </div>
                 <label className="text-xs" style={{ color: COLORS.slate }}>
                   本日一番大事なこと
                   <textarea value={reportForm.mostImportant} onChange={(e) => setReportForm({ ...reportForm, mostImportant: e.target.value })} rows={2} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />

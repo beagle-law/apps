@@ -36,10 +36,28 @@ export interface UpdateLog {
   auto: boolean;
 }
 
+export interface ClaimMemoImage {
+  id: string;
+  blobUrl: string;
+  originalFileName: string;
+  fileSize: number;
+  mimeType: string;
+  createdAt: string;
+}
+
 export interface ClaimMemoEntry {
   id: string;
   content: string;
   author: string;
+  createdAt: string;
+  images: ClaimMemoImage[];
+}
+
+// 次回予定（v14）：期日以外の予定（訪問・打合せ等）
+export interface CasePlan {
+  id: string;
+  date: string;
+  content: string;
   createdAt: string;
 }
 
@@ -61,6 +79,7 @@ export interface Case {
   caseNumber: string;
   title: string;
   clientName: string;
+  clientNumber: number | null;
   clientId: string;
 
   stage: string;
@@ -112,6 +131,7 @@ export interface Case {
   hearings: Hearing[];
   expenses: Expense[];
   updates: UpdateLog[];
+  plans: CasePlan[];
 }
 
 export const emptyContact = (): Contact => ({ name: "", affiliation: "", phone: "", fax: "", email: "" });
@@ -144,6 +164,19 @@ export interface TimeCharge {
   billed: boolean;
   invoiceId: string | null;
   createdAt: string;
+}
+
+// 勤怠（v14）
+export interface AttendanceRecord {
+  id: string;
+  personName: string;
+  date: string;
+  clockIn: string;
+  clockOut: string;
+  breakStart: string;
+  breakEnd: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DailyReport {
