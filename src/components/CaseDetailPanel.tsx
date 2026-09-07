@@ -643,10 +643,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
           <CalendarClock size={15} /> 次回予定
         </h3>
-        <div className="flex flex-col sm:flex-row gap-2 mb-2">
-          <TextInput type="date" value={newPlan.date} onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })} className="sm:w-40" />
-          <TextInput type="text" placeholder="内容（例：警察訪問）" value={newPlan.content} onChange={(e) => setNewPlan({ ...newPlan, content: e.target.value })} className="flex-1" />
-          <button onClick={addPlanEntry} disabled={!newPlan.date || !newPlan.content.trim()} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>予定を追加</button>
+        <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr_auto] gap-2 mb-2">
+          <TextInput type="date" value={newPlan.date} onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })} className="w-full" />
+          <TextInput type="text" placeholder="内容（例：警察訪問）" value={newPlan.content} onChange={(e) => setNewPlan({ ...newPlan, content: e.target.value })} className="w-full" />
+          <button onClick={addPlanEntry} disabled={!newPlan.date || !newPlan.content.trim()} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>予定を追加</button>
         </div>
 
         {selectedCase.plans.length === 0 ? (
@@ -656,9 +656,9 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             {[...selectedCase.plans].sort((a, b) => (a.date < b.date ? -1 : 1)).map((p) =>
               editingPlanId === p.id ? (
                 <div key={p.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <TextInput type="date" value={planEditDraft.date} onChange={(e) => setPlanEditDraft({ ...planEditDraft, date: e.target.value })} className="sm:w-40" />
-                    <TextInput type="text" value={planEditDraft.content} onChange={(e) => setPlanEditDraft({ ...planEditDraft, content: e.target.value })} className="flex-1" />
+                  <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-2">
+                    <TextInput type="date" value={planEditDraft.date} onChange={(e) => setPlanEditDraft({ ...planEditDraft, date: e.target.value })} className="w-full" />
+                    <TextInput type="text" value={planEditDraft.content} onChange={(e) => setPlanEditDraft({ ...planEditDraft, content: e.target.value })} className="w-full" />
                   </div>
                   <div className="flex justify-end gap-2">
                     <button onClick={cancelEditPlan} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
