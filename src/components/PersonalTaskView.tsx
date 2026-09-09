@@ -303,10 +303,20 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
         {/* 勤怠（v14） */}
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h3 className="text-sm font-bold flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Clock size={15} /> 勤怠（{formatDateShort(reportForm.date)}）</h3>
+            <h3 className="text-sm font-bold flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Clock size={15} /> 勤怠</h3>
             <button onClick={exportMonthAttendance} disabled={exportingAttendance} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>
               <Download size={12} /> {formatYearMonth(attendanceMonth)}分をダウンロード
             </button>
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <button type="button" onClick={() => loadFormForDate(shiftDateStr(reportForm.date, -1), summary.dailyReports || [])} style={{ color: COLORS.slate }} title="前日"><ChevronLeft size={16} /></button>
+            <TextInput type="date" value={reportForm.date} onChange={(e) => loadFormForDate(e.target.value, summary.dailyReports || [])} className="w-40" />
+            <button type="button" onClick={() => loadFormForDate(shiftDateStr(reportForm.date, 1), summary.dailyReports || [])} style={{ color: COLORS.slate }} title="翌日"><ChevronRight size={16} /></button>
+            {reportForm.date !== todayStr() && (
+              <button type="button" onClick={() => loadFormForDate(todayStr(), summary.dailyReports || [])} className="text-xs underline" style={{ color: COLORS.navy }}>
+                本日に戻す
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
             <label className="text-xs" style={{ color: COLORS.slate }}>

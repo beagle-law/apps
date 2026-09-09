@@ -157,6 +157,15 @@ export default function CaseTrackerApp() {
     }
   };
 
+  const unhideAllCases = async () => {
+    try {
+      await api.unhideAllCases();
+      setCases((prev) => prev.map((c) => (c.hidden ? { ...c, hidden: false } : c)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "更新に失敗しました");
+    }
+  };
+
   const filteredCases = useMemo(() => {
     let list = showHiddenCases ? cases.filter((c) => c.hidden) : cases.filter((c) => !c.hidden);
     if (ballFilter) list = list.filter((c) => c.ballOwner === ballFilter);
@@ -318,6 +327,7 @@ export default function CaseTrackerApp() {
             onToggleShowHidden={() => setShowHiddenCases((v) => !v)}
             onSelect={setSelectedId}
             onToggleHidden={toggleCaseHidden}
+            onUnhideAll={unhideAllCases}
             onNewCase={() => setShowNewCaseModal(true)}
             widthPx={isDesktopLayout ? sidebarWidth : undefined}
           />

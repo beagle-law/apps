@@ -16,6 +16,7 @@ interface Props {
   onToggleShowHidden: () => void;
   onSelect: (id: string) => void;
   onToggleHidden: (id: string) => void;
+  onUnhideAll: () => void;
   onNewCase: () => void;
   widthPx?: number;
 }
@@ -32,10 +33,17 @@ export default function CaseListSidebar({
   onToggleShowHidden,
   onSelect,
   onToggleHidden,
+  onUnhideAll,
   onNewCase,
   widthPx,
 }: Props) {
   const hiddenCount = allCases.filter((c) => c.hidden).length;
+
+  const handleUnhideAll = () => {
+    if (hiddenCount === 0) return;
+    if (!window.confirm(`非表示にしている${hiddenCount}件をすべて一覧に戻します。よろしいですか？`)) return;
+    onUnhideAll();
+  };
 
   return (
     <aside
@@ -68,9 +76,16 @@ export default function CaseListSidebar({
             </button>
           ))}
         </div>
-        <button onClick={onToggleShowHidden} className="text-xs self-start underline" style={{ color: showHiddenCases ? COLORS.vermillion : COLORS.slate }}>
-          {showHiddenCases ? "通常の一覧に戻る" : `非表示の案件を表示（${hiddenCount}件）`}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button onClick={onToggleShowHidden} className="text-xs underline" style={{ color: showHiddenCases ? COLORS.vermillion : COLORS.slate }}>
+            {showHiddenCases ? "通常の一覧に戻る" : `非表示の案件を表示（${hiddenCount}件）`}
+          </button>
+          {hiddenCount > 0 && (
+            <button onClick={handleUnhideAll} className="text-xs underline" style={{ color: COLORS.navy }}>
+              全て表示にする（{hiddenCount}件）
+            </button>
+          )}
+        </div>
         {!showHiddenCases && (
           <button
             onClick={onNewCase}
@@ -89,10 +104,10 @@ export default function CaseListSidebar({
           </p>
         )}
         {cases.map((c) => (
-          <div key={c.id} className="relative group">
+          <div key={c.id} className="relative">
             <button
               onClick={() => onSelect(c.id)}
-              className="w-full text-left px-2.5 py-1.5 rounded flex flex-col gap-0.5 transition"
+              className="w-full text-left pl-2.5 pr-7 py-1.5 rounded flex flex-col gap-0.5 transition"
               style={{
                 backgroundColor: COLORS.card,
                 borderTop: `1px solid ${selectedId === c.id ? COLORS.navy : COLORS.brassLight}`,
@@ -120,7 +135,7 @@ export default function CaseListSidebar({
                 e.stopPropagation();
                 onToggleHidden(c.id);
               }}
-              className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition"
+              className="absolute top-1.5 right-1.5 p-1 rounded hover:opacity-70"
               style={{ color: COLORS.slate }}
               title={c.hidden ? "表示に戻す" : "案件を非表示にする"}
             >
