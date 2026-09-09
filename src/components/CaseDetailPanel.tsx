@@ -25,6 +25,7 @@ import {
   Upload,
   Download,
   CalendarClock,
+  Settings,
 } from "lucide-react";
 import {
   COLORS,
@@ -57,6 +58,30 @@ interface Props {
   classifications: CaseClassification[];
   onAddClassification: (name: string) => Promise<CaseClassification>;
   onError: (msg: string) => void;
+}
+
+// v14：案件詳細の各カードは個別に非表示にでき、表示状態は端末ごとの表示設定として保持する（データではないためlocalStorage）。
+const CASE_SECTIONS: { key: string; label: string }[] = [
+  { key: "plans", label: "次回予定" },
+  { key: "checklist", label: "受任関連チェック" },
+  { key: "updates", label: "経過記録" },
+  { key: "timecharge", label: "タイムチャージ" },
+  { key: "expenses", label: "実費" },
+  { key: "claimMemo", label: "主張予定メモ" },
+  { key: "caseInfo", label: "案件情報" },
+  { key: "courtInfo", label: "訴訟関係者情報" },
+  { key: "hearings", label: "期日" },
+];
+const SECTION_VISIBILITY_KEY = "beagle_case_detail_hidden_sections";
+
+function loadHiddenSections(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(SECTION_VISIBILITY_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
 }
 
 function financeDraftFromCase(c: Case) {
@@ -122,6 +147,30 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     courtClerk: emptyContact(),
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hiddenSections, setHiddenSections] = useState<Set<string>>(() => new Set());
+  const [showSectionSettings, setShowSectionSettings] = useState(false);
+
+  useEffect(() => {
+    setHiddenSections(loadHiddenSections());
+  }, []);
+
+  const persistHiddenSections = (next: Set<string>) => {
+    setHiddenSections(next);
+    try {
+      window.localStorage.setItem(SECTION_VISIBILITY_KEY, JSON.stringify([...next]));
+    } catch {
+      // localStorageが使えない環境（プライベートモード等）では表示設定を保存しないだけで動作は継続する
+    }
+  };
+
+  const toggleSectionVisible = (key: string) => {
+    const next = new Set(hiddenSections);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    persistHiddenSections(next);
+  };
+
+  const showAllSections = () => persistHiddenSections(new Set());
 
   useEffect(() => {
     setTitleDraft(selectedCase.title);
@@ -578,6 +627,29 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             />
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            {!selectedCase.isPrivate && (
+              <div className="relative">
+                <button onClick={() => setShowSectionSettings((v) => !v)} className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }} title="カードの表示設定">
+                  <Settings size={16} />
+                </button>
+                {showSectionSettings && (
+                  <div className="absolute right-0 top-full mt-1 z-20 rounded p-3 text-sm" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", width: 220 }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold" style={{ color: COLORS.ink }}>表示するカード</p>
+                      <button onClick={showAllSections} className="text-xs underline flex-shrink-0" style={{ color: COLORS.navy }}>全て表示にする</button>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {CASE_SECTIONS.map((s) => (
+                        <label key={s.key} className="flex items-center gap-2 text-xs cursor-pointer">
+                          <input type="checkbox" checked={!hiddenSections.has(s.key)} onChange={() => toggleSectionVisible(s.key)} />
+                          {s.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <button onClick={toggleHidden} className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }} title={selectedCase.hidden ? "一覧に表示する" : "一覧から非表示にする"}>
               {selectedCase.hidden ? <Eye size={16} /> : <EyeOff size={16} />}
             </button>
@@ -639,6 +711,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       </div>
 
       {/* 次回予定（v14：期日以外の予定。「今後の期日」タブでも一緒に表示される） */}
+      {!hiddenSections.has("plans") && (
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
           <CalendarClock size={15} /> 次回予定
@@ -681,8 +754,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           </div>
         )}
       </div>
+      )}
 
       {/* 受任関連チェック */}
+      {!hiddenSections.has("checklist") && (
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>受任関連チェック</h3>
         <div className="flex flex-col gap-3">
@@ -701,8 +776,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         </div>
         <p className="text-xs mt-3" style={{ color: COLORS.slate }}>クリックで状態を切り替えます。</p>
       </div>
+      )}
 
       {/* 経過記録 */}
+      {!hiddenSections.has("updates") && (
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>経過記録</h3>
         <div className="flex flex-col gap-2 mb-5">
@@ -728,11 +805,12 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           </div>
         )}
       </div>
+      )}
     </div>
 
     <div className="flex flex-col gap-5">
       {/* タイムチャージ集計 */}
-      {caseTimeCharges.length > 0 && (() => {
+      {!hiddenSections.has("timecharge") && caseTimeCharges.length > 0 && (() => {
         const monthCharges = caseTimeCharges.filter((t) => t.date.startsWith(tcMonth));
         const monthHours = monthCharges.reduce((s, t) => s + t.hours, 0);
         const rateNum = Number(timeChargeRateSaved) || 0;
@@ -771,6 +849,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       })()}
 
       {/* 実費 */}
+      {!hiddenSections.has("expenses") && (
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}><Receipt size={15} /> 実費</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
@@ -833,13 +912,15 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           );
         })()}
       </div>
+      )}
 
-      {claimMemoCard}
+      {!hiddenSections.has("claimMemo") && claimMemoCard}
 
     </div>
 
     <div className="flex flex-col gap-5">
       {/* 案件情報 */}
+      {!hiddenSections.has("caseInfo") && (
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>案件情報</h3>
@@ -964,8 +1045,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         </div>
         <button onClick={addCustomField} className="text-xs font-bold px-2.5 py-1.5 rounded" style={{ color: COLORS.navy, border: `1px solid ${COLORS.brassLight}` }}>+ 項目を追加</button>
       </div>
+      )}
 
       {/* 訴訟関係者情報 */}
+      {!hiddenSections.has("courtInfo") && (
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
@@ -985,8 +1068,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <div className="flex items-center gap-1.5"><Mail size={13} color={COLORS.slate} /><TextInput type="text" placeholder="メールアドレス" value={courtInfoDraft.courtClerk.email} onChange={(e) => { setCourtInfoDraft({ ...courtInfoDraft, courtClerk: { ...courtInfoDraft.courtClerk, email: e.target.value } }); setCourtInfoSaved(false); }} className="w-full" /></div>
         </div>
       </div>
+      )}
 
       {/* 期日 */}
+      {!hiddenSections.has("hearings") && (
       <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
           <Calendar size={15} /> 期日
@@ -1065,6 +1150,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           </div>
         )}
       </div>
+      )}
     </div>
     </div>
     {claimMemoLightbox && (
