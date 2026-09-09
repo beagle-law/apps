@@ -10,3 +10,21 @@ export function calcWorkedHours(clockIn: string, clockOut: string, breakStart: s
   const worked = Math.max(0, total - breakHours);
   return String(Math.round(worked * 100) / 100);
 }
+
+/**
+ * 有給分を加味した勤務時間（v15）。半日有給は実績に4時間、全日有給は8時間を加算する
+ * （所定労働時間はそのままで、有給取得分を実績側に上乗せする運用）。
+ */
+export function calcWorkedHoursWithLeave(
+  clockIn: string,
+  clockOut: string,
+  breakStart: string,
+  breakEnd: string,
+  leaveType: string
+): string {
+  const base = calcWorkedHours(clockIn, clockOut, breakStart, breakEnd);
+  const leaveHours = leaveType === "full" ? 8 : leaveType === "half" ? 4 : 0;
+  if (!base && !leaveHours) return "";
+  const total = (base ? Number(base) : 0) + leaveHours;
+  return String(Math.round(total * 100) / 100);
+}

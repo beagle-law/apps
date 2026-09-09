@@ -208,11 +208,11 @@ export const patchPassword = (id: string, payload: Partial<Omit<PasswordEntry, "
 export const deletePassword = (id: string) => request<{ ok: true }>(`/api/passwords/${id}`, { method: "DELETE" });
 
 // ── 勤怠 ──────────────────────────────────────────
-export const fetchAttendance = (personName: string, month: string) =>
-  request<AttendanceRecord[]>(`/api/attendance/${encodeURIComponent(personName)}?month=${month}`);
+export const fetchAttendance = (personName: string, month?: string) =>
+  request<AttendanceRecord[]>(`/api/attendance/${encodeURIComponent(personName)}${month ? `?month=${month}` : ""}`);
 export const saveAttendance = (
   personName: string,
-  payload: { date: string; clockIn: string; clockOut: string; breakStart: string; breakEnd: string }
+  payload: { date: string; clockIn: string; clockOut: string; breakStart: string; breakEnd: string; leaveType: string }
 ) => request<AttendanceRecord>(`/api/attendance/${encodeURIComponent(personName)}`, { method: "POST", body: JSON.stringify(payload) });
 
 // ── タイムチャージ・日報 ──────────────────────────

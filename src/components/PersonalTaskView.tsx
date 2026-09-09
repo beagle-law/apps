@@ -5,7 +5,8 @@ import { User, Clock, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS } from "@/lib/constants";
 import { formatDate, formatDateShort, todayStr, currentYearMonth, shiftDateStr, formatYearMonth } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes } from "@/lib/business/timecharge";
-import { calcWorkedHours } from "@/lib/business/attendance";
+import { calcWorkedHoursWithLeave } from "@/lib/business/attendance";
+import { isLeaveEligible, computeLeaveBalance } from "@/lib/business/paidLeave";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
 import type { PersonalSummary } from "@/lib/api-client";
@@ -58,9 +59,11 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
   const [historyMonth, setHistoryMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [monthAttendance, setMonthAttendance] = useState<AttendanceRecord[]>([]);
-  const [attendanceDraft, setAttendanceDraft] = useState({ clockIn: "", clockOut: "", breakStart: "", breakEnd: "" });
+  const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
+  const [attendanceDraft, setAttendanceDraft] = useState({ clockIn: "", clockOut: "", breakStart: "", breakEnd: "", leaveType: "" });
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [exportingAttendance, setExportingAttendance] = useState(false);
+  const [exportMonth, setExportMonth] = useState(currentYearMonth());
 
   // v11 3.2：日付に一致する既存の日報があればそれを読み込み、なければ新規（本日のみ前回から引き継ぎ）
   const loadFormForDate = (date: string, reports: DailyReport[]) => {
@@ -138,6 +141,26 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
     };
   }, [personName, attendanceMonth]);
 
+  // v15：有給残日数の算出には全期間の有給取得履歴が必要なため、対象者（尾崎・岩下）のみ月指定なしで全件取得する。
+  useEffect(() => {
+    if (!isLeaveEligible(personName)) {
+      setAllAttendance([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .fetchAttendance(personName)
+      .then((records) => {
+        if (!cancelled) setAllAttendance(records);
+      })
+      .catch(() => {
+        if (!cancelled) setAllAttendance([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [personName, monthAttendance]);
+
   useEffect(() => {
     const existing = monthAttendance.find((r) => r.date === reportForm.date);
     setAttendanceDraft({
@@ -145,10 +168,11 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
       clockOut: existing?.clockOut || "",
       breakStart: existing?.breakStart || "",
       breakEnd: existing?.breakEnd || "",
+      leaveType: existing?.leaveType || "",
     });
   }, [reportForm.date, monthAttendance]);
 
-  const applyAttendanceTime = (field: keyof typeof attendanceDraft, raw: string) => {
+  const applyAttendanceTime = (field: "clockIn" | "clockOut" | "breakStart" | "breakEnd", raw: string) => {
     setAttendanceDraft((prev) => ({ ...prev, [field]: normalizeTimeInput(raw) }));
   };
 
@@ -159,6 +183,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
       clockOut: normalizeTimeInput(attendanceDraft.clockOut),
       breakStart: normalizeTimeInput(attendanceDraft.breakStart),
       breakEnd: normalizeTimeInput(attendanceDraft.breakEnd),
+      leaveType: attendanceDraft.leaveType,
     };
     setAttendanceDraft(normalized);
     setSavingAttendance(true);
@@ -176,23 +201,73 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
     }
   };
 
+  const leaveBalance = isLeaveEligible(personName)
+    ? computeLeaveBalance(
+        personName,
+        allAttendance.filter((r) => r.leaveType).map((r) => ({ date: r.date, days: r.leaveType === "full" ? 1 : 0.5 })),
+        todayStr()
+      )
+    : null;
+
   // xlsxはサイズが大きいため、アプリ起動時の読み込みを軽くする目的で使用時にのみ読み込む。
+  const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+  const LEAVE_LABEL: Record<string, string> = { full: "全日", half: "半日" };
+
+  // v15：Googleスプレッドシートの勤怠台帳（日付・所定労働時間・実労働時間・差・交通費実費等・備考）に
+  // 揃えた形式で出力する。差は値ではなく数式で埋め、Excel上で所定/実績を直接編集しても再計算されるようにする。
   const exportMonthAttendance = async () => {
     setExportingAttendance(true);
     try {
-      const records = await api.fetchAttendance(personName, attendanceMonth);
+      const [y, m] = exportMonth.split("-").map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      const records = await api.fetchAttendance(personName, exportMonth);
+      const recordByDate = new Map(records.map((r) => [r.date, r]));
       const XLSX = await import("xlsx");
+
       const rows: (string | number)[][] = [
-        [`勤怠データ　${personName}　${formatYearMonth(attendanceMonth)}`],
+        [`勤怠データ　${personName}　${formatYearMonth(exportMonth)}`],
         [],
-        ["日付", "出勤", "退勤", "休憩開始", "休憩終了", "稼働時間"],
-        ...records.map((r) => [r.date, r.clockIn, r.clockOut, r.breakStart, r.breakEnd, calcWorkedHours(r.clockIn, r.clockOut, r.breakStart, r.breakEnd)]),
+        ["日付", "曜日", "所定労働時間(分)", "実労働時間(分)", "差(分)", "有給", "交通費・実費等", "備考"],
       ];
+      const dataStartRow = rows.length + 1; // 1始まり・XLSXの行番号（この後に追加する最初のデータ行）
+      for (let d = 1; d <= lastDay; d++) {
+        const dateStr = `${exportMonth}-${String(d).padStart(2, "0")}`;
+        const weekday = new Date(y, m - 1, d).getDay();
+        const r = recordByDate.get(dateStr);
+        const scheduled = weekday === 0 || weekday === 6 ? "" : 480;
+        const workedHours = r ? calcWorkedHoursWithLeave(r.clockIn, r.clockOut, r.breakStart, r.breakEnd, r.leaveType) : "";
+        const worked = workedHours ? Math.round(Number(workedHours) * 60) : "";
+        rows.push([d, WEEKDAY_LABELS[weekday], scheduled, worked, "", r?.leaveType ? LEAVE_LABEL[r.leaveType] : "", "", ""]);
+      }
+
       const ws = XLSX.utils.aoa_to_sheet(rows);
-      ws["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+      for (let i = 0; i < lastDay; i++) {
+        const row = dataStartRow + i;
+        ws[`E${row}`] = { t: "n", f: `D${row}-C${row}` };
+      }
+      ws["!cols"] = [{ wch: 8 }, { wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 8 }, { wch: 14 }, { wch: 16 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "勤怠");
-      XLSX.writeFile(wb, `勤怠_${personName}_${attendanceMonth}.xlsx`);
+
+      if (isLeaveEligible(personName)) {
+        const monthEnd = `${exportMonth}-${String(lastDay).padStart(2, "0")}`;
+        const allRecords = await api.fetchAttendance(personName);
+        const usages = allRecords.filter((r) => r.leaveType).map((r) => ({ date: r.date, days: r.leaveType === "full" ? 1 : 0.5 }));
+        const balance = computeLeaveBalance(personName, usages, monthEnd);
+        const leaveRows: (string | number)[][] = [
+          [`有給休暇残日数　${personName}　${formatYearMonth(exportMonth)}末時点`],
+          [],
+          ["付与日", "付与日数", "残日数", "失効日"],
+          ...balance.grants.map((g) => [g.grantDate, g.days, g.remaining, g.expiresAt]),
+          [],
+          ["合計", "", balance.totalRemaining, ""],
+        ];
+        const leaveWs = XLSX.utils.aoa_to_sheet(leaveRows);
+        leaveWs["!cols"] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, leaveWs, "有給残日数");
+      }
+
+      XLSX.writeFile(wb, `勤怠_${personName}_${exportMonth}.xlsx`);
     } catch (e) {
       onError(e instanceof Error ? e.message : "出力に失敗しました");
     } finally {
@@ -304,10 +379,29 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h3 className="text-sm font-bold flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Clock size={15} /> 勤怠</h3>
-            <button onClick={exportMonthAttendance} disabled={exportingAttendance} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>
-              <Download size={12} /> {formatYearMonth(attendanceMonth)}分をダウンロード
-            </button>
+            <div className="flex items-center gap-2">
+              <TextInput type="month" value={exportMonth} onChange={(e) => setExportMonth(e.target.value)} className="w-36" />
+              <button onClick={exportMonthAttendance} disabled={exportingAttendance} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>
+                <Download size={12} /> ダウンロード
+              </button>
+            </div>
           </div>
+
+          {leaveBalance && (
+            <div className="mb-3 p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+              <p className="text-sm font-bold mb-1.5">有給休暇残日数：{leaveBalance.totalRemaining}日</p>
+              {leaveBalance.grants.length > 0 && (
+                <div className="flex flex-col gap-0.5">
+                  {leaveBalance.grants.map((g) => (
+                    <p key={g.grantDate} className="text-xs" style={{ color: COLORS.slate }}>
+                      {formatDate(g.grantDate)}付与（{g.days}日）：残{g.remaining}日（{formatDate(g.expiresAt)}失効）
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 mb-3">
             <button type="button" onClick={() => loadFormForDate(shiftDateStr(reportForm.date, -1), summary.dailyReports || [])} style={{ color: COLORS.slate }} title="前日"><ChevronLeft size={16} /></button>
             <TextInput type="date" value={reportForm.date} onChange={(e) => loadFormForDate(e.target.value, summary.dailyReports || [])} className="w-40" />
@@ -336,11 +430,34 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
               <TextInput type="text" placeholder="例：1300" value={attendanceDraft.breakEnd} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, breakEnd: e.target.value })} onBlur={(e) => applyAttendanceTime("breakEnd", e.target.value)} className="mt-1 w-full" />
             </label>
           </div>
+          {isLeaveEligible(personName) && (
+            <div className="flex items-center gap-3 mb-3">
+              <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.ink }}>
+                <input
+                  type="checkbox"
+                  checked={!!attendanceDraft.leaveType}
+                  onChange={(e) => setAttendanceDraft({ ...attendanceDraft, leaveType: e.target.checked ? "full" : "" })}
+                />
+                有給を取得する
+              </label>
+              {attendanceDraft.leaveType && (
+                <select
+                  value={attendanceDraft.leaveType}
+                  onChange={(e) => setAttendanceDraft({ ...attendanceDraft, leaveType: e.target.value })}
+                  className="text-xs p-1.5 rounded outline-none"
+                  style={{ border: `1px solid ${COLORS.brassLight}` }}
+                >
+                  <option value="full">全日</option>
+                  <option value="half">半日</option>
+                </select>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-between flex-wrap gap-2">
             {(() => {
-              const worked = calcWorkedHours(attendanceDraft.clockIn, attendanceDraft.clockOut, attendanceDraft.breakStart, attendanceDraft.breakEnd);
+              const worked = calcWorkedHoursWithLeave(attendanceDraft.clockIn, attendanceDraft.clockOut, attendanceDraft.breakStart, attendanceDraft.breakEnd, attendanceDraft.leaveType);
               return worked ? (
-                <p className="text-sm font-bold">稼働時間：{worked}時間</p>
+                <p className="text-sm font-bold">稼働時間：{worked}時間{attendanceDraft.leaveType && `（有給${LEAVE_LABEL[attendanceDraft.leaveType]}分を含む）`}</p>
               ) : (
                 <p className="text-xs" style={{ color: COLORS.slate }}>出勤・退勤を入力すると稼働時間が表示されます</p>
               );

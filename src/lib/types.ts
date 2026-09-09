@@ -166,7 +166,7 @@ export interface TimeCharge {
   createdAt: string;
 }
 
-// 勤怠（v14）
+// 勤怠（v14、v15で有給区分を追加）
 export interface AttendanceRecord {
   id: string;
   personName: string;
@@ -175,6 +175,7 @@ export interface AttendanceRecord {
   clockOut: string;
   breakStart: string;
   breakEnd: string;
+  leaveType: string; // "" | "full" | "half"
   createdAt: string;
   updatedAt: string;
 }

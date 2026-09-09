@@ -279,6 +279,7 @@ model AttendanceRecord {
   clockOut   String   @default("")
   breakStart String   @default("")
   breakEnd   String   @default("")
+  leaveType  String   @default("") // v15："" | "full"（全日有給） | "half"（半日有給）
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

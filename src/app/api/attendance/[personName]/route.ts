@@ -11,6 +11,7 @@ function serialize(r: {
   clockOut: string;
   breakStart: string;
   breakEnd: string;
+  leaveType: string;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -47,9 +48,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ per
     return NextResponse.json({ error: "自分の勤怠のみ記録できます" }, { status: 403 });
   }
 
-  const body = (await req.json()) as { date?: string; clockIn?: string; clockOut?: string; breakStart?: string; breakEnd?: string };
+  const body = (await req.json()) as {
+    date?: string;
+    clockIn?: string;
+    clockOut?: string;
+    breakStart?: string;
+    breakEnd?: string;
+    leaveType?: string;
+  };
   if (!body.date) {
     return NextResponse.json({ error: "日付は必須です" }, { status: 400 });
+  }
+  if (body.leaveType && !["", "full", "half"].includes(body.leaveType)) {
+    return NextResponse.json({ error: "不正な有給区分です" }, { status: 400 });
   }
 
   const data = {
@@ -57,6 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ per
     clockOut: body.clockOut?.trim() || "",
     breakStart: body.breakStart?.trim() || "",
     breakEnd: body.breakEnd?.trim() || "",
+    leaveType: body.leaveType || "",
   };
 
   const record = await prisma.attendanceRecord.upsert({
