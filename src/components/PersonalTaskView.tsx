@@ -232,6 +232,8 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
         ["日付", "曜日", "所定労働時間(分)", "実労働時間(分)", "差(分)", "有給", "交通費・実費等", "備考"],
       ];
       const dataStartRow = rows.length + 1; // 1始まり・XLSXの行番号（この後に追加する最初のデータ行）
+      let scheduledSum = 0;
+      let workedSum = 0;
       for (let d = 1; d <= lastDay; d++) {
         const dateStr = `${exportMonth}-${String(d).padStart(2, "0")}`;
         const weekday = new Date(y, m - 1, d).getDay();
@@ -239,14 +241,33 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
         const scheduled = weekday === 0 || weekday === 6 ? "" : 480;
         const workedHours = r ? calcWorkedHoursWithLeave(r.clockIn, r.clockOut, r.breakStart, r.breakEnd, r.leaveType) : "";
         const worked = workedHours ? Math.round(Number(workedHours) * 60) : "";
+        scheduledSum += Number(scheduled) || 0;
+        workedSum += Number(worked) || 0;
         rows.push([d, WEEKDAY_LABELS[weekday], scheduled, worked, "", r?.leaveType ? LEAVE_LABEL[r.leaveType] : "", "", ""]);
       }
 
+      const dataEndRow = dataStartRow + lastDay - 1;
+      rows.push([], ["所定労働時間合計(分)", "", "", "", "", "", "", ""]);
+      rows.push(["実労働時間合計(分)", "", "", "", "", "", "", ""]);
+      rows.push(["差（実労働−所定）(分)", "", "", "", "", "", "", ""]);
+      const scheduledTotalRow = dataEndRow + 2;
+      const workedTotalRow = scheduledTotalRow + 1;
+      const diffTotalRow = workedTotalRow + 1;
+
       const ws = XLSX.utils.aoa_to_sheet(rows);
+      // xlsx（SheetJS）はキャッシュ値（v）を持たない数式セルを書き出し時に落とすことがあるため、
+      // 数式（f）と合わせて計算済みの値（v）も必ず入れる。Excel上で所定/実績を編集すれば再計算される。
       for (let i = 0; i < lastDay; i++) {
         const row = dataStartRow + i;
-        ws[`E${row}`] = { t: "n", f: `D${row}-C${row}` };
+        const c = ws[`C${row}`]?.v;
+        const d = ws[`D${row}`]?.v;
+        if (typeof c === "number" || typeof d === "number") {
+          ws[`E${row}`] = { t: "n", v: (typeof d === "number" ? d : 0) - (typeof c === "number" ? c : 0), f: `D${row}-C${row}` };
+        }
       }
+      ws[`C${scheduledTotalRow}`] = { t: "n", v: scheduledSum, f: `SUM(C${dataStartRow}:C${dataEndRow})` };
+      ws[`D${workedTotalRow}`] = { t: "n", v: workedSum, f: `SUM(D${dataStartRow}:D${dataEndRow})` };
+      ws[`E${diffTotalRow}`] = { t: "n", v: workedSum - scheduledSum, f: `D${workedTotalRow}-C${scheduledTotalRow}` };
       ws["!cols"] = [{ wch: 8 }, { wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 8 }, { wch: 14 }, { wch: 16 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "勤怠");
