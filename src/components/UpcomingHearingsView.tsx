@@ -1,6 +1,6 @@
 "use client";
 
-import { COLORS, FONT_MINCHO } from "@/lib/constants";
+import { COLORS, FONT_MINCHO, BALL_COLOR } from "@/lib/constants";
 import { formatDate, formatDateShort, relativeDayLabel, todayStr } from "@/lib/dates";
 import { upcomingItems } from "@/lib/business/hearings";
 import type { Case } from "@/lib/types";
@@ -10,21 +10,24 @@ interface Props {
   onOpenCase: (id: string) => void;
 }
 
+// v16：個人画面（日報）の左半分に埋め込んで表示するため、ページ全体のラッパーは持たず
+// 中身（見出し＋一覧）のみを描画する。
 export default function UpcomingHearingsView({ cases, onOpenCase }: Props) {
   const visible = cases.filter((c) => !c.hidden && !c.isPrivate);
   const upcoming = upcomingItems(visible);
   const t = todayStr();
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="max-w-2xl mx-auto">
-        <h2 className="text-lg mb-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>今後の期日</h2>
-        <p className="text-xs mb-5" style={{ color: COLORS.slate }}>各案件の最新の次回裁判期日と、次回予定を合わせて一覧表示しています</p>
-        {upcoming.length === 0 ? (
-          <p className="text-sm py-10 text-center rounded" style={{ color: COLORS.slate, backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>今後の期日・予定は登録されていません。</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {upcoming.map((item) => (
+    <div>
+      <h2 className="text-lg mb-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>今後の期日</h2>
+      <p className="text-xs mb-5" style={{ color: COLORS.slate }}>各案件の最新の次回裁判期日と、次回予定を合わせて一覧表示しています</p>
+      {upcoming.length === 0 ? (
+        <p className="text-sm py-10 text-center rounded" style={{ color: COLORS.slate, backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>今後の期日・予定は登録されていません。</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {upcoming.map((item) => {
+            const ballDisplay = item.case.ballOwner === "事務所" && item.case.ballAssignee ? item.case.ballAssignee : item.case.ballOwner;
+            return (
               <button
                 key={`${item.kind}-${item.id}`}
                 onClick={() => onOpenCase(item.case.id)}
@@ -43,6 +46,11 @@ export default function UpcomingHearingsView({ cases, onOpenCase }: Props) {
                     {item.kind === "plan" && (
                       <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.brassLight, color: COLORS.navy }}>次回予定</span>
                     )}
+                    {ballDisplay && (
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: BALL_COLOR[item.case.ballOwner], color: "#fff" }}>
+                        ボール：{ballDisplay}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm font-semibold mt-1" style={{ fontFamily: FONT_MINCHO }}>{item.case.title}</p>
                   <p className="text-sm mt-1">{item.content}</p>
@@ -51,10 +59,10 @@ export default function UpcomingHearingsView({ cases, onOpenCase }: Props) {
                   )}
                 </div>
               </button>
-            ))}
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

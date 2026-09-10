@@ -11,9 +11,7 @@ import {
   Building2,
   Lock,
   StickyNote,
-  Clock,
   LayoutDashboard,
-  Database,
   Target,
   BookOpen,
   FileSpreadsheet,
@@ -33,9 +31,7 @@ const NewCaseModal = dynamic(() => import("@/components/NewCaseModal"), { ssr: f
 const ClientsView = dynamic(() => import("@/components/ClientsView"), { ssr: false });
 const PasswordsView = dynamic(() => import("@/components/PasswordsView"), { ssr: false });
 const PersonalTaskView = dynamic(() => import("@/components/PersonalTaskView"), { ssr: false });
-const UpcomingHearingsView = dynamic(() => import("@/components/UpcomingHearingsView"), { ssr: false });
 const DashboardView = dynamic(() => import("@/components/DashboardView"), { ssr: false });
-const AnalyticsSummaryView = dynamic(() => import("@/components/AnalyticsSummaryView"), { ssr: false });
 const GoalsView = dynamic(() => import("@/components/GoalsView"), { ssr: false });
 const KnowledgeView = dynamic(() => import("@/components/KnowledgeView"), { ssr: false });
 const BillingView = dynamic(() => import("@/components/BillingView"), { ssr: false });
@@ -46,9 +42,7 @@ type View =
   | "clients"
   | "passwords"
   | `person:${string}`
-  | "upcoming"
   | "dashboard"
-  | "data"
   | "goals"
   | "knowledge"
   | "billing"
@@ -58,9 +52,7 @@ const MAIN_TABS: { key: View; label: string; icon: typeof Briefcase }[] = [
   { key: "list", label: "案件一覧", icon: Briefcase },
   { key: "clients", label: "顧客一覧", icon: Building2 },
   { key: "passwords", label: "パスワード管理", icon: Lock },
-  { key: "upcoming", label: "今後の期日", icon: Clock },
   { key: "dashboard", label: "分析", icon: LayoutDashboard },
-  { key: "data", label: "データ", icon: Database },
   { key: "goals", label: "目標", icon: Target },
   { key: "knowledge", label: "ノウハウ・ひながた", icon: BookOpen },
   { key: "billing", label: "請求管理", icon: FileSpreadsheet },
@@ -369,11 +361,9 @@ export default function CaseTrackerApp() {
       {PERSONAL_TASK_TABS.map(
         (name) =>
           view === `person:${name}` && (
-            <PersonalTaskView key={name} personName={name} cases={cases} onError={setError} />
+            <PersonalTaskView key={name} personName={name} cases={cases} onError={setError} onOpenCase={openCaseFromElsewhere} />
           )
       )}
-
-      {view === "upcoming" && <UpcomingHearingsView cases={cases} onOpenCase={openCaseFromElsewhere} />}
 
       {view === "dashboard" && (
         <DashboardView
@@ -388,8 +378,6 @@ export default function CaseTrackerApp() {
           onError={setError}
         />
       )}
-
-      {view === "data" && <AnalyticsSummaryView cases={cases} />}
 
       {view === "goals" && <GoalsView currentUser={currentUser} onError={setError} />}
 

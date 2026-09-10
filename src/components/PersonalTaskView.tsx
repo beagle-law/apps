@@ -8,6 +8,7 @@ import { normalizeTimeInput, calcHoursFromTimes } from "@/lib/business/timecharg
 import { calcWorkedHoursWithLeave } from "@/lib/business/attendance";
 import { isLeaveEligible, computeLeaveBalance } from "@/lib/business/paidLeave";
 import { TextInput } from "@/components/ui";
+import UpcomingHearingsView from "@/components/UpcomingHearingsView";
 import * as api from "@/lib/api-client";
 import type { PersonalSummary } from "@/lib/api-client";
 import type { Case, DailyReport, AttendanceRecord } from "@/lib/types";
@@ -48,9 +49,10 @@ interface Props {
   personName: string;
   cases: Case[];
   onError: (msg: string) => void;
+  onOpenCase: (id: string) => void;
 }
 
-export default function PersonalTaskView({ personName, cases, onError }: Props) {
+export default function PersonalTaskView({ personName, cases, onError, onOpenCase }: Props) {
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
   const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", hours: "", content: "" });
   const [reportForm, setReportForm] = useState<ReportForm>(emptyReportForm(todayStr()));
@@ -367,7 +369,11 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <div className="max-w-2xl mx-auto flex flex-col gap-5">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div>
+          <UpcomingHearingsView cases={cases} onOpenCase={onOpenCase} />
+        </div>
+        <div className="flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <h2 className="text-lg mb-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{personName}</h2>
           {monthlyGoalPercent && (
@@ -609,6 +615,7 @@ export default function PersonalTaskView({ personName, cases, onError }: Props) 
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
