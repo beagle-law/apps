@@ -69,8 +69,10 @@ export const CASE_CLASSIFICATIONS_FALLBACK = [
 export const EXPENSE_CATEGORIES = ["交通費", "印紙代", "郵送費", "謄写費用", "通信費", "その他"];
 export const PASSWORD_CATEGORIES = ["事務所", "コレカ", "Sherpa", "Beagle", "Samurai"];
 export const INVOICE_SECTION_TYPES = ["弁護士報酬", "実費", "実費お預かり金", "実費ご返金", "その他"];
-// 別紙自動生成の対象となる区分（v10 3.2）
+// 未請求の実費（Expense）をこの請求書に紐付ける対象となる区分（v10 3.2）
 export const EXPENSE_LIKE_SECTION_TYPES = ["実費", "実費お預かり金", "実費ご返金"];
+// 摘要欄を「別紙のとおり」1行にまとめる対象となる区分（v16：実費お預かり金は入力した項目名をそのまま表示するため対象外）
+export const ATTACHMENT_SUMMARY_SECTION_TYPES = ["実費", "実費ご返金"];
 export const GOAL_KEYS = [
   { key: "company", label: "全社目標" },
   { key: "ozaki", label: "尾崎目標" },

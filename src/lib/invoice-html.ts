@@ -1,6 +1,6 @@
 import { invoiceTotal, formatYen, type InvoiceSectionInput } from "@/lib/business/invoice";
 import { formatDate, formatYearMonth } from "@/lib/dates";
-import { EXPENSE_LIKE_SECTION_TYPES } from "@/lib/constants";
+import { ATTACHMENT_SUMMARY_SECTION_TYPES } from "@/lib/constants";
 
 const FIRM_NAME = "Beagle総合法律事務所";
 const FIRM_LAWYER = "弁護士　宮村頼光";
@@ -88,7 +88,8 @@ function pageWrapperClose(): string {
 }
 
 /** 請求書の中身（style込みの1つの&lt;div&gt;フラグメント）。PDF化に使う。区分が2つ以上のときのみ「項目」列（第N）を表示する（v9 3.8）。
- * 実費系の区分（実費／実費お預かり金／実費ご返金）は、個々の項目を列挙せず「別紙のとおり」1行にまとめる（v10 3.2）。
+ * 実費／実費ご返金は、個々の項目を列挙せず「別紙のとおり」1行にまとめる（v10 3.2）。
+ * 実費お預かり金は対象外とし、入力した項目名をそのまま摘要欄に表示する（v16）。
  */
 export function buildInvoiceElement(inv: InvoiceForHtml): string {
   const { sections, total } = invoiceTotal(inv.sections);
@@ -96,10 +97,10 @@ export function buildInvoiceElement(inv: InvoiceForHtml): string {
 
   const bodyRowsHtml = sections
     .map((sec, secIdx) => {
-      const isExpenseLike = EXPENSE_LIKE_SECTION_TYPES.includes(sec.type);
+      const summarizeAsAttachment = ATTACHMENT_SUMMARY_SECTION_TYPES.includes(sec.type);
       let no = 0;
 
-      if (isExpenseLike) {
+      if (summarizeAsAttachment) {
         const rowCount = 1;
         const sectionLabelCell = showSectionLabel ? `<td class="section-cell" rowspan="${rowCount}">第${secIdx + 1}</td>` : "";
         return `<tr>${sectionLabelCell}<td class="no-cell">1</td><td class="desc-cell">別紙のとおり</td><td class="amount-cell">${yen(sec.total)}</td></tr>`;
