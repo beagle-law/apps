@@ -11,6 +11,7 @@ import ClientInvoicing from "@/components/ClientInvoicing";
 interface Props {
   cases: Case[];
   onOpenCase: (id: string) => void;
+  onNewCaseForClient: (clientId: string) => void;
   onError: (msg: string) => void;
   initialClientId?: string | null;
 }
@@ -37,7 +38,7 @@ const RadioGroup = ({ options, value, onChange }: { options: string[]; value: st
   </div>
 );
 
-export default function ClientsView({ cases, onOpenCase, onError, initialClientId }: Props) {
+export default function ClientsView({ cases, onOpenCase, onNewCaseForClient, onError, initialClientId }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(initialClientId ?? null);
@@ -229,7 +230,12 @@ export default function ClientsView({ cases, onOpenCase, onError, initialClientI
             </div>
 
             <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-              <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>関連案件</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>関連案件</h3>
+                <button onClick={() => onNewCaseForClient(draft.id)} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
+                  <Plus size={13} /> 案件を登録
+                </button>
+              </div>
               {linkedCases.length === 0 ? (
                 <p className="text-sm" style={{ color: COLORS.slate }}>関連する案件はありません。</p>
               ) : (

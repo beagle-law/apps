@@ -71,6 +71,7 @@ export default function CaseTrackerApp() {
   const [ballFilter, setBallFilter] = useState("");
   const [showHiddenCases, setShowHiddenCases] = useState(false);
   const [showNewCaseModal, setShowNewCaseModal] = useState(false);
+  const [newCaseClientId, setNewCaseClientId] = useState<string | null>(null);
   const [pendingClientId, setPendingClientId] = useState<string | null>(null);
   const [classifications, setClassifications] = useState<CaseClassification[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(320);
@@ -320,7 +321,10 @@ export default function CaseTrackerApp() {
             onSelect={setSelectedId}
             onToggleHidden={toggleCaseHidden}
             onUnhideAll={unhideAllCases}
-            onNewCase={() => setShowNewCaseModal(true)}
+            onNewCase={() => {
+              setNewCaseClientId(null);
+              setShowNewCaseModal(true);
+            }}
             widthPx={isDesktopLayout ? sidebarWidth : undefined}
           />
           {isDesktopLayout && (
@@ -353,7 +357,16 @@ export default function CaseTrackerApp() {
       )}
 
       {view === "clients" && (
-        <ClientsView cases={cases} onOpenCase={openCaseFromElsewhere} onError={setError} initialClientId={pendingClientId} />
+        <ClientsView
+          cases={cases}
+          onOpenCase={openCaseFromElsewhere}
+          onNewCaseForClient={(clientId) => {
+            setNewCaseClientId(clientId);
+            setShowNewCaseModal(true);
+          }}
+          onError={setError}
+          initialClientId={pendingClientId}
+        />
       )}
 
       {view === "passwords" && <PasswordsView onError={setError} />}
@@ -393,7 +406,11 @@ export default function CaseTrackerApp() {
         <NewCaseModal
           suggestedCaseNumber={suggestedCaseNumber(cases.map((c) => c.caseNumber))}
           cases={cases}
-          onClose={() => setShowNewCaseModal(false)}
+          initialClientId={newCaseClientId ?? undefined}
+          onClose={() => {
+            setShowNewCaseModal(false);
+            setNewCaseClientId(null);
+          }}
           onCreated={addCaseToState}
           onError={setError}
         />

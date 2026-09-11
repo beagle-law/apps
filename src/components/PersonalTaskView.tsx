@@ -391,10 +391,10 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div>
+        <div className="lg:order-2">
           <UpcomingHearingsView cases={cases} onOpenCase={onOpenCase} />
         </div>
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 lg:order-1">
         <div className="flex items-center justify-between">
           <h2 className="text-lg mb-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{personName}</h2>
           {monthlyGoalPercent && (

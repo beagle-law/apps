@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { COLORS, FONT_MINCHO } from "@/lib/constants";
-import { plusDaysStr } from "@/lib/dates";
 import { suggestedCaseNumberForClient } from "@/lib/business/caseNumber";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
@@ -12,19 +11,19 @@ import type { Case, Client } from "@/lib/types";
 interface Props {
   suggestedCaseNumber: string;
   cases: Case[];
+  initialClientId?: string;
   onClose: () => void;
   onCreated: (c: Case) => void;
   onError: (msg: string) => void;
 }
 
-export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCreated, onError }: Props) {
+export default function NewCaseModal({ suggestedCaseNumber, cases, initialClientId, onClose, onCreated, onError }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [form, setForm] = useState({
     title: "",
     clientName: "",
     clientId: "",
     caseNumber: suggestedCaseNumber,
-    deadline: plusDaysStr(7),
     initialNote: "",
     isTimeChargeCase: false,
   });
@@ -33,6 +32,11 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
   useEffect(() => {
     api.fetchClients().then(setClients).catch(() => setClients([]));
   }, []);
+
+  useEffect(() => {
+    if (initialClientId && clients.length > 0) selectClient(initialClientId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialClientId, clients]);
 
   const selectClient = (clientId: string) => {
     if (!clientId) {
@@ -58,7 +62,6 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
         clientName: form.clientName,
         clientId: form.clientId || undefined,
         caseNumber: form.caseNumber,
-        deadline: form.deadline,
         initialNote: form.initialNote,
         isTimeChargeCase: form.isTimeChargeCase,
       });
@@ -105,10 +108,6 @@ export default function NewCaseModal({ suggestedCaseNumber, cases, onClose, onCr
           <label className="text-xs" style={{ color: COLORS.slate }}>
             依頼者 *
             <TextInput type="text" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            期限
-            <TextInput type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="mt-1 w-full" />
           </label>
           <label className="text-xs" style={{ color: COLORS.slate }}>
             初回メモ（任意）
