@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Eye, EyeOff, Copy, X } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Copy, X, Pencil, Save } from "lucide-react";
 import { COLORS, FONT_MINCHO, PASSWORD_CATEGORIES } from "@/lib/constants";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
@@ -18,6 +18,9 @@ export default function PasswordsView({ onError }: Props) {
   const [category, setCategory] = useState(PASSWORD_CATEGORIES[0]);
   const [form, setForm] = useState(emptyForm);
   const [visibleIds, setVisibleIds] = useState<string[]>([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState(emptyForm);
 
   useEffect(() => {
     api.fetchPasswords().then(setEntries).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -39,12 +42,31 @@ export default function PasswordsView({ onError }: Props) {
     try {
       await api.deletePassword(id);
       setEntries((prev) => prev.filter((e) => e.id !== id));
+      setConfirmDeleteId(null);
     } catch (e) {
       onError(e instanceof Error ? e.message : "削除に失敗しました");
     }
   };
 
   const toggleVisible = (id: string) => setVisibleIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const startEdit = (entry: PasswordEntry) => {
+    setEditingId(entry.id);
+    setEditDraft({ category: entry.category, service: entry.service, url: entry.url, username: entry.username, password: entry.password, notes: entry.notes });
+  };
+
+  const cancelEdit = () => setEditingId(null);
+
+  const saveEdit = async (id: string) => {
+    if (!editDraft.service.trim() || !editDraft.password) return;
+    try {
+      const updated = await api.patchPassword(id, editDraft);
+      setEntries((prev) => prev.map((e) => (e.id === id ? updated : e)));
+      setEditingId(null);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "保存に失敗しました");
+    }
+  };
 
   const filtered = entries.filter((e) => e.category === category);
 
@@ -91,6 +113,27 @@ export default function PasswordsView({ onError }: Props) {
           <div className="flex flex-col gap-2">
             {filtered.map((entry) => {
               const visible = visibleIds.includes(entry.id);
+
+              if (editingId === entry.id) {
+                return (
+                  <div key={entry.id} className="rounded p-4" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.navy}` }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                      <TextInput type="text" placeholder="サービス名" value={editDraft.service} onChange={(e) => setEditDraft({ ...editDraft, service: e.target.value })} />
+                      <TextInput type="text" placeholder="URL" value={editDraft.url} onChange={(e) => setEditDraft({ ...editDraft, url: e.target.value })} />
+                      <TextInput type="text" placeholder="ID / ユーザー名" value={editDraft.username} onChange={(e) => setEditDraft({ ...editDraft, username: e.target.value })} />
+                      <TextInput type="text" placeholder="パスワード" value={editDraft.password} onChange={(e) => setEditDraft({ ...editDraft, password: e.target.value })} />
+                    </div>
+                    <TextInput type="text" placeholder="メモ" value={editDraft.notes} onChange={(e) => setEditDraft({ ...editDraft, notes: e.target.value })} className="w-full mb-3" />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={cancelEdit} className="text-xs px-2.5 py-1.5 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
+                      <button onClick={() => saveEdit(entry.id)} disabled={!editDraft.service.trim() || !editDraft.password} className="flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+                        <Save size={13} /> 保存
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div key={entry.id} className="rounded p-4" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
                   <div className="flex items-start justify-between gap-2">
@@ -98,7 +141,17 @@ export default function PasswordsView({ onError }: Props) {
                       <p className="text-sm font-bold">{entry.service}</p>
                       {entry.url && <a href={entry.url} target="_blank" rel="noopener noreferrer" className="text-xs underline" style={{ color: COLORS.navy }}>{entry.url}</a>}
                     </div>
-                    <button onClick={() => removeEntry(entry.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => startEdit(entry)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={14} /></button>
+                      {confirmDeleteId === entry.id ? (
+                        <div className="flex items-center gap-1.5 text-xs flex-shrink-0">
+                          <button onClick={() => removeEntry(entry.id)} className="underline font-bold" style={{ color: COLORS.vermillion }}>削除確定</button>
+                          <button onClick={() => setConfirmDeleteId(null)} className="underline" style={{ color: COLORS.slate }}>取消</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteId(entry.id)} style={{ color: COLORS.slate }} title="削除する"><X size={14} /></button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 mt-2 text-sm">
                     <span style={{ color: COLORS.slate }} className="w-16 flex-shrink-0">ID</span>
