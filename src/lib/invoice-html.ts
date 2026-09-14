@@ -69,10 +69,10 @@ const COMMON_STYLE = `
     table.inv-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:28px; }
     table.inv-table th, table.inv-table td { border:1px solid #888; padding:10px 12px; font-size:19px; vertical-align:middle; overflow-wrap:break-word; }
     table.inv-table th { background:#f1ede4; text-align:center; }
-    .section-cell { text-align:center; white-space:nowrap; width:8%; }
-    .no-cell { text-align:center; width:7%; }
+    .section-cell { text-align:center; white-space:nowrap; width:6%; }
+    .no-cell { text-align:center; white-space:nowrap; width:6%; }
     .desc-cell { text-align:left; }
-    .amount-cell { text-align:center; white-space:nowrap; width:18%; }
+    .amount-cell { text-align:center; white-space:nowrap; width:15%; }
     .date-cell { text-align:center; white-space:nowrap; width:15%; }
     .inv-total-row td { font-weight:bold; font-size:20px; border-top:3px double #333; }
     .inv-total-row .total-label { text-align:right; }
@@ -159,7 +159,7 @@ ${FIRM_PHONE}</div>
 
     <table class="inv-table">
       <thead>
-        <tr>${showSectionLabel ? "<th>項目</th>" : ""}<th>No.</th><th>摘要</th><th>金額</th></tr>
+        <tr>${showSectionLabel ? '<th class="section-cell">項目</th>' : ""}<th class="no-cell">No.</th><th class="desc-cell">摘要</th><th class="amount-cell">金額</th></tr>
       </thead>
       <tbody>
         ${bodyRowsHtml}
@@ -185,7 +185,7 @@ export function buildTimeChargeAttachment(rows: InvoiceTimeChargeRowForHtml[]): 
   return `${pageWrapperOpen()}
     <h2 class="inv-attachment-title">別紙　タイムチャージ明細</h2>
     <table class="inv-table">
-      <thead><tr><th class="date-cell">稼働日</th><th>開始〜終了</th><th>稼働時間</th><th>稼働内容</th></tr></thead>
+      <thead><tr><th class="date-cell">稼働日</th><th class="desc-cell">開始〜終了</th><th class="amount-cell">稼働時間</th><th class="desc-cell">稼働内容</th></tr></thead>
       <tbody>${bodyRows}</tbody>
     </table>
 ${pageWrapperClose()}`;
@@ -204,7 +204,7 @@ export function buildExpenseAttachment(rows: InvoiceExpenseRowForHtml[]): string
   return `${pageWrapperOpen()}
     <h2 class="inv-attachment-title">別紙　実費一覧</h2>
     <table class="inv-table">
-      <thead><tr><th class="date-cell">日付</th><th>金額</th><th>目的</th><th>経路</th></tr></thead>
+      <thead><tr><th class="date-cell">日付</th><th class="amount-cell">金額</th><th class="desc-cell">目的</th><th class="desc-cell">経路</th></tr></thead>
       <tbody>
         ${bodyRows}
         <tr class="inv-total-row"><td class="total-label">合計</td><td class="amount-cell">${yen(total)}</td><td colspan="2"></td></tr>
