@@ -51,34 +51,37 @@ export interface InvoiceForHtml {
 
 // 請求書PDF共通スタイル。
 // v10：全体的に文字サイズを拡大。No./摘要/金額は横・縦とも中央揃え。「税込ご請求額」ラベルは右揃え。
-// v11 3.5：セルは縦方向すべて中央揃えを維持しつつ、摘要列の内容は左揃えに変更。表はtable-layout:auto、
-// 項目（第N）列は約44pxに圧縮、摘要列は自動幅。表内文字サイズを17〜18px程度に拡大。
+// v11 3.5：セルは縦方向すべて中央揃えを維持しつつ、摘要列の内容は左揃えに変更。
+// v16：PDF化に使うhtml2canvasはtable-layout:autoの表を正しく100%幅へ広げられず、
+// 結果的に表全体が中央に寄って余白が生まれたり、項目（第N）列が想定より狭くなって
+// 文字が縦積みで折り返されることがあったため、table-layout:fixedと列ごとの割合指定に変更。
+// あわせて全体的に文字サイズを拡大。
 const COMMON_STYLE = `
     .inv-root * { box-sizing: border-box; }
-    .inv-root h1 { text-align:center; font-size:26px; letter-spacing:0.3em; margin:0 0 28px; }
+    .inv-root h1 { text-align:center; font-size:28px; letter-spacing:0.3em; margin:0 0 28px; }
     .inv-header-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
     .inv-client-block { padding-top:24px; }
-    .inv-client-name { font-size:19px; border-bottom:1px solid #333; padding-bottom:4px; min-width:220px; display:inline-block; }
-    .inv-firm-block { text-align:right; white-space:pre-line; font-size:13.5px; }
-    .inv-narrow { width:520px; max-width:100%; }
+    .inv-client-name { font-size:21px; border-bottom:1px solid #333; padding-bottom:4px; min-width:220px; display:inline-block; }
+    .inv-firm-block { text-align:right; white-space:pre-line; font-size:15px; }
     .inv-amount-box { width:100%; border-bottom:3px double #333; padding:10px 4px 14px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:baseline; }
-    .inv-amount-box .inv-label { font-size:16px; }
-    .inv-amount-box .inv-value { font-size:26px; font-weight:bold; }
-    table.inv-table { width:100%; table-layout:auto; border-collapse:collapse; margin-bottom:28px; }
-    table.inv-table th, table.inv-table td { border:1px solid #888; padding:8px 10px; font-size:17.5px; vertical-align:middle; }
+    .inv-amount-box .inv-label { font-size:17px; }
+    .inv-amount-box .inv-value { font-size:28px; font-weight:bold; }
+    table.inv-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:28px; }
+    table.inv-table th, table.inv-table td { border:1px solid #888; padding:10px 12px; font-size:19px; vertical-align:middle; overflow-wrap:break-word; }
     table.inv-table th { background:#f1ede4; text-align:center; }
-    .section-cell { text-align:center; white-space:nowrap; width:44px; }
-    .no-cell { text-align:center; width:36px; }
+    .section-cell { text-align:center; white-space:nowrap; width:8%; }
+    .no-cell { text-align:center; width:7%; }
     .desc-cell { text-align:left; }
-    .amount-cell { text-align:center; white-space:nowrap; width:130px; }
-    .inv-total-row td { font-weight:bold; font-size:18px; border-top:3px double #333; }
+    .amount-cell { text-align:center; white-space:nowrap; width:18%; }
+    .date-cell { text-align:center; white-space:nowrap; width:15%; }
+    .inv-total-row td { font-weight:bold; font-size:20px; border-top:3px double #333; }
     .inv-total-row .total-label { text-align:right; }
-    .inv-footer { white-space:pre-line; font-size:13.5px; color:#333; }
-    .inv-attachment-title { text-align:center; font-size:18px; letter-spacing:0.15em; margin:0 0 20px; }
+    .inv-footer { white-space:pre-line; font-size:15px; color:#333; }
+    .inv-attachment-title { text-align:center; font-size:20px; letter-spacing:0.15em; margin:0 0 20px; }
 `;
 
 function pageWrapperOpen(): string {
-  return `<div style="font-family: 'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP',serif; color:#1a1a1a; font-size:14.5px; line-height:1.7; padding:32px; background:#fff;">
+  return `<div style="font-family: 'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP',serif; color:#1a1a1a; font-size:16px; line-height:1.7; padding:32px; background:#fff;">
   <style>${COMMON_STYLE}</style>
   <div class="inv-root">`;
 }
@@ -149,25 +152,23 @@ ${FIRM_ADDRESS.join("\n")}
 ${FIRM_PHONE}</div>
     </div>
 
-    <div class="inv-narrow">
-      <div class="inv-amount-box">
-        <span class="inv-label">ご請求額</span>
-        <span class="inv-value">${yen(total)}</span>
-      </div>
-
-      <table class="inv-table">
-        <thead>
-          <tr>${showSectionLabel ? "<th>項目</th>" : ""}<th>No.</th><th>摘要</th><th>金額</th></tr>
-        </thead>
-        <tbody>
-          ${bodyRowsHtml}
-          <tr class="inv-total-row">
-            <td colspan="${showSectionLabel ? 3 : 2}" class="total-label">税込ご請求額</td>
-            <td class="amount-cell">${yen(total)}</td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="inv-amount-box">
+      <span class="inv-label">ご請求額</span>
+      <span class="inv-value">${yen(total)}</span>
     </div>
+
+    <table class="inv-table">
+      <thead>
+        <tr>${showSectionLabel ? "<th>項目</th>" : ""}<th>No.</th><th>摘要</th><th>金額</th></tr>
+      </thead>
+      <tbody>
+        ${bodyRowsHtml}
+        <tr class="inv-total-row">
+          <td colspan="${showSectionLabel ? 3 : 2}" class="total-label">税込ご請求額</td>
+          <td class="amount-cell">${yen(total)}</td>
+        </tr>
+      </tbody>
+    </table>
 
     <div class="inv-footer">${escapeHtml((inv.notes || "").trim())}</div>
 ${pageWrapperClose()}`;
@@ -178,13 +179,13 @@ export function buildTimeChargeAttachment(rows: InvoiceTimeChargeRowForHtml[]): 
   const bodyRows = rows
     .map(
       (r) =>
-        `<tr><td>${escapeHtml(formatDate(r.date))}</td><td class="desc-cell">${escapeHtml(r.startTime || "－")}〜${escapeHtml(r.endTime || "－")}</td><td class="amount-cell">${r.hours}時間</td><td class="desc-cell">${escapeHtml(r.content)}</td></tr>`
+        `<tr><td class="date-cell">${escapeHtml(formatDate(r.date))}</td><td class="desc-cell">${escapeHtml(r.startTime || "－")}〜${escapeHtml(r.endTime || "－")}</td><td class="amount-cell">${r.hours}時間</td><td class="desc-cell">${escapeHtml(r.content)}</td></tr>`
     )
     .join("");
   return `${pageWrapperOpen()}
     <h2 class="inv-attachment-title">別紙　タイムチャージ明細</h2>
     <table class="inv-table">
-      <thead><tr><th>稼働日</th><th>開始〜終了</th><th>稼働時間</th><th>稼働内容</th></tr></thead>
+      <thead><tr><th class="date-cell">稼働日</th><th>開始〜終了</th><th>稼働時間</th><th>稼働内容</th></tr></thead>
       <tbody>${bodyRows}</tbody>
     </table>
 ${pageWrapperClose()}`;
@@ -196,14 +197,14 @@ export function buildExpenseAttachment(rows: InvoiceExpenseRowForHtml[]): string
   const bodyRows = rows
     .map(
       (r) =>
-        `<tr><td>${escapeHtml(formatDate(r.date))}</td><td class="amount-cell">${yen(r.amount)}</td><td class="desc-cell">${escapeHtml(r.category)}</td><td class="desc-cell">${escapeHtml(routeDisplay(r))}</td></tr>`
+        `<tr><td class="date-cell">${escapeHtml(formatDate(r.date))}</td><td class="amount-cell">${yen(r.amount)}</td><td class="desc-cell">${escapeHtml(r.category)}</td><td class="desc-cell">${escapeHtml(routeDisplay(r))}</td></tr>`
     )
     .join("");
   const total = rows.reduce((s, r) => s + r.amount, 0);
   return `${pageWrapperOpen()}
     <h2 class="inv-attachment-title">別紙　実費一覧</h2>
     <table class="inv-table">
-      <thead><tr><th>日付</th><th>金額</th><th>目的</th><th>経路</th></tr></thead>
+      <thead><tr><th class="date-cell">日付</th><th>金額</th><th>目的</th><th>経路</th></tr></thead>
       <tbody>
         ${bodyRows}
         <tr class="inv-total-row"><td class="total-label">合計</td><td class="amount-cell">${yen(total)}</td><td colspan="2"></td></tr>
