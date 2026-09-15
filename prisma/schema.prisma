@@ -275,16 +275,30 @@ model AttendanceRecord {
   id         String   @id @default(cuid())
   personName String
   date       String // YYYY-MM-DD
-  clockIn    String   @default("") // "HH:MM"
-  clockOut   String   @default("")
-  breakStart String   @default("")
-  breakEnd   String   @default("")
-  leaveType  String   @default("") // v15："" | "full"（全日有給） | "half"（半日有給）
+  clockIn      String @default("") // "HH:MM"
+  clockOut     String @default("")
+  breakMinutes Int    @default(0) // v17：休憩時間（分）。開始・終了時刻ではなく分数で直接入力する
+  leaveType    String @default("") // v15："" | "full"（全日有給） | "half"（半日有給）
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  extraSegments AttendanceExtraSegment[]
+
   @@unique([personName, date])
   @@index([personName])
+}
+
+// v17：退勤後に改めて作業した分など、通常の出退勤に収まらない稼働時間を
+// 開始・終了時刻の組で複数件記録できるようにする。
+model AttendanceExtraSegment {
+  id           String           @id @default(cuid())
+  attendanceId String
+  attendance   AttendanceRecord @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  startTime    String // "HH:MM"
+  endTime      String // "HH:MM"
+  createdAt    DateTime         @default(now())
+
+  @@index([attendanceId])
 }
 
 // ─────────────────────────────────────────────────────────

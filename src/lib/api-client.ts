@@ -212,8 +212,12 @@ export const fetchAttendance = (personName: string, month?: string) =>
   request<AttendanceRecord[]>(`/api/attendance/${encodeURIComponent(personName)}${month ? `?month=${month}` : ""}`);
 export const saveAttendance = (
   personName: string,
-  payload: { date: string; clockIn: string; clockOut: string; breakStart: string; breakEnd: string; leaveType: string }
+  payload: { date: string; clockIn: string; clockOut: string; breakMinutes: number; leaveType: string }
 ) => request<AttendanceRecord>(`/api/attendance/${encodeURIComponent(personName)}`, { method: "POST", body: JSON.stringify(payload) });
+export const addAttendanceExtraSegment = (personName: string, payload: { date: string; startTime: string; endTime: string }) =>
+  request<AttendanceRecord>(`/api/attendance/${encodeURIComponent(personName)}/extra-segments`, { method: "POST", body: JSON.stringify(payload) });
+export const deleteAttendanceExtraSegment = (personName: string, segmentId: string) =>
+  request<AttendanceRecord>(`/api/attendance/${encodeURIComponent(personName)}/extra-segments/${segmentId}`, { method: "DELETE" });
 
 // ── タイムチャージ・日報 ──────────────────────────
 export const addTimeCharge = (payload: { date: string; caseId: string; startTime?: string; endTime?: string; hours: number; content?: string }) =>

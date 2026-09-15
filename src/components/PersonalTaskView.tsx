@@ -63,8 +63,10 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [monthAttendance, setMonthAttendance] = useState<AttendanceRecord[]>([]);
   const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
-  const [attendanceDraft, setAttendanceDraft] = useState({ clockIn: "", clockOut: "", breakStart: "", breakEnd: "", leaveType: "" });
+  const [attendanceDraft, setAttendanceDraft] = useState({ clockIn: "", clockOut: "", breakMinutes: "0", leaveType: "" });
   const [savingAttendance, setSavingAttendance] = useState(false);
+  const [newExtraSegment, setNewExtraSegment] = useState({ startTime: "", endTime: "" });
+  const [savingExtraSegment, setSavingExtraSegment] = useState(false);
   const [exportingAttendance, setExportingAttendance] = useState(false);
   const [exportMonth, setExportMonth] = useState(currentYearMonth());
 
@@ -169,13 +171,15 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
     setAttendanceDraft({
       clockIn: existing?.clockIn || "",
       clockOut: existing?.clockOut || "",
-      breakStart: existing?.breakStart || "",
-      breakEnd: existing?.breakEnd || "",
+      breakMinutes: String(existing?.breakMinutes ?? 0),
       leaveType: existing?.leaveType || "",
     });
+    setNewExtraSegment({ startTime: "", endTime: "" });
   }, [reportForm.date, monthAttendance]);
 
-  const applyAttendanceTime = (field: "clockIn" | "clockOut" | "breakStart" | "breakEnd", raw: string) => {
+  const currentExtraSegments = monthAttendance.find((r) => r.date === reportForm.date)?.extraSegments || [];
+
+  const applyAttendanceTime = (field: "clockIn" | "clockOut", raw: string) => {
     setAttendanceDraft((prev) => ({ ...prev, [field]: normalizeTimeInput(raw) }));
   };
 
@@ -184,11 +188,10 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
     const normalized = {
       clockIn: normalizeTimeInput(attendanceDraft.clockIn),
       clockOut: normalizeTimeInput(attendanceDraft.clockOut),
-      breakStart: normalizeTimeInput(attendanceDraft.breakStart),
-      breakEnd: normalizeTimeInput(attendanceDraft.breakEnd),
+      breakMinutes: Math.max(0, Math.round(Number(attendanceDraft.breakMinutes) || 0)),
       leaveType: attendanceDraft.leaveType,
     };
-    setAttendanceDraft(normalized);
+    setAttendanceDraft({ ...normalized, breakMinutes: String(normalized.breakMinutes) });
     setSavingAttendance(true);
     try {
       const saved = await api.saveAttendance(personName, { date: reportForm.date, ...normalized });
@@ -204,6 +207,41 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
     }
   };
 
+  const addExtraSegment = async () => {
+    if (!newExtraSegment.startTime.trim() || !newExtraSegment.endTime.trim()) return;
+    setSavingExtraSegment(true);
+    try {
+      const saved = await api.addAttendanceExtraSegment(personName, {
+        date: reportForm.date,
+        startTime: normalizeTimeInput(newExtraSegment.startTime),
+        endTime: normalizeTimeInput(newExtraSegment.endTime),
+      });
+      setMonthAttendance((prev) => {
+        const idx = prev.findIndex((r) => r.date === saved.date);
+        if (idx === -1) return [...prev, saved].sort((a, b) => (a.date < b.date ? -1 : 1));
+        return prev.map((r, i) => (i === idx ? saved : r));
+      });
+      setNewExtraSegment({ startTime: "", endTime: "" });
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "追加稼働時間の登録に失敗しました");
+    } finally {
+      setSavingExtraSegment(false);
+    }
+  };
+
+  const removeExtraSegment = async (segmentId: string) => {
+    try {
+      const saved = await api.deleteAttendanceExtraSegment(personName, segmentId);
+      setMonthAttendance((prev) => {
+        const idx = prev.findIndex((r) => r.date === saved.date);
+        if (idx === -1) return [...prev, saved].sort((a, b) => (a.date < b.date ? -1 : 1));
+        return prev.map((r, i) => (i === idx ? saved : r));
+      });
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "削除に失敗しました");
+    }
+  };
+
   const leaveBalance = isLeaveEligible(personName)
     ? computeLeaveBalance(
         personName,
@@ -214,7 +252,7 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
 
   // v16：繁忙度の目安として、勤怠を記録している職員（尾崎・岩下）に表示中の月の総残業時間を表示する。
   const monthlyOvertimeHours = isLeaveEligible(personName)
-    ? Math.round((monthAttendance.reduce((sum, r) => sum + calcOvertimeMinutes(r.clockIn, r.clockOut, r.breakStart, r.breakEnd, r.date), 0) / 60) * 10) / 10
+    ? Math.round((monthAttendance.reduce((sum, r) => sum + calcOvertimeMinutes(r.clockIn, r.clockOut, r.breakMinutes, r.date, r.extraSegments), 0) / 60) * 10) / 10
     : null;
 
   // xlsxはサイズが大きいため、アプリ起動時の読み込みを軽くする目的で使用時にのみ読み込む。
@@ -245,7 +283,7 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
         const weekday = new Date(y, m - 1, d).getDay();
         const r = recordByDate.get(dateStr);
         const scheduled = weekday === 0 || weekday === 6 ? "" : 480;
-        const workedHours = r ? calcWorkedHoursWithLeave(r.clockIn, r.clockOut, r.breakStart, r.breakEnd, r.leaveType) : "";
+        const workedHours = r ? calcWorkedHoursWithLeave(r.clockIn, r.clockOut, r.breakMinutes, r.leaveType, r.extraSegments) : "";
         const worked = workedHours ? Math.round(Number(workedHours) * 60) : "";
         scheduledSum += Number(scheduled) || 0;
         workedSum += Number(worked) || 0;
@@ -451,7 +489,7 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
               </button>
             )}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
             <label className="text-xs" style={{ color: COLORS.slate }}>
               出勤
               <TextInput type="text" placeholder="例：900" value={attendanceDraft.clockIn} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, clockIn: e.target.value })} onBlur={(e) => applyAttendanceTime("clockIn", e.target.value)} className="mt-1 w-full" />
@@ -461,13 +499,28 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
               <TextInput type="text" placeholder="例：1830" value={attendanceDraft.clockOut} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, clockOut: e.target.value })} onBlur={(e) => applyAttendanceTime("clockOut", e.target.value)} className="mt-1 w-full" />
             </label>
             <label className="text-xs" style={{ color: COLORS.slate }}>
-              休憩開始
-              <TextInput type="text" placeholder="例：1200" value={attendanceDraft.breakStart} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, breakStart: e.target.value })} onBlur={(e) => applyAttendanceTime("breakStart", e.target.value)} className="mt-1 w-full" />
+              休憩時間（分）
+              <TextInput type="number" placeholder="例：60" value={attendanceDraft.breakMinutes} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, breakMinutes: e.target.value })} className="mt-1 w-full" />
             </label>
-            <label className="text-xs" style={{ color: COLORS.slate }}>
-              休憩終了
-              <TextInput type="text" placeholder="例：1300" value={attendanceDraft.breakEnd} onChange={(e) => setAttendanceDraft({ ...attendanceDraft, breakEnd: e.target.value })} onBlur={(e) => applyAttendanceTime("breakEnd", e.target.value)} className="mt-1 w-full" />
-            </label>
+          </div>
+
+          <div className="mb-3">
+            <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.ink }}>追加稼働時間（退勤後の作業分など）</p>
+            {currentExtraSegments.length > 0 && (
+              <div className="flex flex-col gap-1.5 mb-2">
+                {currentExtraSegments.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between text-xs p-1.5 rounded" style={{ backgroundColor: COLORS.paper }}>
+                    <span>{s.startTime}〜{s.endTime}</span>
+                    <button onClick={() => removeExtraSegment(s.id)} style={{ color: COLORS.slate }}>削除</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <TextInput type="text" placeholder="開始（例：2130）" value={newExtraSegment.startTime} onChange={(e) => setNewExtraSegment({ ...newExtraSegment, startTime: e.target.value })} className="flex-1" />
+              <TextInput type="text" placeholder="終了（例：2200）" value={newExtraSegment.endTime} onChange={(e) => setNewExtraSegment({ ...newExtraSegment, endTime: e.target.value })} className="flex-1" />
+              <button onClick={addExtraSegment} disabled={savingExtraSegment || !newExtraSegment.startTime.trim() || !newExtraSegment.endTime.trim()} className="text-xs font-bold px-2.5 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+            </div>
           </div>
           {isLeaveEligible(personName) && (
             <div className="flex items-center gap-3 mb-3">
@@ -494,7 +547,7 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
           )}
           <div className="flex items-center justify-between flex-wrap gap-2">
             {(() => {
-              const worked = calcWorkedHoursWithLeave(attendanceDraft.clockIn, attendanceDraft.clockOut, attendanceDraft.breakStart, attendanceDraft.breakEnd, attendanceDraft.leaveType);
+              const worked = calcWorkedHoursWithLeave(attendanceDraft.clockIn, attendanceDraft.clockOut, Number(attendanceDraft.breakMinutes) || 0, attendanceDraft.leaveType, currentExtraSegments);
               return worked ? (
                 <p className="text-sm font-bold">稼働時間：{worked}時間{attendanceDraft.leaveType && `（有給${LEAVE_LABEL[attendanceDraft.leaveType]}分を含む）`}</p>
               ) : (

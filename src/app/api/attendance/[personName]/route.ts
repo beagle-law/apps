@@ -2,21 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { PERSONAL_TASK_TABS } from "@/lib/constants";
-
-function serialize(r: {
-  id: string;
-  personName: string;
-  date: string;
-  clockIn: string;
-  clockOut: string;
-  breakStart: string;
-  breakEnd: string;
-  leaveType: string;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return { ...r, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() };
-}
+import { attendanceInclude, serializeAttendance } from "@/lib/attendance-query";
 
 // 勤怠（v14）：出勤・退勤・休憩の時刻を記録する。月次でExcel出力し給与明細作成に使うため、
 // 閲覧は本人以外（管理者が集計する場合等）も可能。記録（POST）はなりすまし防止のため本人名義に固定する。
@@ -33,9 +19,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ pers
   const month = req.nextUrl.searchParams.get("month"); // YYYY-MM
   const records = await prisma.attendanceRecord.findMany({
     where: { personName: decoded, ...(month ? { date: { startsWith: month } } : {}) },
+    include: attendanceInclude,
     orderBy: { date: "asc" },
   });
-  return NextResponse.json(records.map(serialize));
+  return NextResponse.json(records.map(serializeAttendance));
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ personName: string }> }) {
@@ -52,8 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ per
     date?: string;
     clockIn?: string;
     clockOut?: string;
-    breakStart?: string;
-    breakEnd?: string;
+    breakMinutes?: number;
     leaveType?: string;
   };
   if (!body.date) {
@@ -66,8 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ per
   const data = {
     clockIn: body.clockIn?.trim() || "",
     clockOut: body.clockOut?.trim() || "",
-    breakStart: body.breakStart?.trim() || "",
-    breakEnd: body.breakEnd?.trim() || "",
+    breakMinutes: Math.max(0, Math.round(Number(body.breakMinutes) || 0)),
     leaveType: body.leaveType || "",
   };
 
@@ -75,6 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ per
     where: { personName_date: { personName: decoded, date: body.date } },
     create: { personName: decoded, date: body.date, ...data },
     update: data,
+    include: attendanceInclude,
   });
-  return NextResponse.json(serialize(record));
+  return NextResponse.json(serializeAttendance(record));
 }

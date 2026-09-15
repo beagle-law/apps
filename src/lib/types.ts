@@ -166,16 +166,24 @@ export interface TimeCharge {
   createdAt: string;
 }
 
-// 勤怠（v14、v15で有給区分を追加）
+// v17：退勤後に改めて作業した分などを開始・終了時刻の組で複数件記録する追加稼働時間
+export interface AttendanceExtraSegment {
+  id: string;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+}
+
+// 勤怠（v14、v15で有給区分を追加、v17で休憩を分数指定に変更・追加稼働時間を追加）
 export interface AttendanceRecord {
   id: string;
   personName: string;
   date: string;
   clockIn: string;
   clockOut: string;
-  breakStart: string;
-  breakEnd: string;
+  breakMinutes: number;
   leaveType: string; // "" | "full" | "half"
+  extraSegments: AttendanceExtraSegment[];
   createdAt: string;
   updatedAt: string;
 }
