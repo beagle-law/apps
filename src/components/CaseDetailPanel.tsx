@@ -552,6 +552,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                   className="text-xl mt-1 w-full rounded outline-none px-1.5 py-1"
                   style={{ fontFamily: FONT_MINCHO, letterSpacing: "0.02em", border: `1px solid ${COLORS.brassLight}` }}
                 />
+                <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>記載された内容は他のメンバーは閲覧できません。</p>
               </div>
             </div>
           </div>

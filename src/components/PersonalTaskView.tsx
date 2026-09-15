@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { User, Clock, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS } from "@/lib/constants";
-import { formatDate, formatDateShort, todayStr, currentYearMonth, shiftDateStr, formatYearMonth } from "@/lib/dates";
+import { formatDate, formatDateShort, todayStr, currentYearMonth, shiftDateStr, shiftYearMonth, formatYearMonth } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes } from "@/lib/business/timecharge";
-import { calcWorkedHoursWithLeave } from "@/lib/business/attendance";
+import { calcWorkedHoursWithLeave, calcOvertimeMinutes } from "@/lib/business/attendance";
 import { isLeaveEligible, computeLeaveBalance } from "@/lib/business/paidLeave";
 import { TextInput } from "@/components/ui";
 import UpcomingHearingsView from "@/components/UpcomingHearingsView";
@@ -55,6 +55,7 @@ interface Props {
 export default function PersonalTaskView({ personName, cases, onError, onOpenCase }: Props) {
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
   const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", hours: "", content: "" });
+  const [tcViewMonth, setTcViewMonth] = useState(currentYearMonth());
   const [reportForm, setReportForm] = useState<ReportForm>(emptyReportForm(todayStr()));
   const [monthlyGoalPercent, setMonthlyGoalPercent] = useState<string>("");
   const [historyYear, setHistoryYear] = useState(String(new Date().getFullYear()));
@@ -209,6 +210,11 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
         allAttendance.filter((r) => r.leaveType).map((r) => ({ date: r.date, days: r.leaveType === "full" ? 1 : 0.5 })),
         todayStr()
       )
+    : null;
+
+  // v16：繁忙度の目安として、勤怠を記録している職員（尾崎・岩下）に表示中の月の総残業時間を表示する。
+  const monthlyOvertimeHours = isLeaveEligible(personName)
+    ? Math.round((monthAttendance.reduce((sum, r) => sum + calcOvertimeMinutes(r.clockIn, r.clockOut, r.breakStart, r.breakEnd, r.date), 0) / 60) * 10) / 10
     : null;
 
   // xlsxはサイズが大きいため、アプリ起動時の読み込みを軽くする目的で使用時にのみ読み込む。
@@ -414,6 +420,12 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
             </div>
           </div>
 
+          {monthlyOvertimeHours !== null && (
+            <div className="mb-3 p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+              <p className="text-sm font-bold">{formatYearMonth(attendanceMonth)}の総残業時間：{monthlyOvertimeHours}時間</p>
+            </div>
+          )}
+
           {leaveBalance && (
             <div className="mb-3 p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
               <p className="text-sm font-bold mb-1.5">有給休暇残日数：{leaveBalance.totalRemaining}日</p>
@@ -508,33 +520,47 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
             <TextInput type="number" placeholder="時間" value={timeChargeForm.hours} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, hours: e.target.value })} className="sm:w-24" />
             <button onClick={addTimeCharge} disabled={!timeChargeForm.caseId || !timeChargeForm.hours} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
           </div>
-          {summary.timeCharges.length === 0 ? (
-            <p className="text-sm" style={{ color: COLORS.slate }}>タイムチャージはありません。</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {summary.timeCharges.map((t) => (
-                <div key={t.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                  <div className="flex-1">
-                    <span className="text-xs" style={{ color: COLORS.slate }}>{formatDateShort(t.date)}　</span>
-                    {t.startTime && t.endTime && <span className="text-xs" style={{ color: COLORS.slate }}>{t.startTime}〜{t.endTime}　</span>}
-                    <span className="font-bold">{t.hours}時間</span>
-                    {t.billed && <span className="text-xs ml-2 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>請求済み</span>}
-                    <p className="text-xs" style={{ color: COLORS.slate }}>{t.case.title}　{t.content}</p>
-                  </div>
-                  <button onClick={() => removeTimeCharge(t.id)} className="text-xs" style={{ color: COLORS.slate }}>削除</button>
-                </div>
-              ))}
-              <p className="text-xs font-bold text-right" style={{ color: COLORS.slate }}>合計：{summary.timeCharges.reduce((s, t) => s + t.hours, 0)}時間</p>
-              <div className="flex flex-col gap-1 mt-1 pt-2" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
-                {caseBreakdown(summary.timeCharges).map((c) => (
-                  <div key={c.caseId} className="flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>
-                    <span className="truncate">{c.title}（No.{c.caseNumber}）</span>
-                    <span className="flex-shrink-0 ml-2">{c.hours}時間</span>
+
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <button type="button" onClick={() => setTcViewMonth((m) => shiftYearMonth(m, -1))} style={{ color: COLORS.slate }}><ChevronLeft size={16} /></button>
+            <span className="text-sm font-bold">{formatYearMonth(tcViewMonth)}</span>
+            <button type="button" onClick={() => setTcViewMonth((m) => shiftYearMonth(m, 1))} style={{ color: COLORS.slate }}><ChevronRight size={16} /></button>
+          </div>
+
+          {(() => {
+            const monthCharges = summary.timeCharges.filter((t) => t.date.startsWith(tcViewMonth));
+            if (monthCharges.length === 0) {
+              return <p className="text-sm" style={{ color: COLORS.slate }}>この月のタイムチャージはありません。</p>;
+            }
+            return (
+              <div className="flex flex-col gap-2">
+                {monthCharges.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                    <div className="flex-1">
+                      <span className="text-xs" style={{ color: COLORS.slate }}>{formatDateShort(t.date)}　</span>
+                      {t.startTime && t.endTime && <span className="text-xs" style={{ color: COLORS.slate }}>{t.startTime}〜{t.endTime}　</span>}
+                      <span className="font-bold">{t.hours}時間</span>
+                      {t.billed && <span className="text-xs ml-2 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>請求済み</span>}
+                      <p className="text-xs">
+                        <button onClick={() => onOpenCase(t.case.id)} className="underline hover:opacity-70" style={{ color: COLORS.navy }}>{t.case.title}</button>
+                        <span style={{ color: COLORS.slate }}>　{t.content}</span>
+                      </p>
+                    </div>
+                    <button onClick={() => removeTimeCharge(t.id)} className="text-xs" style={{ color: COLORS.slate }}>削除</button>
                   </div>
                 ))}
+                <p className="text-xs font-bold text-right" style={{ color: COLORS.slate }}>合計：{monthCharges.reduce((s, t) => s + t.hours, 0)}時間</p>
+                <div className="flex flex-col gap-1 mt-1 pt-2" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
+                  {caseBreakdown(monthCharges).map((c) => (
+                    <button key={c.caseId} onClick={() => onOpenCase(c.caseId)} className="flex items-center justify-between text-xs hover:opacity-70" style={{ color: COLORS.slate }}>
+                      <span className="truncate underline">{c.title}（No.{c.caseNumber}）</span>
+                      <span className="flex-shrink-0 ml-2">{c.hours}時間</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {DAILY_REPORT_STAFF.includes(personName) && summary.dailyReports && (

@@ -28,3 +28,18 @@ export function calcWorkedHoursWithLeave(
   const total = (base ? Number(base) : 0) + leaveHours;
   return String(Math.round(total * 100) / 100);
 }
+
+/** その日の所定労働時間（分）。平日480分（8時間）、土日0分（v16）。 */
+export function scheduledMinutesForDate(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const weekday = new Date(y, m - 1, d).getDay();
+  return weekday === 0 || weekday === 6 ? 0 : 480;
+}
+
+/** 実労働時間が所定労働時間を超えた分（残業時間・分）。有給分は残業に含めない（v16）。 */
+export function calcOvertimeMinutes(clockIn: string, clockOut: string, breakStart: string, breakEnd: string, dateStr: string): number {
+  const workedStr = calcWorkedHours(clockIn, clockOut, breakStart, breakEnd);
+  if (!workedStr) return 0;
+  const workedMin = Math.round(Number(workedStr) * 60);
+  return Math.max(0, workedMin - scheduledMinutesForDate(dateStr));
+}
