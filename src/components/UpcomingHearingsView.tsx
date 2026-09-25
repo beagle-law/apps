@@ -53,7 +53,7 @@ export default function UpcomingHearingsView({ cases, onOpenCase }: Props) {
                     )}
                   </div>
                   <p className="text-sm font-semibold mt-1" style={{ fontFamily: FONT_MINCHO }}>{item.case.title}</p>
-                  <p className="text-sm mt-1">{item.content}</p>
+                  <p className="text-sm mt-1 whitespace-pre-wrap">{item.content}</p>
                   {item.kind === "hearing" && item.docDeadline && (
                     <p className="text-xs mt-0.5" style={{ color: item.docDeadline < t ? COLORS.vermillion : COLORS.slate }}>書面提出期限：{formatDate(item.docDeadline)}</p>
                   )}
