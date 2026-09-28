@@ -218,6 +218,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     run(() => api.patchCase(selectedCase.id, { ballAssignee: next }));
   };
   const toggleHidden = () => {
+    if (!selectedCase.hidden && !window.confirm("この案件を一覧から非表示にします（案件一覧・今後の期日に表示されなくなります）。よろしいですか？")) return;
     run(() => api.patchCase(selectedCase.id, { hidden: !selectedCase.hidden }));
   };
   const saveTitle = () => {

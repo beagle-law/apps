@@ -133,6 +133,7 @@ export default function CaseListSidebar({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (!c.hidden && !window.confirm(`「${c.title}」を一覧から非表示にします（案件一覧・今後の期日に表示されなくなります）。よろしいですか？`)) return;
                 onToggleHidden(c.id);
               }}
               className="absolute top-1.5 right-1.5 p-1 rounded hover:opacity-70"
