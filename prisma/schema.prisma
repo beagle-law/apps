@@ -67,23 +67,23 @@ model Client {
 // ─────────────────────────────────────────────────────────
 
 model Case {
-  id           String  @id @default(cuid())
-  caseNumber   String
-  title        String
-  clientName   String // 暗号化
-  clientId     String?
-  client       Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  id         String  @id @default(cuid())
+  caseNumber String
+  title      String
+  clientName String // 暗号化
+  clientId   String?
+  client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
-  stage        String
-  closedDate   String   @default("") // 終結日（v10 3.1）。この日付を基準に月ごとの終結件数を集計する
-  priority     String   @default("通常") // v10でUI廃止（4.8）。データ構造上は残置
-  ballOwner    String   @default("事務所")
-  ballAssignee String   @default("")
-  hidden       Boolean  @default(false)
-  deadline     String   @default("")
+  stage            String
+  closedDate       String  @default("") // 終結日（v10 3.1）。この日付を基準に月ごとの終結件数を集計する
+  priority         String  @default("通常") // v10でUI廃止（4.8）。データ構造上は残置
+  ballOwner        String  @default("事務所")
+  ballAssignee     String  @default("")
+  hidden           Boolean @default(false)
+  deadline         String  @default("")
   isTimeChargeCase Boolean @default(false) // タイムチャージの対象案件かどうか（v7 3.1・4.3）
-  timeChargeRate Int?    // タイムチャージ時間単価（円）。請求書作成の同機能と共通（v10 3.1）
-  customFields Json     @default("[]") // 案件情報カード下部の自由項目 {label,value}[]（v10 3.1）
+  timeChargeRate   Int? // タイムチャージ時間単価（円）。請求書作成の同機能と共通（v10 3.1）
+  customFields     Json    @default("[]") // 案件情報カード下部の自由項目 {label,value}[]（v10 3.1）
 
   ownerId   String?
   owner     User?   @relation("CaseOwner", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -103,28 +103,28 @@ model Case {
   retainerStatus String @default("対応不要")
 
   // 主張予定メモ（v13で単一テキストから積み重ね式のメモ一覧に変更。claimMemoは旧データ互換のため残置・未使用）
-  claimMemo String @default("")
+  claimMemo  String           @default("")
   claimMemos ClaimMemoEntry[]
 
   // 案件情報（v4：相手方代理人情報はここに一本化。旧opposingCounselName/opposingCounselContact*は廃止）
-  caseClassification         String  @default("")
-  opposingParty               String  @default("") // 暗号化
-  opposingPartyPhone           String  @default("") // 暗号化
-  opposingPartyContactMethod   String  @default("")
-  opposingCounselOffice        String  @default("") // 暗号化（相手方代理人の事務所名）
-  opposingCounselPersonName    String  @default("") // 暗号化（相手方代理人の氏名）
-  opposingCounselPhone         String  @default("") // 暗号化
-  opposingCounselFax            String  @default("") // 暗号化
-  opposingCounselEmail          String  @default("") // 暗号化
-  opposingCounselContactMethod  String  @default("")
-  engagementDate           String  @default("")
-  litigationEngagementDate String  @default("")
-  noticeSentDate           String  @default("")
-  filingDate               String  @default("")
-  claimAmount              Int?
-  retainerFee              Int?
-  expectedFee              Int?
-  expectedFeeDate          String  @default("")
+  caseClassification           String @default("")
+  opposingParty                String @default("") // 暗号化
+  opposingPartyPhone           String @default("") // 暗号化
+  opposingPartyContactMethod   String @default("")
+  opposingCounselOffice        String @default("") // 暗号化（相手方代理人の事務所名）
+  opposingCounselPersonName    String @default("") // 暗号化（相手方代理人の氏名）
+  opposingCounselPhone         String @default("") // 暗号化
+  opposingCounselFax           String @default("") // 暗号化
+  opposingCounselEmail         String @default("") // 暗号化
+  opposingCounselContactMethod String @default("")
+  engagementDate               String @default("")
+  litigationEngagementDate     String @default("")
+  noticeSentDate               String @default("")
+  filingDate                   String @default("")
+  claimAmount                  Int?
+  retainerFee                  Int?
+  expectedFee                  Int?
+  expectedFeeDate              String @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -210,8 +210,8 @@ model Expense {
   notes       String   @default("")
   createdAt   DateTime @default(now())
 
-  billedInInvoiceId String?  // この実費が反映済みの請求書（v10 3.3）
-  invoice            Invoice? @relation(fields: [billedInInvoiceId], references: [id], onDelete: SetNull)
+  billedInInvoiceId String? // この実費が反映済みの請求書（v10 3.3）
+  invoice           Invoice? @relation(fields: [billedInInvoiceId], references: [id], onDelete: SetNull)
   checkedForBilling Boolean  @default(false) // 顧客詳細「実費履歴」の請求チェック（v12 3.2）
 
   @@index([caseId])
@@ -255,32 +255,32 @@ model TimeCharge {
 }
 
 model DailyReport {
-  id            String   @id @default(cuid())
-  personName    String
-  date          String
-  caseId        String?
-  mostImportant String   @default("") // 本日一番大事なこと（引き継がない）
-  todayTasks    String   @default("") // 本日やること（未記入日は前回から引き継ぎ）
-  waitingCases  String   @default("") // 待ち案件（未記入日は前回から引き継ぎ）
-  workHours     String   @default("") // 本日の業務時間・実績（退勤時記入、v11 3.2）
-  remainingTasks String  @default("") // 本日時点での残タスク（退勤時記入）
-  todaySuccess  String   @default("") // 今日の成功（引き継がない）
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  personName     String
+  date           String
+  caseId         String?
+  mostImportant  String   @default("") // 本日一番大事なこと（引き継がない）
+  todayTasks     String   @default("") // 本日やること（未記入日は前回から引き継ぎ）
+  waitingCases   String   @default("") // 待ち案件（未記入日は前回から引き継ぎ）
+  workHours      String   @default("") // 本日の業務時間・実績（退勤時記入、v11 3.2）
+  remainingTasks String   @default("") // 本日時点での残タスク（退勤時記入）
+  todaySuccess   String   @default("") // 今日の成功（引き継がない）
+  createdAt      DateTime @default(now())
 
   @@index([personName])
 }
 
 // 勤怠（v14）：出勤・退勤・休憩の時刻を記録し、稼働時間を自動算出する。月次でExcel出力し給与明細作成に使う。
 model AttendanceRecord {
-  id         String   @id @default(cuid())
-  personName String
-  date       String // YYYY-MM-DD
-  clockIn      String @default("") // "HH:MM"
-  clockOut     String @default("")
-  breakMinutes Int    @default(0) // v17：休憩時間（分）。開始・終了時刻ではなく分数で直接入力する
-  leaveType    String @default("") // v15："" | "full"（全日有給） | "half"（半日有給）
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(cuid())
+  personName   String
+  date         String // YYYY-MM-DD
+  clockIn      String   @default("") // "HH:MM"
+  clockOut     String   @default("")
+  breakMinutes Int      @default(0) // v17：休憩時間（分）。開始・終了時刻ではなく分数で直接入力する
+  leaveType    String   @default("") // v15："" | "full"（全日有給） | "half"（半日有給）
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   extraSegments AttendanceExtraSegment[]
 
@@ -306,14 +306,15 @@ model AttendanceExtraSegment {
 // ─────────────────────────────────────────────────────────
 
 model PasswordEntry {
-  id        String   @id @default(cuid())
-  category  String
-  service   String
-  url       String   @default("")
-  username  String   @default("") // 暗号化
-  password  String // 暗号化
-  notes     String   @default("")
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  category      String
+  service       String
+  url           String   @default("")
+  username      String   @default("") // 暗号化
+  usernameLabel String   @default("ID") // v18：ID欄の呼び方（ID・登録コード等）を項目ごとに変更できるようにする
+  password      String // 暗号化
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
 
   @@index([category])
 }
@@ -400,24 +401,24 @@ model CaseClassification {
 // v12 3.1：請求書の紐づけ先を「案件」から「顧客」に変更。clientIdが主キー、caseIdは
 // v11以前のデータ互換のためのフォールバックとして残置（表示・遷移は clientId 優先）。
 model Invoice {
-  id            String   @id @default(cuid())
-  invoiceNumber Int      @unique
-  clientId      String?
-  client        Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  caseId        String? // 廃止（v11以前の過去データ互換用）
-  case          Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
-  clientName    String // 発行時点のスナップショット（暗号化）。addresseeまたは顧客名から決定
-  addressee     String   @default("") // 宛先の自由入力欄（v12 3.1）。空欄なら顧客名を使用
-  caseTitle     String   @default("") // 廃止・表示しない（過去データ互換用に残置）
-  issueDate     String
-  billingMonth  String   @default("") // 請求対象月（YYYY-MM）。任意項目、すべての請求書に必須ではない
-  honorific     String   @default("御中") // 宛名の敬称「御中」|「様」（v10 3.2）
-  dueDate       String   @default("") // 支払期限（v10 3.2）
-  notes         String   @default("")
-  sourceExpenseIds Json  @default("[]") // 作成時点で請求チェックが入っていた実費ID一覧（v12 3.1）
-  paid          Boolean  @default(false)
-  paidAt        String   @default("")
-  createdAt     DateTime @default(now())
+  id               String   @id @default(cuid())
+  invoiceNumber    Int      @unique
+  clientId         String?
+  client           Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  caseId           String? // 廃止（v11以前の過去データ互換用）
+  case             Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  clientName       String // 発行時点のスナップショット（暗号化）。addresseeまたは顧客名から決定
+  addressee        String   @default("") // 宛先の自由入力欄（v12 3.1）。空欄なら顧客名を使用
+  caseTitle        String   @default("") // 廃止・表示しない（過去データ互換用に残置）
+  issueDate        String
+  billingMonth     String   @default("") // 請求対象月（YYYY-MM）。任意項目、すべての請求書に必須ではない
+  honorific        String   @default("御中") // 宛名の敬称「御中」|「様」（v10 3.2）
+  dueDate          String   @default("") // 支払期限（v10 3.2）
+  notes            String   @default("")
+  sourceExpenseIds Json     @default("[]") // 作成時点で請求チェックが入っていた実費ID一覧（v12 3.1）
+  paid             Boolean  @default(false)
+  paidAt           String   @default("")
+  createdAt        DateTime @default(now())
 
   sections    InvoiceSection[]
   timeCharges TimeCharge[]

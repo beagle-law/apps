@@ -6,6 +6,7 @@ interface RawPasswordEntry {
   service: string;
   url: string;
   username: string;
+  usernameLabel: string;
   password: string;
   notes: string;
   createdAt: Date;
@@ -18,6 +19,7 @@ export function serializePasswordEntry(p: RawPasswordEntry) {
     service: p.service,
     url: p.url,
     username: decryptField(p.username),
+    usernameLabel: p.usernameLabel,
     password: decryptField(p.password),
     notes: p.notes,
     createdAt: p.createdAt.toISOString(),

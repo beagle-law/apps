@@ -208,6 +208,7 @@ export interface PasswordEntry {
   service: string;
   url: string;
   username: string;
+  usernameLabel: string; // v18：ID欄の呼び方（ID・登録コード等）を項目ごとに変更できる
   password: string;
   notes: string;
   createdAt: string;

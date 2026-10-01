@@ -15,6 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     service?: string;
     url?: string;
     username?: string;
+    usernameLabel?: string;
     password?: string;
     notes?: string;
   };
@@ -24,6 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.service !== undefined) data.service = body.service;
   if (body.url !== undefined) data.url = body.url;
   if (body.username !== undefined) data.username = encryptField(body.username);
+  if (body.usernameLabel !== undefined) data.usernameLabel = body.usernameLabel.trim() || "ID";
   if (body.password !== undefined) data.password = encryptField(body.password);
   if (body.notes !== undefined) data.notes = body.notes;
 

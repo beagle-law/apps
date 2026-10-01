@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     service?: string;
     url?: string;
     username?: string;
+    usernameLabel?: string;
     password?: string;
     notes?: string;
   };
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
       service: body.service.trim(),
       url: body.url?.trim() || "",
       username: encryptField(body.username?.trim() || ""),
+      usernameLabel: body.usernameLabel?.trim() || "ID",
       password: encryptField(body.password),
       notes: body.notes?.trim() || "",
     },

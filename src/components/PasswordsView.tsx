@@ -11,13 +11,13 @@ interface Props {
   onError: (msg: string) => void;
 }
 
-const emptyForm = { category: PASSWORD_CATEGORIES[0], service: "", url: "", username: "", password: "", notes: "" };
+const emptyForm = { category: PASSWORD_CATEGORIES[0], service: "", url: "", username: "", usernameLabel: "ID", password: "", notes: "" };
 
 export default function PasswordsView({ onError }: Props) {
   const [entries, setEntries] = useState<PasswordEntry[]>([]);
   const [category, setCategory] = useState(PASSWORD_CATEGORIES[0]);
   const [form, setForm] = useState(emptyForm);
-  const [visibleIds, setVisibleIds] = useState<string[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]); // デフォルトは表示状態。個別に隠したものだけ記録する
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState(emptyForm);
@@ -48,11 +48,11 @@ export default function PasswordsView({ onError }: Props) {
     }
   };
 
-  const toggleVisible = (id: string) => setVisibleIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const toggleVisible = (id: string) => setHiddenIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const startEdit = (entry: PasswordEntry) => {
     setEditingId(entry.id);
-    setEditDraft({ category: entry.category, service: entry.service, url: entry.url, username: entry.username, password: entry.password, notes: entry.notes });
+    setEditDraft({ category: entry.category, service: entry.service, url: entry.url, username: entry.username, usernameLabel: entry.usernameLabel || "ID", password: entry.password, notes: entry.notes });
   };
 
   const cancelEdit = () => setEditingId(null);
@@ -100,7 +100,10 @@ export default function PasswordsView({ onError }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
             <TextInput type="text" placeholder="サービス名" value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} />
             <TextInput type="text" placeholder="URL" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
-            <TextInput type="text" placeholder="ID / ユーザー名" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+            <div className="flex gap-2">
+              <TextInput type="text" placeholder="ID欄の呼び方" value={form.usernameLabel} onChange={(e) => setForm({ ...form, usernameLabel: e.target.value })} className="w-28 flex-shrink-0" />
+              <TextInput type="text" placeholder="ID / ユーザー名など" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="flex-1" />
+            </div>
             <TextInput type="text" placeholder="パスワード" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
           <TextInput type="text" placeholder="メモ" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full mb-3" />
@@ -112,7 +115,7 @@ export default function PasswordsView({ onError }: Props) {
         ) : (
           <div className="flex flex-col gap-2">
             {filtered.map((entry) => {
-              const visible = visibleIds.includes(entry.id);
+              const visible = !hiddenIds.includes(entry.id);
 
               if (editingId === entry.id) {
                 return (
@@ -120,7 +123,10 @@ export default function PasswordsView({ onError }: Props) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                       <TextInput type="text" placeholder="サービス名" value={editDraft.service} onChange={(e) => setEditDraft({ ...editDraft, service: e.target.value })} />
                       <TextInput type="text" placeholder="URL" value={editDraft.url} onChange={(e) => setEditDraft({ ...editDraft, url: e.target.value })} />
-                      <TextInput type="text" placeholder="ID / ユーザー名" value={editDraft.username} onChange={(e) => setEditDraft({ ...editDraft, username: e.target.value })} />
+                      <div className="flex gap-2">
+                        <TextInput type="text" placeholder="ID欄の呼び方" value={editDraft.usernameLabel} onChange={(e) => setEditDraft({ ...editDraft, usernameLabel: e.target.value })} className="w-28 flex-shrink-0" />
+                        <TextInput type="text" placeholder="ID / ユーザー名など" value={editDraft.username} onChange={(e) => setEditDraft({ ...editDraft, username: e.target.value })} className="flex-1" />
+                      </div>
                       <TextInput type="text" placeholder="パスワード" value={editDraft.password} onChange={(e) => setEditDraft({ ...editDraft, password: e.target.value })} />
                     </div>
                     <TextInput type="text" placeholder="メモ" value={editDraft.notes} onChange={(e) => setEditDraft({ ...editDraft, notes: e.target.value })} className="w-full mb-3" />
@@ -154,7 +160,7 @@ export default function PasswordsView({ onError }: Props) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-2 text-sm">
-                    <span style={{ color: COLORS.slate }} className="w-16 flex-shrink-0">ID</span>
+                    <span style={{ color: COLORS.slate }} className="w-16 flex-shrink-0 truncate" title={entry.usernameLabel || "ID"}>{entry.usernameLabel || "ID"}</span>
                     <span className="flex-1">{entry.username || "－"}</span>
                     {entry.username && <button onClick={() => navigator.clipboard.writeText(entry.username)} style={{ color: COLORS.navy }}><Copy size={13} /></button>}
                   </div>
