@@ -72,7 +72,7 @@ export default function PasswordsView({ onError }: Props) {
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="flex items-center gap-2 px-4 py-2 mb-4 text-sm rounded" style={{ backgroundColor: "#F3DEDC", color: COLORS.vermillion }}>
           <AlertTriangle size={16} className="flex-shrink-0" />
           パスワードは保存時に暗号化されますが、閲覧できるメンバーは共通です。取り扱いに注意してください。
@@ -97,7 +97,7 @@ export default function PasswordsView({ onError }: Props) {
 
         <div className="rounded p-5 mb-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>新規登録（{category}）</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
             <TextInput type="text" placeholder="サービス名" value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} />
             <TextInput type="text" placeholder="URL" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
             <div className="flex gap-2">
@@ -113,7 +113,7 @@ export default function PasswordsView({ onError }: Props) {
         {filtered.length === 0 ? (
           <p className="text-sm py-10 text-center rounded" style={{ color: COLORS.slate, backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>登録されているパスワードはありません。</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 items-start">
             {filtered.map((entry) => {
               const visible = !hiddenIds.includes(entry.id);
 
