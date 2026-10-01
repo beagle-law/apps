@@ -97,6 +97,7 @@ function financeDraftFromCase(c: Case) {
     opposingCounselEmail: c.opposingCounselEmail,
     opposingCounselContactMethod: c.opposingCounselContactMethod,
     engagementDate: c.engagementDate,
+    closedDate: c.closedDate,
     litigationEngagementDate: c.litigationEngagementDate,
     noticeSentDate: c.noticeSentDate,
     filingDate: c.filingDate,
@@ -984,6 +985,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <label className="text-xs" style={{ color: COLORS.slate }}>
             受任日
             <TextInput type="date" value={financeDraft.engagementDate} onChange={(e) => { setFinanceDraft({ ...financeDraft, engagementDate: e.target.value }); setFinanceSaved(false); }} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            終結日
+            <TextInput type="date" value={financeDraft.closedDate} onChange={(e) => { setFinanceDraft({ ...financeDraft, closedDate: e.target.value }); setFinanceSaved(false); }} className="mt-1 w-full" />
           </label>
           <label className="text-xs" style={{ color: COLORS.slate }}>
             訴訟受任日

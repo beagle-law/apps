@@ -55,6 +55,58 @@ function BarRow({ label, value, max, formatValue }: { label: string; value: numb
   );
 }
 
+// v19：受任件数・終結件数を月別／年別に集計し、各期間の案件一覧をホバーで表示する。
+function groupCasesByPeriod(cases: Case[], dateField: "engagementDate" | "closedDate", granularity: "month" | "year") {
+  const map = new Map<string, Case[]>();
+  for (const c of cases) {
+    const d = c[dateField];
+    if (!d) continue;
+    const key = granularity === "year" ? d.slice(0, 4) : d.slice(0, 7);
+    const list = map.get(key) || [];
+    list.push(c);
+    map.set(key, list);
+  }
+  return [...map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+}
+
+function PeriodCountRow({
+  label,
+  cases,
+  cumulative,
+  max,
+  onOpenCase,
+}: {
+  label: string;
+  cases: Case[];
+  cumulative: number;
+  max: number;
+  onOpenCase: (id: string) => void;
+}) {
+  const pct = max > 0 ? Math.max(2, (cases.length / max) * 100) : 0;
+  return (
+    <div className="relative group flex items-center gap-2 text-sm">
+      <span className="flex-shrink-0" style={{ width: 70, color: COLORS.slate }}>{label}</span>
+      <div className="flex-1 rounded overflow-hidden" style={{ backgroundColor: COLORS.paper, height: 16 }}>
+        <div style={{ width: `${pct}%`, height: "100%", backgroundColor: COLORS.vermillion, borderRadius: 4 }} />
+      </div>
+      <span className="flex-shrink-0 text-xs" style={{ width: 110, textAlign: "right", color: COLORS.ink }}>{cases.length}件（累計{cumulative}件）</span>
+      {cases.length > 0 && (
+        <div
+          className="hidden group-hover:block absolute left-0 top-full mt-1 z-10 rounded p-3 text-xs shadow-lg"
+          style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, width: 280, maxHeight: 260, overflowY: "auto" }}
+        >
+          {cases.map((c) => (
+            <button key={c.id} onClick={() => onOpenCase(c.id)} className="flex items-center justify-between gap-2 py-0.5 w-full text-left hover:opacity-70">
+              <span className="truncate">{c.title}</span>
+              <span className="flex-shrink-0 ml-2" style={{ color: COLORS.slate }}>No.{c.caseNumber}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SummaryCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
@@ -111,6 +163,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   const [anchor, setAnchor] = useState(todayStr());
   const [sortKey, setSortKey] = useState<ColumnKey>("caseNumber");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const [caseEventGranularity, setCaseEventGranularity] = useState<"month" | "year">("month");
 
   const visibleCases = cases.filter((c) => !c.hidden && !c.isPrivate);
   const range = getPeriodRange(granularity, anchor);
@@ -190,19 +243,24 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   const retainerRows = [...retainerByClassification.entries()].sort((a, b) => b[1] - a[1]);
   const retainerMax = Math.max(1, ...retainerRows.map(([, v]) => v));
 
-  const closedByMonth = new Map<string, number>();
-  visibleCases
-    .filter((c) => c.stage === "終結" && c.closedDate)
-    .forEach((c) => {
-      const ym = c.closedDate.slice(0, 7);
-      closedByMonth.set(ym, (closedByMonth.get(ym) || 0) + 1);
-    });
-  const closedMonths = [...closedByMonth.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
-  const closedMax = Math.max(1, ...closedMonths.map(([, v]) => v));
-  let cumulative = 0;
-  const closedMonthsWithCumulative = closedMonths.map(([ym, count]) => {
-    cumulative += count;
-    return { ym, count, cumulative };
+  const engagementGroups = groupCasesByPeriod(visibleCases, "engagementDate", caseEventGranularity);
+  const engagementMax = Math.max(1, ...engagementGroups.map(([, list]) => list.length));
+  let engagementCum = 0;
+  const engagementWithCumulative = engagementGroups.map(([key, list]) => {
+    engagementCum += list.length;
+    return { key, list, cumulative: engagementCum };
+  });
+
+  const closedGroups = groupCasesByPeriod(
+    visibleCases.filter((c) => c.stage === "終結"),
+    "closedDate",
+    caseEventGranularity
+  );
+  const closedMax = Math.max(1, ...closedGroups.map(([, list]) => list.length));
+  let closedCum = 0;
+  const closedWithCumulative = closedGroups.map(([key, list]) => {
+    closedCum += list.length;
+    return { key, list, cumulative: closedCum };
   });
 
   const toggleSort = (key: ColumnKey) => {
@@ -354,17 +412,51 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
         </div>
 
         <div className="mb-6">
-          <SummaryCard title="月ごとの終結件数">
-            {closedMonthsWithCumulative.length === 0 ? (
-              <p className="text-sm" style={{ color: COLORS.slate }}>終結日が登録された案件がありません。</p>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {closedMonthsWithCumulative.map(({ ym, count, cumulative: cum }) => (
-                  <BarRow key={ym} label={ym} value={count} max={closedMax} formatValue={() => `${count}件（累計${cum}件）`} />
-                ))}
-              </div>
-            )}
-          </SummaryCard>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>受任件数・終結件数</h3>
+            <div className="flex gap-1">
+              {(["month", "year"] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setCaseEventGranularity(g)}
+                  className="text-xs px-2.5 py-1 rounded-full"
+                  style={{
+                    backgroundColor: caseEventGranularity === g ? COLORS.navy : "transparent",
+                    color: caseEventGranularity === g ? "#fff" : COLORS.slate,
+                    border: `1px solid ${caseEventGranularity === g ? COLORS.navy : COLORS.brassLight}`,
+                  }}
+                >
+                  {g === "month" ? "月別" : "年別"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+              <h4 className="text-sm font-bold mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>受任件数</h4>
+              {engagementWithCumulative.length === 0 ? (
+                <p className="text-sm" style={{ color: COLORS.slate }}>受任日が登録された案件がありません。</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {engagementWithCumulative.map(({ key, list, cumulative: cum }) => (
+                    <PeriodCountRow key={key} label={key} cases={list} cumulative={cum} max={engagementMax} onOpenCase={onOpenCase} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+              <h4 className="text-sm font-bold mb-4" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>終結件数</h4>
+              {closedWithCumulative.length === 0 ? (
+                <p className="text-sm" style={{ color: COLORS.slate }}>終結日が登録された案件がありません。</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {closedWithCumulative.map(({ key, list, cumulative: cum }) => (
+                    <PeriodCountRow key={key} label={key} cases={list} cumulative={cum} max={closedMax} onOpenCase={onOpenCase} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
