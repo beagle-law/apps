@@ -66,10 +66,13 @@ async function appendHtmlBlock(doc: JsPDFInstance, html: string, isFirstPageOver
       pageCanvas.height = sliceHeightPx;
       const ctx = pageCanvas.getContext("2d");
       if (!ctx) throw new Error("PDF生成用のcanvasコンテキストを取得できませんでした");
+      // JPEGは透過を持てないため、先に白で塗りつぶしてから描画する（容量削減のためPNGではなくJPEGで埋め込む）。
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
       ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
 
       if (!(isFirstPageOverall && isFirstPageOfBlock)) doc.addPage();
-      doc.addImage(pageCanvas.toDataURL("image/png"), "PNG", margin, margin, imgWidthPt, sliceHeightPx / pxPerPt);
+      doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.85), "JPEG", margin, margin, imgWidthPt, sliceHeightPx / pxPerPt, undefined, "FAST");
 
       renderedPx += sliceHeightPx;
       isFirstPageOfBlock = false;
