@@ -7,9 +7,10 @@ function sanitizeForFilename(s: string): string {
   return s.replace(/[/\\:*?"<>|]/g, "_").trim();
 }
 
+// v20：ファイル名は「宛名＋敬称」と請求対象月（未設定の場合のみ発行月）で付ける。
 function invoiceFileName(inv: InvoiceForHtml): string {
-  const [year, month] = inv.issueDate.split("-");
-  const clientPart = sanitizeForFilename(inv.clientName) || "お客様";
+  const [year, month] = (inv.billingMonth || inv.issueDate).split("-");
+  const clientPart = sanitizeForFilename(`${inv.clientName}${inv.honorific || "御中"}`) || "お客様";
   return `${clientPart}_ご請求書（${Number(year)}年${Number(month)}月）.pdf`;
 }
 
