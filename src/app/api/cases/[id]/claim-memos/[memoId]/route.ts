@@ -13,12 +13,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const existing = await getAccessibleCaseOrNull(id, user.id);
   if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
 
-  const body = (await req.json()) as { content?: string };
-  if (!body.content?.trim()) {
+  const body = (await req.json()) as { content?: string; lane?: string };
+  if (body.content !== undefined && !body.content.trim()) {
     return NextResponse.json({ error: "メモ内容が空です" }, { status: 400 });
   }
+  if (body.lane !== undefined && body.lane !== "task" && body.lane !== "memo") {
+    return NextResponse.json({ error: "不正な区分です" }, { status: 400 });
+  }
 
-  await prisma.claimMemoEntry.update({ where: { id: memoId, caseId: id }, data: { content: body.content.trim() } });
+  const data: { content?: string; lane?: string } = {};
+  if (body.content !== undefined) data.content = body.content.trim();
+  if (body.lane !== undefined) data.lane = body.lane;
+  await prisma.claimMemoEntry.update({ where: { id: memoId, caseId: id }, data });
   const c = await prisma.case.findUnique({ where: { id }, include: caseInclude });
   return NextResponse.json(serializeCase(c!));
 }

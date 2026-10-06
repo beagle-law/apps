@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { getAccessibleCaseOrNull } from "@/lib/case-access";
+import { getAccessibleCaseOrNull, caseVisibilityFilter } from "@/lib/case-access";
+
+// v21：経費入力ボード用。指定月（YYYY-MM）の全案件のタイムチャージを返す（閲覧可能な案件のみ）。
+export async function GET(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+
+  const month = req.nextUrl.searchParams.get("month");
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return NextResponse.json({ error: "monthはYYYY-MM形式で指定してください" }, { status: 400 });
+  }
+
+  const rows = await prisma.timeCharge.findMany({
+    where: { date: { startsWith: month }, case: caseVisibilityFilter(user.id) },
+    orderBy: [{ date: "asc" }, { startTime: "asc" }],
+  });
+  return NextResponse.json(rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })));
+}
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();

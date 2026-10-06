@@ -49,6 +49,7 @@ export interface ClaimMemoEntry {
   id: string;
   content: string;
   author: string;
+  lane: string; // 個人メモ用：「task」=近日中に処理するタスク／「memo」=長期的なメモ
   createdAt: string;
   images: ClaimMemoImage[];
 }
@@ -329,4 +330,15 @@ export interface User {
   displayName: string;
   role: string;
   createdAt?: string;
+}
+
+// v21：経費入力ボードの「お金に関する情報」カード
+export interface MoneyCard {
+  id: string;
+  yearMonth: string;
+  kind: string; // "income" | "expense"
+  title: string;
+  amount: number | null;
+  note: string;
+  createdAt: string;
 }

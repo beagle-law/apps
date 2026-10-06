@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 import { COLORS, FONT_MINCHO, STAGES, STAGE_COLOR } from "@/lib/constants";
-import { plusDaysStr, todayStr, formatDateShort } from "@/lib/dates";
+import { todayStr, formatDateShort } from "@/lib/dates";
 import { getPeriodRange, getPeriodLabel, shiftAnchor, isWithinPeriod, type DashboardGranularity } from "@/lib/business/dashboard";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
 import * as api from "@/lib/api-client";
@@ -190,11 +190,10 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
     if (c.stage === "受任・対応中") activeCount++;
   });
 
-  // v10 4.3：「今後7日の期日」→「今後1か月間の期日」に変更、ホバーで一覧をツールチップ表示
+  // 「今後の期日」：次回裁判期日が本日以降の件数（v21で「今後1か月間」から全期間に変更）。ホバーで一覧を表示。
   const t = todayStr();
-  const t30 = plusDaysStr(30);
   const upcoming = visibleCases
-    .flatMap((c) => (c.hearings || []).filter((h) => h.nextHearingDate && h.nextHearingDate >= t && h.nextHearingDate <= t30).map((h) => ({ case: c, hearing: h })))
+    .flatMap((c) => (c.hearings || []).filter((h) => h.nextHearingDate && h.nextHearingDate >= t).map((h) => ({ case: c, hearing: h })))
     .sort((a, b) => (a.hearing.nextHearingDate < b.hearing.nextHearingDate ? -1 : 1));
 
   const stageMax = Math.max(1, ...Object.values(stageCounts));
@@ -324,7 +323,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
             <p className="text-2xl mt-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.vermillion }}>{activeCount}</p>
           </button>
           <div className="rounded p-4 relative group" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-            <p className="text-xs" style={{ color: COLORS.slate }}>今後1か月間の期日</p>
+            <p className="text-xs" style={{ color: COLORS.slate }}>今後の期日</p>
             <p className="text-2xl mt-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.moss }}>{upcoming.length}</p>
             {upcoming.length > 0 && (
               <div

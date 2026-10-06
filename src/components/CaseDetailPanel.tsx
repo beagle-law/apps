@@ -24,7 +24,6 @@ import {
   Pencil,
   Upload,
   Download,
-  CalendarClock,
   Settings,
 } from "lucide-react";
 import {
@@ -62,7 +61,6 @@ interface Props {
 
 // v14：案件詳細の各カードは個別に非表示にでき、表示状態は端末ごとの表示設定として保持する（データではないためlocalStorage）。
 const CASE_SECTIONS: { key: string; label: string }[] = [
-  { key: "plans", label: "次回予定" },
   { key: "checklist", label: "受任関連チェック" },
   { key: "updates", label: "経過記録" },
   { key: "timecharge", label: "タイムチャージ" },
@@ -117,14 +115,13 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [financeSaved, setFinanceSaved] = useState(true);
   const [courtInfoSaved, setCourtInfoSaved] = useState(true);
   const [newClaimMemoText, setNewClaimMemoText] = useState("");
+  const [newLaneText, setNewLaneText] = useState({ task: "", memo: "" });
+  const [draggingMemoId, setDraggingMemoId] = useState<string | null>(null);
   const [editingClaimMemoId, setEditingClaimMemoId] = useState<string | null>(null);
   const [claimMemoEditDraft, setClaimMemoEditDraft] = useState("");
   const [uploadingClaimMemoImageId, setUploadingClaimMemoImageId] = useState<string | null>(null);
   const claimMemoFileInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const [claimMemoLightbox, setClaimMemoLightbox] = useState<{ memoId: string; image: Case["claimMemos"][number]["images"][number] } | null>(null);
-  const [newPlan, setNewPlan] = useState({ date: "", content: "" });
-  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
-  const [planEditDraft, setPlanEditDraft] = useState({ date: "", content: "" });
   const [newClassificationInput, setNewClassificationInput] = useState("");
   const [newHearing, setNewHearing] = useState({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   const [editingHearingId, setEditingHearingId] = useState<string | null>(null);
@@ -182,8 +179,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     setNewClaimMemoText("");
     setEditingClaimMemoId(null);
     setClaimMemoLightbox(null);
-    setNewPlan({ date: "", content: "" });
-    setEditingPlanId(null);
     setTimeChargeRateSaved(String(selectedCase.timeChargeRate ?? ""));
     setCourtInfoDraft({
       courtCaseNumber: selectedCase.courtCaseNumber || "",
@@ -265,6 +260,13 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     run(() => api.addClaimMemo(selectedCase.id, newClaimMemoText.trim()));
     setNewClaimMemoText("");
   };
+  const addLaneMemo = (lane: "task" | "memo") => {
+    const text = newLaneText[lane].trim();
+    if (!text) return;
+    run(() => api.addClaimMemo(selectedCase.id, text, lane));
+    setNewLaneText((prev) => ({ ...prev, [lane]: "" }));
+  };
+  const moveClaimMemo = (memoId: string, lane: "task" | "memo") => run(() => api.moveClaimMemo(selectedCase.id, memoId, lane));
   const removeClaimMemoEntry = (memoId: string) => run(() => api.deleteClaimMemo(selectedCase.id, memoId));
   const startEditClaimMemo = (m: { id: string; content: string }) => {
     setEditingClaimMemoId(m.id);
@@ -300,29 +302,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   };
   const removeClaimMemoImage = (memoId: string, imageId: string) =>
     run(() => api.deleteClaimMemoImage(selectedCase.id, memoId, imageId));
-
-  // v14：次回予定（期日以外の予定。片岡様案件で「10/2 警察訪問」のように使う）
-  const addPlanEntry = () => {
-    if (!newPlan.date || !newPlan.content.trim()) return;
-    run(() => api.addCasePlan(selectedCase.id, newPlan));
-    setNewPlan({ date: "", content: "" });
-  };
-  const removePlanEntry = (planId: string) => run(() => api.deleteCasePlan(selectedCase.id, planId));
-  const startEditPlan = (p: { id: string; date: string; content: string }) => {
-    setEditingPlanId(p.id);
-    setPlanEditDraft({ date: p.date, content: p.content });
-  };
-  const cancelEditPlan = () => setEditingPlanId(null);
-  const savePlanEdit = () => {
-    if (!editingPlanId || !planEditDraft.date || !planEditDraft.content.trim()) return;
-    api
-      .updateCasePlan(selectedCase.id, editingPlanId, planEditDraft)
-      .then((updated) => {
-        onCaseUpdated(updated);
-        setEditingPlanId(null);
-      })
-      .catch((e) => onError(e instanceof Error ? e.message : "保存に失敗しました"));
-  };
 
   const saveFinance = () => {
     api
@@ -456,21 +435,8 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     }
   };
 
-  // 主張予定メモカード（v13：積み重ね式。v14：画像添付に対応）。通常表示・個人メモの簡易表示の両方から使う。
-  const claimMemoCard = (
-    <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-      <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
-      <div className="flex flex-col gap-2 mb-4">
-        <textarea value={newClaimMemoText} onChange={(e) => setNewClaimMemoText(e.target.value)} placeholder="主張予定のメモを自由に記入..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
-        <button onClick={addClaimMemoEntry} disabled={!newClaimMemoText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
-          <Send size={13} /> メモを追加
-        </button>
-      </div>
-      {selectedCase.claimMemos.length === 0 ? (
-        <p className="text-sm py-2" style={{ color: COLORS.slate }}>まだメモがありません。</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {selectedCase.claimMemos.map((m) =>
+  // 主張予定メモ1件分の表示（通常案件の主張予定メモ・個人メモのカード共通）。moveToを渡すとレーン間の移動ボタン／ドラッグ移動が有効になる（個人メモ用、v21）。
+  const renderClaimMemoItem = (m: Case["claimMemos"][number], moveTo?: "task" | "memo") => (
             editingClaimMemoId === m.id ? (
               <div key={m.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
                 <textarea value={claimMemoEditDraft} onChange={(e) => setClaimMemoEditDraft(e.target.value)} rows={3} className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
@@ -480,12 +446,26 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                 </div>
               </div>
             ) : (
-              <div key={m.id} className="text-sm p-2.5 rounded group" style={{ backgroundColor: COLORS.paper }}>
+              <div
+                key={m.id}
+                className="text-sm p-2.5 rounded group"
+                style={{ backgroundColor: COLORS.paper, cursor: moveTo ? "grab" : undefined }}
+                draggable={!!moveTo}
+                onDragStart={() => setDraggingMemoId(m.id)}
+                onDragEnd={() => setDraggingMemoId(null)}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(m.createdAt)}{m.author && <>　<span className="font-bold">{m.author}</span></>}</p>
-                  <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition">
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {moveTo && (
+                      <button onClick={() => moveClaimMemo(m.id, moveTo)} className="text-xs underline" style={{ color: COLORS.navy }}>
+                        {moveTo === "memo" ? "長期メモへ →" : "← タスクへ"}
+                      </button>
+                    )}
+                    <span className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
                     <button onClick={() => startEditClaimMemo(m)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={13} /></button>
                     <button onClick={() => removeClaimMemoEntry(m.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                    </span>
                   </div>
                 </div>
                 <p className="mt-0.5 whitespace-pre-wrap">{m.content}</p>
@@ -531,7 +511,23 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                 </div>
               </div>
             )
-          )}
+  );
+
+  // 主張予定メモカード（v13：積み重ね式。v14：画像添付に対応）。通常表示・個人メモの簡易表示の両方から使う。
+  const claimMemoCard = (
+    <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+      <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
+      <div className="flex flex-col gap-2 mb-4">
+        <textarea value={newClaimMemoText} onChange={(e) => setNewClaimMemoText(e.target.value)} placeholder="主張予定のメモを自由に記入..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+        <button onClick={addClaimMemoEntry} disabled={!newClaimMemoText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+          <Send size={13} /> メモを追加
+        </button>
+      </div>
+      {selectedCase.claimMemos.length === 0 ? (
+        <p className="text-sm py-2" style={{ color: COLORS.slate }}>まだメモがありません。</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {selectedCase.claimMemos.map((m) => renderClaimMemoItem(m))}
         </div>
       )}
     </div>
@@ -541,7 +537,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   if (selectedCase.isPrivate) {
     return (
       <>
-        <div className="max-w-2xl mx-auto flex flex-col gap-5">
+        <div className="max-w-6xl mx-auto flex flex-col gap-5">
           <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -558,7 +554,44 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
               </div>
             </div>
           </div>
-          {claimMemoCard}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+            {(["task", "memo"] as const).map((lane) => (
+              <div
+                key={lane}
+                className="rounded p-5"
+                style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (!draggingMemoId) return;
+                  const dragged = selectedCase.claimMemos.find((m) => m.id === draggingMemoId);
+                  setDraggingMemoId(null);
+                  if (dragged && (dragged.lane || "memo") !== lane) moveClaimMemo(dragged.id, lane);
+                }}
+              >
+                <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
+                  {lane === "task" ? "近日中に処理するタスク" : "長期的なメモ"}
+                </h3>
+                <div className="flex flex-col gap-2 mb-4">
+                  <textarea
+                    value={newLaneText[lane]}
+                    onChange={(e) => setNewLaneText((prev) => ({ ...prev, [lane]: e.target.value }))}
+                    placeholder={lane === "task" ? "タスクを記入..." : "メモを記入..."}
+                    rows={3}
+                    className="text-sm p-2 rounded outline-none resize-none"
+                    style={{ border: `1px solid ${COLORS.brassLight}` }}
+                  />
+                  <button onClick={() => addLaneMemo(lane)} disabled={!newLaneText[lane].trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+                    <Send size={13} /> 追加
+                  </button>
+                </div>
+                {(() => {
+                  const items = selectedCase.claimMemos.filter((m) => (m.lane || "memo") === lane);
+                  if (items.length === 0) return <p className="text-sm py-2" style={{ color: COLORS.slate }}>{lane === "task" ? "タスクはありません。" : "メモはありません。"}</p>;
+                  return <div className="flex flex-col gap-2">{items.map((m) => renderClaimMemoItem(m, lane === "task" ? "memo" : "task"))}</div>;
+                })()}
+              </div>
+            ))}
+          </div>
         </div>
         {claimMemoLightbox && (
           <div
@@ -712,52 +745,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           )}
         </div>
       </div>
-
-      {/* 次回予定（v14：期日以外の予定。「今後の期日」タブでも一緒に表示される） */}
-      {!hiddenSections.has("plans") && (
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
-          <CalendarClock size={15} /> 次回予定
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr_auto] gap-2 mb-2">
-          <TextInput type="date" value={newPlan.date} onChange={(e) => setNewPlan({ ...newPlan, date: e.target.value })} className="w-full" />
-          <TextInput type="text" placeholder="内容（例：警察訪問）" value={newPlan.content} onChange={(e) => setNewPlan({ ...newPlan, content: e.target.value })} className="w-full" />
-          <button onClick={addPlanEntry} disabled={!newPlan.date || !newPlan.content.trim()} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>予定を追加</button>
-        </div>
-
-        {selectedCase.plans.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: COLORS.slate }}>登録された予定はありません。</p>
-        ) : (
-          <div className="flex flex-col gap-2 mt-2">
-            {[...selectedCase.plans].sort((a, b) => (a.date < b.date ? -1 : 1)).map((p) =>
-              editingPlanId === p.id ? (
-                <div key={p.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
-                  <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-2">
-                    <TextInput type="date" value={planEditDraft.date} onChange={(e) => setPlanEditDraft({ ...planEditDraft, date: e.target.value })} className="w-full" />
-                    <TextInput type="text" value={planEditDraft.content} onChange={(e) => setPlanEditDraft({ ...planEditDraft, content: e.target.value })} className="w-full" />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button onClick={cancelEditPlan} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
-                    <button onClick={savePlanEdit} disabled={!planEditDraft.date || !planEditDraft.content.trim()} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
-                  </div>
-                </div>
-              ) : (
-                <div key={p.id} className="flex items-center justify-between gap-2 text-sm p-2.5 rounded" style={{ backgroundColor: COLORS.paper }}>
-                  <div>
-                    <span className="text-xs font-bold" style={{ color: p.date < todayStr() ? COLORS.vermillion : COLORS.navy }}>{formatDate(p.date)}（{relativeDayLabel(p.date)}）</span>
-                    <span className="ml-2">{p.content}</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={() => startEditPlan(p)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={13} /></button>
-                    <button onClick={() => removePlanEntry(p.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-        )}
-      </div>
-      )}
 
       {/* 受任関連チェック */}
       {!hiddenSections.has("checklist") && (

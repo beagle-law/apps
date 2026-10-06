@@ -223,18 +223,27 @@ export default function ClientInvoicing({ client, onError }: Props) {
             </label>
             <div className="flex flex-col gap-1.5 mb-3">
               {expenseHistory.map((e) => (
-                <div key={e.id} className="flex items-center gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                <div key={e.id} className="flex items-start gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
                   <input
                     type="checkbox"
+                    className="mt-1"
                     checked={e.checkedForBilling}
                     disabled={!!e.billedInInvoiceId}
                     onChange={(ev) => toggleExpenseChecked(e, ev.target.checked)}
                   />
-                  <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>{formatDateShort(e.date)}</span>
-                  <span className="text-xs flex-shrink-0 truncate" style={{ color: COLORS.slate, maxWidth: 100 }}>{e.caseTitle}</span>
-                  <span className="flex-1 truncate">{e.category}</span>
-                  <span className="font-bold flex-shrink-0">¥{e.amount.toLocaleString("ja-JP")}</span>
-                  {e.billedInInvoiceId && <span className="text-xs flex-shrink-0" style={{ color: COLORS.moss }}>請求済</span>}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>{formatDateShort(e.date)}</span>
+                      <span className="flex-1 font-semibold">{e.category}</span>
+                      <span className="font-bold flex-shrink-0">¥{e.amount.toLocaleString("ja-JP")}</span>
+                      {e.billedInInvoiceId && <span className="text-xs flex-shrink-0" style={{ color: COLORS.moss }}>請求済</span>}
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{e.caseNumber && `No.${e.caseNumber}　`}{e.caseTitle}</p>
+                    {(e.route || e.origin || e.destination) && (
+                      <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>経路：{e.route || `${e.origin}→${e.destination}`}</p>
+                    )}
+                    {e.notes && <p className="text-xs mt-0.5 whitespace-pre-wrap" style={{ color: COLORS.slate }}>備考：{e.notes}</p>}
+                  </div>
                 </div>
               ))}
             </div>

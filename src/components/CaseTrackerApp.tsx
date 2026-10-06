@@ -15,6 +15,7 @@ import {
   Target,
   BookOpen,
   FileSpreadsheet,
+  Wallet,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { COLORS, FONT_MINCHO, FONT_GOTHIC, PERSONAL_TASK_TABS } from "@/lib/constants";
@@ -35,6 +36,7 @@ const DashboardView = dynamic(() => import("@/components/DashboardView"), { ssr:
 const GoalsView = dynamic(() => import("@/components/GoalsView"), { ssr: false });
 const KnowledgeView = dynamic(() => import("@/components/KnowledgeView"), { ssr: false });
 const BillingView = dynamic(() => import("@/components/BillingView"), { ssr: false });
+const ExpenseBoardView = dynamic(() => import("@/components/ExpenseBoardView"), { ssr: false });
 const SettingsView = dynamic(() => import("@/components/SettingsView"), { ssr: false });
 
 type View =
@@ -46,6 +48,7 @@ type View =
   | "goals"
   | "knowledge"
   | "billing"
+  | "expenses"
   | "settings";
 
 const MAIN_TABS: { key: View; label: string; icon: typeof Briefcase }[] = [
@@ -56,6 +59,7 @@ const MAIN_TABS: { key: View; label: string; icon: typeof Briefcase }[] = [
   { key: "goals", label: "目標", icon: Target },
   { key: "knowledge", label: "ノウハウ・ひながた", icon: BookOpen },
   { key: "billing", label: "請求管理", icon: FileSpreadsheet },
+  { key: "expenses", label: "経費入力", icon: Wallet },
   { key: "settings", label: "設定", icon: SettingsIcon },
 ];
 
@@ -399,6 +403,10 @@ export default function CaseTrackerApp() {
       )}
 
       {view === "billing" && <BillingView onOpenCase={openCaseFromElsewhere} onOpenClient={openClientFromCase} onError={setError} />}
+
+      {view === "expenses" && (
+        <ExpenseBoardView cases={cases} onOpenCase={openCaseFromElsewhere} onCaseUpdated={updateCaseInState} onError={setError} />
+      )}
 
       {view === "settings" && <SettingsView currentUser={currentUser} onError={setError} />}
 

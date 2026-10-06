@@ -176,6 +176,7 @@ model ClaimMemoEntry {
   case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   content   String
   author    String   @default("")
+  lane      String   @default("memo") // v21：個人メモ用の区分。"task"=近日中に処理するタスク／"memo"=長期的なメモ
   createdAt DateTime @default(now())
 
   images ClaimMemoImage[]
@@ -454,4 +455,25 @@ model InvoiceSectionItem {
   sortOrder   Int            @default(0)
 
   @@index([sectionId])
+}
+
+// v21：請求管理画面の「今月の予定請求・支出」フリースペース（月ごとに1件）
+model MonthlyNote {
+  id        String   @id @default(cuid())
+  yearMonth String   @unique // YYYY-MM
+  content   String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
+// v21：経費入力ボードに案件と無関係に追加できる「お金に関する情報」カード（月ごと）
+model MoneyCard {
+  id        String   @id @default(cuid())
+  yearMonth String // YYYY-MM
+  kind      String   @default("expense") // "income"（予定請求・収入）| "expense"（支出）
+  title     String
+  amount    Int?
+  note      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([yearMonth])
 }

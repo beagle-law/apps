@@ -3,6 +3,7 @@ import type {
   Contact,
   Client,
   ExpenseWithCase,
+  MoneyCard,
   PasswordEntry,
   TimeCharge,
   DailyReport,
@@ -113,11 +114,14 @@ export const patchFinance = (
 ) => request<Case>(`/api/cases/${id}/finance`, { method: "PATCH", body: JSON.stringify(payload) });
 
 // v13：主張予定メモを単一テキストから積み重ね式の一覧に変更（経過記録と同様のパターン）。
-export const addClaimMemo = (id: string, content: string) =>
-  request<Case>(`/api/cases/${id}/claim-memos`, { method: "POST", body: JSON.stringify({ content }) });
+export const addClaimMemo = (id: string, content: string, lane?: "task" | "memo") =>
+  request<Case>(`/api/cases/${id}/claim-memos`, { method: "POST", body: JSON.stringify({ content, lane }) });
 
 export const updateClaimMemo = (id: string, memoId: string, content: string) =>
   request<Case>(`/api/cases/${id}/claim-memos/${memoId}`, { method: "PATCH", body: JSON.stringify({ content }) });
+
+export const moveClaimMemo = (id: string, memoId: string, lane: "task" | "memo") =>
+  request<Case>(`/api/cases/${id}/claim-memos/${memoId}`, { method: "PATCH", body: JSON.stringify({ lane }) });
 
 export const deleteClaimMemo = (id: string, memoId: string) =>
   request<Case>(`/api/cases/${id}/claim-memos/${memoId}`, { method: "DELETE" });
@@ -343,3 +347,15 @@ export const fetchOrCreateMemoCase = () => request<Case>("/api/memo");
 
 // ── バックアップ ──────────────────────────────────────
 export const backupUrl = "/api/backup";
+
+// ── v21：月次の予定請求・支出メモ／経費入力ボード ───────────────
+export const fetchMonthlyNote = (yearMonth: string) => request<{ yearMonth: string; content: string }>(`/api/monthly-notes/${yearMonth}`);
+export const saveMonthlyNote = (yearMonth: string, content: string) =>
+  request<{ yearMonth: string; content: string }>(`/api/monthly-notes/${yearMonth}`, { method: "PUT", body: JSON.stringify({ content }) });
+
+export const fetchTimeChargesByMonth = (month: string) => request<TimeCharge[]>(`/api/timecharges?month=${month}`);
+
+export const fetchMoneyCards = (month: string) => request<MoneyCard[]>(`/api/money-cards?month=${month}`);
+export const addMoneyCard = (payload: { yearMonth: string; kind: string; title: string; amount: number | null; note: string }) =>
+  request<MoneyCard>("/api/money-cards", { method: "POST", body: JSON.stringify(payload) });
+export const deleteMoneyCard = (id: string) => request<{ ok: true }>(`/api/money-cards/${id}`, { method: "DELETE" });

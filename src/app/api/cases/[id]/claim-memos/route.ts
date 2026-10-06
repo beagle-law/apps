@@ -13,14 +13,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const existing = await getAccessibleCaseOrNull(id, user.id);
   if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
 
-  const body = (await req.json()) as { content?: string };
+  const body = (await req.json()) as { content?: string; lane?: string };
   if (!body.content?.trim()) {
     return NextResponse.json({ error: "メモ内容が空です" }, { status: 400 });
   }
 
   const updated = await prisma.case.update({
     where: { id },
-    data: { claimMemos: { create: [{ author: user.displayName, content: body.content.trim() }] } },
+    data: { claimMemos: { create: [{ author: user.displayName, content: body.content.trim(), lane: body.lane === "task" ? "task" : "memo" }] } },
     include: caseInclude,
   });
   return NextResponse.json(serializeCase(updated));
