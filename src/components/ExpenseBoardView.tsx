@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, X } from "lucide-react";
 import { COLORS, FONT_MINCHO, EXPENSE_CATEGORIES } from "@/lib/constants";
 import { currentYearMonth, shiftYearMonth, formatYearMonth, formatDateShort, todayStr } from "@/lib/dates";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
@@ -32,23 +32,14 @@ function Lane({ title, count, children }: { title: string; count?: string; child
 
 const cardStyle = { backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" };
 
-// お金の情報カード：月に紐づかないフリー入力。入力欄の外をクリックすると自動保存、不要になったら削除。
+// お金の情報カード：月に紐づかないフリー入力。普段は文字だけを表示し、鉛筆で編集、×で削除する。
 function MoneyCardItem({ card, onDeleted, onError }: { card: MoneyCard; onDeleted: (id: string) => void; onError: (msg: string) => void }) {
-  const [content, setContent] = useState(card.content);
   const [saved, setSaved] = useState(card.content);
+  const [draft, setDraft] = useState(card.content);
+  const [editing, setEditing] = useState(card.content === ""); // 追加直後の空カードはそのまま入力できる
 
-  const save = async () => {
-    if (content === saved) return;
-    try {
-      const u = await api.updateMoneyCard(card.id, content);
-      setSaved(u.content);
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "保存に失敗しました");
-    }
-  };
-
-  const remove = async () => {
-    if (!window.confirm("このカードを削除します。よろしいですか？")) return;
+  const remove = async (confirm = true) => {
+    if (confirm && !window.confirm("このカードを削除します。よろしいですか？")) return;
     try {
       await api.deleteMoneyCard(card.id);
       onDeleted(card.id);
@@ -57,21 +48,54 @@ function MoneyCardItem({ card, onDeleted, onError }: { card: MoneyCard; onDelete
     }
   };
 
+  const save = async () => {
+    if (draft.trim() === "") {
+      cancel(); // 空のまま保存した場合は取り消し扱い（新規カードは削除）
+      return;
+    }
+    try {
+      const u = await api.updateMoneyCard(card.id, draft);
+      setSaved(u.content);
+      setEditing(false);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "保存に失敗しました");
+    }
+  };
+
+  const cancel = () => {
+    if (saved === "") {
+      remove(false); // 一度も内容を保存していない新規カードは取り消し＝削除
+      return;
+    }
+    setDraft(saved);
+    setEditing(false);
+  };
+
   return (
-    <div className="rounded p-3" style={cardStyle}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs" style={{ color: content === saved ? COLORS.slate : COLORS.amber }}>{content === saved ? "保存済み" : "未保存"}</span>
-        <button onClick={remove} title="カードを削除" style={{ color: COLORS.slate }}><X size={14} /></button>
-      </div>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onBlur={save}
-        rows={5}
-        placeholder="自由に記入できます（例：事務所家賃 25日 ¥300,000）"
-        className="w-full text-sm p-2 rounded outline-none resize-y"
-        style={{ border: `1px solid ${COLORS.brassLight}`, lineHeight: 1.7 }}
-      />
+    <div className="rounded px-3 py-2" style={cardStyle}>
+      {editing ? (
+        <>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
+            rows={3}
+            placeholder="自由に記入（例：事務所家賃 25日 ¥300,000）"
+            className="w-full text-sm p-2 rounded outline-none resize-y"
+            style={{ border: `1px solid ${COLORS.brass}`, lineHeight: 1.6 }}
+          />
+          <div className="flex justify-end gap-2 mt-1.5">
+            <button onClick={cancel} className="text-xs px-2 py-1" style={{ color: COLORS.slate }}>キャンセル</button>
+            <button onClick={save} className="text-xs font-bold px-3 py-1 rounded flex items-center gap-1" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Check size={12} /> 保存</button>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-start gap-2">
+          <p className="flex-1 min-w-0 text-sm whitespace-pre-wrap break-words" style={{ lineHeight: 1.6 }}>{saved}</p>
+          <button onClick={() => { setDraft(saved); setEditing(true); }} title="編集" className="flex-shrink-0 p-1 rounded hover:opacity-70" style={{ color: COLORS.navy }}><Pencil size={14} /></button>
+          <button onClick={() => remove()} title="削除" className="flex-shrink-0 p-1 rounded hover:opacity-70" style={{ color: COLORS.vermillion }}><X size={14} /></button>
+        </div>
+      )}
     </div>
   );
 }
