@@ -6,6 +6,7 @@ import { COLORS, FONT_MINCHO } from "@/lib/constants";
 import { formatDate, currentYearMonth, shiftYearMonth, formatYearMonth } from "@/lib/dates";
 import { invoiceTotal, formatYen } from "@/lib/business/invoice";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
+import AutoSaveNote from "@/components/AutoSaveNote";
 import * as api from "@/lib/api-client";
 import type { Invoice } from "@/lib/types";
 
@@ -18,70 +19,22 @@ interface Props {
 // v21：今月の予定請求・支出を自由に書き込めるフリースペース（月ごとに保存）。
 function MonthlyNoteCard({ onError }: { onError: (msg: string) => void }) {
   const [month, setMonth] = useState(currentYearMonth());
-  const [content, setContent] = useState("");
-  const [savedContent, setSavedContent] = useState("");
-  const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoaded(false);
-    api
-      .fetchMonthlyNote(month)
-      .then((n) => {
-        if (cancelled) return;
-        setContent(n.content);
-        setSavedContent(n.content);
-        setLoaded(true);
-      })
-      .catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
-
-  const save = async () => {
-    if (!loaded || content === savedContent) return;
-    setSaving(true);
-    try {
-      const n = await api.saveMonthlyNote(month, content);
-      setSavedContent(n.content);
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "保存に失敗しました");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const changeMonth = async (delta: number) => {
-    await save();
-    setMonth((m) => shiftYearMonth(m, delta));
-  };
-
   return (
     <div className="rounded p-5 mb-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>予定請求・支出メモ</h3>
         <div className="flex items-center gap-2">
-          <button onClick={() => changeMonth(-1)} style={{ color: COLORS.slate }}><ChevronLeft size={16} /></button>
+          <button onClick={() => setMonth((m) => shiftYearMonth(m, -1))} style={{ color: COLORS.slate }}><ChevronLeft size={16} /></button>
           <span className="text-sm font-bold">{formatYearMonth(month)}</span>
-          <button onClick={() => changeMonth(1)} style={{ color: COLORS.slate }}><ChevronRight size={16} /></button>
+          <button onClick={() => setMonth((m) => shiftYearMonth(m, 1))} style={{ color: COLORS.slate }}><ChevronRight size={16} /></button>
         </div>
       </div>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onBlur={save}
-        disabled={!loaded}
-        placeholder={"その月の予定請求・支出を自由に記入できます（例）\n【請求予定】\nコレカ 10\n【支出】\n・5日 コピー機 3"}
+      <AutoSaveNote
+        noteKey={month}
         rows={12}
-        className="w-full text-sm p-2 rounded outline-none resize-y"
-        style={{ border: `1px solid ${COLORS.brassLight}`, lineHeight: 1.7 }}
+        placeholder={"その月の予定請求・支出を自由に記入できます（例）\n【請求予定】\nコレカ 10\n【支出】\n・5日 コピー機 3"}
+        onError={onError}
       />
-      <p className="text-xs mt-1 text-right" style={{ color: COLORS.slate }}>
-        {saving ? "保存中..." : loaded && content === savedContent ? "保存済み（入力欄の外をクリックすると自動保存されます）" : "未保存（入力欄の外をクリックすると自動保存されます）"}
-      </p>
     </div>
   );
 }
@@ -188,6 +141,11 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
             })}
           </div>
         )}
+
+        <div className="rounded p-5 mt-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>入金管理メモ</h3>
+          <AutoSaveNote noteKey="payment" rows={8} placeholder="入金の確認状況・入金予定などを自由に記入できます" onError={onError} />
+        </div>
       </div>
     </div>
   );

@@ -6,8 +6,9 @@ import { COLORS, FONT_MINCHO, EXPENSE_CATEGORIES } from "@/lib/constants";
 import { currentYearMonth, shiftYearMonth, formatYearMonth, formatDateShort, todayStr } from "@/lib/dates";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
 import { TextInput } from "@/components/ui";
+import AutoSaveNote from "@/components/AutoSaveNote";
 import * as api from "@/lib/api-client";
-import type { Case, TimeCharge, MoneyCard } from "@/lib/types";
+import type { Case, TimeCharge } from "@/lib/types";
 
 interface Props {
   cases: Case[];
@@ -33,21 +34,17 @@ function Lane({ title, count, children }: { title: string; count?: string; child
 const cardStyle = { backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" };
 
 const emptyExpenseForm = { date: "", category: "", amount: "", notes: "" };
-const emptyMoneyForm = { kind: "expense", title: "", amount: "", note: "" };
 
-// v21：Trello風のカード形式で、タイムチャージ案件（開始〜終了時刻）・案件ごとの経費・お金に関する自由カードを月ごとに表示／入力する。
+// v21：Trello風のカード形式で、タイムチャージ案件（開始〜終了時刻）・案件ごとの経費・お金の情報（フリー入力）を月ごとに表示／入力する。
 export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onError }: Props) {
   const [month, setMonth] = useState(currentYearMonth());
   const [timeCharges, setTimeCharges] = useState<TimeCharge[]>([]);
-  const [moneyCards, setMoneyCards] = useState<MoneyCard[]>([]);
   const [formCaseId, setFormCaseId] = useState<string | null>(null);
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
-  const [moneyForm, setMoneyForm] = useState(emptyMoneyForm);
 
   useEffect(() => {
     let cancelled = false;
     api.fetchTimeChargesByMonth(month).then((r) => !cancelled && setTimeCharges(r)).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
-    api.fetchMoneyCards(month).then((r) => !cancelled && setMoneyCards(r)).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
     return () => {
       cancelled = true;
     };
@@ -93,35 +90,6 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
     }
   };
 
-  const addMoneyCard = async () => {
-    if (!moneyForm.title.trim()) return;
-    try {
-      const created = await api.addMoneyCard({
-        yearMonth: month,
-        kind: moneyForm.kind,
-        title: moneyForm.title,
-        amount: moneyForm.amount === "" ? null : Number(moneyForm.amount),
-        note: moneyForm.note,
-      });
-      setMoneyCards((prev) => [...prev, created]);
-      setMoneyForm(emptyMoneyForm);
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "登録に失敗しました");
-    }
-  };
-
-  const removeMoneyCard = async (id: string) => {
-    if (!window.confirm("このカードを削除します。よろしいですか？")) return;
-    try {
-      await api.deleteMoneyCard(id);
-      setMoneyCards((prev) => prev.filter((c) => c.id !== id));
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "削除に失敗しました");
-    }
-  };
-
-  const incomeTotal = moneyCards.filter((c) => c.kind === "income").reduce((s, c) => s + (c.amount ?? 0), 0);
-  const outgoTotal = moneyCards.filter((c) => c.kind !== "income").reduce((s, c) => s + (c.amount ?? 0), 0);
   const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
 
   return (
@@ -239,36 +207,17 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             <datalist id="expense-board-categories">{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
           </Lane>
 
-          {/* お金に関する情報：案件に紐づかない自由カード */}
-          <Lane title="お金の情報" count={`請求予定 ${yen(incomeTotal)} ／ 支出 ${yen(outgoTotal)}`}>
-            <div className="rounded p-3 flex flex-col gap-1.5" style={cardStyle}>
-              <div className="flex gap-1.5">
-                <select value={moneyForm.kind} onChange={(e) => setMoneyForm({ ...moneyForm, kind: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-                  <option value="expense">支出</option>
-                  <option value="income">予定請求</option>
-                </select>
-                <TextInput type="text" placeholder="タイトル（例：事務所家賃）" value={moneyForm.title} onChange={(e) => setMoneyForm({ ...moneyForm, title: e.target.value })} className="flex-1 min-w-0" />
-              </div>
-              <div className="flex gap-1.5">
-                <TextInput type="number" placeholder="金額" value={moneyForm.amount} onChange={(e) => setMoneyForm({ ...moneyForm, amount: e.target.value })} className="w-28" />
-                <TextInput type="text" placeholder="メモ（例：25日、末日など）" value={moneyForm.note} onChange={(e) => setMoneyForm({ ...moneyForm, note: e.target.value })} className="flex-1 min-w-0" />
-              </div>
-              <button onClick={addMoneyCard} disabled={!moneyForm.title.trim()} className="self-end text-xs font-bold px-3 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>カードを追加</button>
+          {/* お金の情報：欄を分けないフリー入力（月ごとに保存） */}
+          <Lane title="お金の情報">
+            <div className="rounded p-3" style={cardStyle}>
+              <AutoSaveNote
+                key={month}
+                noteKey={`expense-${month}`}
+                rows={14}
+                placeholder="お金に関する情報を自由に記入できます（例：事務所家賃・コピー機・予定している支払いなど）"
+                onError={onError}
+              />
             </div>
-            {moneyCards.length === 0 && <p className="text-xs px-1" style={{ color: COLORS.slate }}>この月のカードはありません。</p>}
-            {moneyCards.map((m) => (
-              <div key={m.id} className="rounded p-3 group" style={{ ...cardStyle, borderLeft: `4px solid ${m.kind === "income" ? COLORS.moss : COLORS.vermillion}` }}>
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-bold" style={{ color: m.kind === "income" ? COLORS.moss : COLORS.vermillion }}>{m.kind === "income" ? "予定請求" : "支出"}</span>
-                  <button onClick={() => removeMoneyCard(m.id)} className="opacity-0 group-hover:opacity-100" style={{ color: COLORS.slate }}><X size={13} /></button>
-                </div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-sm font-semibold">{m.title}</p>
-                  {m.amount !== null && <p className="text-sm font-bold flex-shrink-0">{yen(m.amount)}</p>}
-                </div>
-                {m.note && <p className="text-xs mt-0.5 whitespace-pre-wrap" style={{ color: COLORS.slate }}>{m.note}</p>}
-              </div>
-            ))}
           </Lane>
         </div>
       </div>

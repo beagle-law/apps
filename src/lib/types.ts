@@ -331,14 +331,3 @@ export interface User {
   role: string;
   createdAt?: string;
 }
-
-// v21：経費入力ボードの「お金に関する情報」カード
-export interface MoneyCard {
-  id: string;
-  yearMonth: string;
-  kind: string; // "income" | "expense"
-  title: string;
-  amount: number | null;
-  note: string;
-  createdAt: string;
-}
