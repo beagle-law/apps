@@ -6,9 +6,8 @@ import { COLORS, FONT_MINCHO, EXPENSE_CATEGORIES } from "@/lib/constants";
 import { currentYearMonth, shiftYearMonth, formatYearMonth, formatDateShort, todayStr } from "@/lib/dates";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
 import { TextInput } from "@/components/ui";
-import AutoSaveNote from "@/components/AutoSaveNote";
 import * as api from "@/lib/api-client";
-import type { Case, TimeCharge } from "@/lib/types";
+import type { Case, TimeCharge, MoneyCard } from "@/lib/types";
 
 interface Props {
   cases: Case[];
@@ -33,12 +32,57 @@ function Lane({ title, count, children }: { title: string; count?: string; child
 
 const cardStyle = { backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" };
 
+// お金の情報カード：月に紐づかないフリー入力。入力欄の外をクリックすると自動保存、不要になったら削除。
+function MoneyCardItem({ card, onDeleted, onError }: { card: MoneyCard; onDeleted: (id: string) => void; onError: (msg: string) => void }) {
+  const [content, setContent] = useState(card.content);
+  const [saved, setSaved] = useState(card.content);
+
+  const save = async () => {
+    if (content === saved) return;
+    try {
+      const u = await api.updateMoneyCard(card.id, content);
+      setSaved(u.content);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "保存に失敗しました");
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm("このカードを削除します。よろしいですか？")) return;
+    try {
+      await api.deleteMoneyCard(card.id);
+      onDeleted(card.id);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "削除に失敗しました");
+    }
+  };
+
+  return (
+    <div className="rounded p-3" style={cardStyle}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs" style={{ color: content === saved ? COLORS.slate : COLORS.amber }}>{content === saved ? "保存済み" : "未保存"}</span>
+        <button onClick={remove} title="カードを削除" style={{ color: COLORS.slate }}><X size={14} /></button>
+      </div>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        onBlur={save}
+        rows={5}
+        placeholder="自由に記入できます（例：事務所家賃 25日 ¥300,000）"
+        className="w-full text-sm p-2 rounded outline-none resize-y"
+        style={{ border: `1px solid ${COLORS.brassLight}`, lineHeight: 1.7 }}
+      />
+    </div>
+  );
+}
+
 const emptyExpenseForm = { date: "", category: "", amount: "", notes: "" };
 
 // v21：Trello風のカード形式で、タイムチャージ案件（開始〜終了時刻）・案件ごとの経費・お金の情報（フリー入力）を月ごとに表示／入力する。
 export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onError }: Props) {
   const [month, setMonth] = useState(currentYearMonth());
   const [timeCharges, setTimeCharges] = useState<TimeCharge[]>([]);
+  const [moneyCards, setMoneyCards] = useState<MoneyCard[]>([]);
   const [formCaseId, setFormCaseId] = useState<string | null>(null);
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
 
@@ -50,6 +94,20 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month]);
+
+  useEffect(() => {
+    api.fetchMoneyCards().then(setMoneyCards).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const addMoneyCard = async () => {
+    try {
+      const created = await api.addMoneyCard("");
+      setMoneyCards((prev) => [...prev, created]);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "登録に失敗しました");
+    }
+  };
 
   const visibleCases = sortCasesByCaseNumber(cases.filter((c) => !c.hidden && !c.isPrivate));
   const timeChargeCases = visibleCases.filter((c) => c.isTimeChargeCase);
@@ -207,17 +265,15 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             <datalist id="expense-board-categories">{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
           </Lane>
 
-          {/* お金の情報：欄を分けないフリー入力（月ごとに保存） */}
-          <Lane title="お金の情報">
-            <div className="rounded p-3" style={cardStyle}>
-              <AutoSaveNote
-                key={month}
-                noteKey={`expense-${month}`}
-                rows={14}
-                placeholder="お金に関する情報を自由に記入できます（例：事務所家賃・コピー機・予定している支払いなど）"
-                onError={onError}
-              />
-            </div>
+          {/* お金の情報：月に紐づかないフリー入力カード（月を切り替えても同じものを表示） */}
+          <Lane title="お金の情報" count="月を切り替えても共通">
+            <button onClick={addMoneyCard} className="text-sm p-2 rounded flex items-center justify-center gap-1 hover:opacity-80" style={{ border: `1px dashed ${COLORS.brass}`, color: COLORS.navy, backgroundColor: COLORS.card }}>
+              <Plus size={14} /> カードを追加
+            </button>
+            {moneyCards.length === 0 && <p className="text-xs px-1" style={{ color: COLORS.slate }}>カードはありません。</p>}
+            {moneyCards.map((m) => (
+              <MoneyCardItem key={m.id} card={m} onDeleted={(id) => setMoneyCards((prev) => prev.filter((c) => c.id !== id))} onError={onError} />
+            ))}
           </Lane>
         </div>
       </div>

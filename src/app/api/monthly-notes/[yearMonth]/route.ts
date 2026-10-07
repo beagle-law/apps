@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
-// 月ごとのメモ（YYYY-MM）／経費入力ボードのお金の情報（expense-YYYY-MM）／入金管理メモ（payment）
-const YM = /^(\d{4}-\d{2}|expense-\d{4}-\d{2}|payment)$/;
+// 月ごとのメモ（YYYY-MM）／入金管理メモ（payment）
+const YM = /^(\d{4}-\d{2}|payment)$/;
 
 // v21：請求管理画面の「今月の予定請求・支出」フリースペース（月ごとに1件）。
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ yearMonth: string }> }) {

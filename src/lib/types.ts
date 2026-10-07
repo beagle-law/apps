@@ -331,3 +331,10 @@ export interface User {
   role: string;
   createdAt?: string;
 }
+
+// v22：経費入力ボードの「お金の情報」カード（月に紐づかないフリー入力）
+export interface MoneyCard {
+  id: string;
+  content: string;
+  createdAt: string;
+}

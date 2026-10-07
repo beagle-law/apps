@@ -468,12 +468,6 @@ model MonthlyNote {
 // v21：経費入力ボードに案件と無関係に追加できる「お金に関する情報」カード（月ごと）
 model MoneyCard {
   id        String   @id @default(cuid())
-  yearMonth String // YYYY-MM
-  kind      String   @default("expense") // "income"（予定請求・収入）| "expense"（支出）
-  title     String
-  amount    Int?
-  note      String   @default("")
+  content   String   @default("") // フリー入力（月に紐づかない）
   createdAt DateTime @default(now())
-
-  @@index([yearMonth])
 }

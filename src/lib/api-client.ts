@@ -3,6 +3,7 @@ import type {
   Contact,
   Client,
   ExpenseWithCase,
+  MoneyCard,
   PasswordEntry,
   TimeCharge,
   DailyReport,
@@ -354,3 +355,8 @@ export const saveMonthlyNote = (yearMonth: string, content: string) =>
 
 export const fetchTimeChargesByMonth = (month: string) => request<TimeCharge[]>(`/api/timecharges?month=${month}`);
 
+export const fetchMoneyCards = () => request<MoneyCard[]>("/api/money-cards");
+export const addMoneyCard = (content: string) => request<MoneyCard>("/api/money-cards", { method: "POST", body: JSON.stringify({ content }) });
+export const updateMoneyCard = (id: string, content: string) =>
+  request<MoneyCard>(`/api/money-cards/${id}`, { method: "PATCH", body: JSON.stringify({ content }) });
+export const deleteMoneyCard = (id: string) => request<{ ok: true }>(`/api/money-cards/${id}`, { method: "DELETE" });
