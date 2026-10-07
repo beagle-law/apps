@@ -367,7 +367,9 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
         hours: formHours,
         content: timeChargeForm.content,
       });
-      setTimeChargeForm({ date: todayStr(), caseId: "", startTime: "", endTime: "", content: "" });
+      // 同じ日に細かく続けて入力できるよう、日付は入力したままにする
+      setTimeChargeForm((prev) => ({ date: prev.date, caseId: "", startTime: "", endTime: "", content: "" }));
+      if (/^\d{4}-\d{2}/.test(timeChargeForm.date)) setTcViewMonth(timeChargeForm.date.slice(0, 7)); // 追加した記録がすぐ見えるよう、一覧もその月に合わせる
       refreshSummary();
     } catch (e) {
       onError(e instanceof Error ? e.message : "タイムチャージの登録に失敗しました");
