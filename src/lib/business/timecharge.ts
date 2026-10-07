@@ -56,3 +56,18 @@ export function summarizeByPerson<T extends { personName: string; hours: number 
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.hours - a.hours);
 }
+
+/** 分を「150分（2.5時間）」のように分と時間の並列表記にする（v23）。 */
+export function formatMinutes(minutes: number): string {
+  return `${minutes}分（${Math.round((minutes / 60) * 100) / 100}時間）`;
+}
+
+/** 稼働時間（時間単位）を「150分（2.5時間）」の並列表記にする（v23）。 */
+export function formatDuration(hours: number): string {
+  return formatMinutes(Math.round(hours * 60));
+}
+
+/** 複数の稼働時間（時間単位）を分単位で合算し、「○分（○時間）」で表記する（v23）。 */
+export function formatTotalDuration(hoursList: number[]): string {
+  return formatMinutes(hoursList.reduce((s, h) => s + Math.round(h * 60), 0));
+}

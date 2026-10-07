@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Clock, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { User, Clock, ChevronLeft, ChevronRight, Download, Pencil } from "lucide-react";
 import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS } from "@/lib/constants";
 import { formatDate, formatDateShort, todayStr, currentYearMonth, shiftDateStr, shiftYearMonth, formatYearMonth } from "@/lib/dates";
-import { normalizeTimeInput, calcHoursFromTimes } from "@/lib/business/timecharge";
+import { normalizeTimeInput, calcHoursFromTimes, formatDuration, formatMinutes, formatTotalDuration } from "@/lib/business/timecharge";
 import { calcWorkedHoursWithLeave, calcOvertimeMinutes } from "@/lib/business/attendance";
 import { isLeaveEligible, computeLeaveBalance } from "@/lib/business/paidLeave";
 import { TextInput } from "@/components/ui";
@@ -21,13 +21,14 @@ const COLOR_EVENING = "#F3ECDD"; // 退勤時に記入（薄い黄土色系）
 
 /** 自分のタイムチャージを案件ごとに集計する（個人画面の内訳表示、v8 3.4）。 */
 function caseBreakdown(timeCharges: PersonalSummary["timeCharges"]) {
-  const byCase = new Map<string, { caseId: string; title: string; caseNumber: string; hours: number }>();
+  const byCase = new Map<string, { caseId: string; title: string; caseNumber: string; minutes: number; count: number }>();
   for (const t of timeCharges) {
-    const entry = byCase.get(t.case.id) || { caseId: t.case.id, title: t.case.title, caseNumber: t.case.caseNumber, hours: 0 };
-    entry.hours += t.hours;
+    const entry = byCase.get(t.case.id) || { caseId: t.case.id, title: t.case.title, caseNumber: t.case.caseNumber, minutes: 0, count: 0 };
+    entry.minutes += Math.round(t.hours * 60);
+    entry.count += 1;
     byCase.set(t.case.id, entry);
   }
-  return Array.from(byCase.values()).sort((a, b) => b.hours - a.hours);
+  return Array.from(byCase.values()).sort((a, b) => b.minutes - a.minutes);
 }
 
 interface ReportForm {
@@ -54,7 +55,9 @@ interface Props {
 
 export default function PersonalTaskView({ personName, cases, onError, onOpenCase }: Props) {
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
-  const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", hours: "", content: "" });
+  const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", content: "" });
+  const [editingTcId, setEditingTcId] = useState<string | null>(null);
+  const [tcEdit, setTcEdit] = useState({ date: "", caseId: "", startTime: "", endTime: "", content: "", originalHours: 0 });
   const [tcViewMonth, setTcViewMonth] = useState(currentYearMonth());
   const [reportForm, setReportForm] = useState<ReportForm>(emptyReportForm(todayStr()));
   const [monthlyGoalPercent, setMonthlyGoalPercent] = useState<string>("");
@@ -345,30 +348,57 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
   const visibleCases = cases.filter((c) => !c.hidden);
   const timeChargeCases = visibleCases.filter((c) => c.isTimeChargeCase);
 
-  const applyTimeAndRecalc = (field: "startTime" | "endTime", raw: string) => {
-    const normalized = normalizeTimeInput(raw);
-    setTimeChargeForm((prev) => {
-      const next = { ...prev, [field]: normalized };
-      const computed = calcHoursFromTimes(next.startTime, next.endTime);
-      return computed ? { ...next, hours: computed } : next;
-    });
+  // 稼働時間は入力欄を設けず、開始・終了時刻から自動算出する（v23）
+  const hoursOf = (start: string, end: string) => Number(calcHoursFromTimes(normalizeTimeInput(start), normalizeTimeInput(end))) || 0;
+  const formHours = hoursOf(timeChargeForm.startTime, timeChargeForm.endTime);
+
+  const normalizeFormTime = (field: "startTime" | "endTime", raw: string) => {
+    setTimeChargeForm((prev) => ({ ...prev, [field]: normalizeTimeInput(raw) }));
   };
 
   const addTimeCharge = async () => {
-    if (!timeChargeForm.caseId || !timeChargeForm.hours) return;
+    if (!timeChargeForm.caseId || formHours <= 0) return;
     try {
       await api.addTimeCharge({
         date: timeChargeForm.date,
         caseId: timeChargeForm.caseId,
-        startTime: timeChargeForm.startTime,
-        endTime: timeChargeForm.endTime,
-        hours: Number(timeChargeForm.hours),
+        startTime: normalizeTimeInput(timeChargeForm.startTime),
+        endTime: normalizeTimeInput(timeChargeForm.endTime),
+        hours: formHours,
         content: timeChargeForm.content,
       });
-      setTimeChargeForm({ date: todayStr(), caseId: "", startTime: "", endTime: "", hours: "", content: "" });
+      setTimeChargeForm({ date: todayStr(), caseId: "", startTime: "", endTime: "", content: "" });
       refreshSummary();
     } catch (e) {
       onError(e instanceof Error ? e.message : "タイムチャージの登録に失敗しました");
+    }
+  };
+
+  const startEditTc = (t: PersonalSummary["timeCharges"][number]) => {
+    setEditingTcId(t.id);
+    setTcEdit({ date: t.date, caseId: t.case.id, startTime: t.startTime, endTime: t.endTime, content: t.content, originalHours: t.hours });
+  };
+  // 時刻が入っていれば時刻から再計算。時刻が空の過去データ（時間のみ登録）は従来の時間を維持する。
+  const editHours = (() => {
+    const computed = hoursOf(tcEdit.startTime, tcEdit.endTime);
+    if (computed > 0) return computed;
+    return !tcEdit.startTime.trim() && !tcEdit.endTime.trim() ? tcEdit.originalHours : 0;
+  })();
+  const saveEditTc = async () => {
+    if (!editingTcId || !tcEdit.caseId || !tcEdit.date || editHours <= 0) return;
+    try {
+      await api.updateTimeCharge(editingTcId, {
+        date: tcEdit.date,
+        caseId: tcEdit.caseId,
+        startTime: normalizeTimeInput(tcEdit.startTime),
+        endTime: normalizeTimeInput(tcEdit.endTime),
+        hours: editHours,
+        content: tcEdit.content,
+      });
+      setEditingTcId(null);
+      refreshSummary();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "タイムチャージの更新に失敗しました");
     }
   };
   const removeTimeCharge = async (id: string) => {
@@ -562,16 +592,23 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Clock size={15} /> タイムチャージ</h3>
-          <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-3">
-            <TextInput type="date" value={timeChargeForm.date} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, date: e.target.value })} />
-            <select value={timeChargeForm.caseId} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, caseId: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-              <option value="">案件を選択</option>
-              {timeChargeCases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
-            </select>
-            <TextInput type="text" placeholder="開始（例：1004）" value={timeChargeForm.startTime} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, startTime: e.target.value })} onBlur={(e) => applyTimeAndRecalc("startTime", e.target.value)} className="sm:w-28" />
-            <TextInput type="text" placeholder="終了（例：1230）" value={timeChargeForm.endTime} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, endTime: e.target.value })} onBlur={(e) => applyTimeAndRecalc("endTime", e.target.value)} className="sm:w-28" />
-            <TextInput type="number" placeholder="時間" value={timeChargeForm.hours} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, hours: e.target.value })} className="sm:w-24" />
-            <button onClick={addTimeCharge} disabled={!timeChargeForm.caseId || !timeChargeForm.hours} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+          <div className="flex flex-col gap-2 mb-3">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+              <TextInput type="date" value={timeChargeForm.date} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, date: e.target.value })} />
+              <select value={timeChargeForm.caseId} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, caseId: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                <option value="">案件を選択</option>
+                {timeChargeCases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
+              </select>
+              <TextInput type="text" placeholder="開始（例：1004）" value={timeChargeForm.startTime} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, startTime: e.target.value })} onBlur={(e) => normalizeFormTime("startTime", e.target.value)} className="sm:w-28" />
+              <TextInput type="text" placeholder="終了（例：1230）" value={timeChargeForm.endTime} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, endTime: e.target.value })} onBlur={(e) => normalizeFormTime("endTime", e.target.value)} className="sm:w-28" />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <TextInput type="text" placeholder="作業内容（任意）" value={timeChargeForm.content} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, content: e.target.value })} className="flex-1" />
+              <span className="text-sm flex-shrink-0" style={{ color: formHours > 0 ? COLORS.navy : COLORS.slate }}>
+                稼働時間：{formHours > 0 ? <b>{formatDuration(formHours)}</b> : "開始・終了から自動計算"}
+              </span>
+              <button onClick={addTimeCharge} disabled={!timeChargeForm.caseId || formHours <= 0} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+            </div>
           </div>
 
           <div className="flex items-center justify-center gap-2 mb-3">
@@ -587,30 +624,61 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
             }
             return (
               <div className="flex flex-col gap-2">
-                {monthCharges.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                    <div className="flex-1">
-                      <span className="text-xs" style={{ color: COLORS.slate }}>{formatDateShort(t.date)}　</span>
-                      {t.startTime && t.endTime && <span className="text-xs" style={{ color: COLORS.slate }}>{t.startTime}〜{t.endTime}　</span>}
-                      <span className="font-bold">{t.hours}時間</span>
-                      {t.billed && <span className="text-xs ml-2 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>請求済み</span>}
-                      <p className="text-xs">
-                        <button onClick={() => onOpenCase(t.case.id)} className="underline hover:opacity-70" style={{ color: COLORS.navy }}>{t.case.title}</button>
-                        <span style={{ color: COLORS.slate }}>　{t.content}</span>
-                      </p>
-                    </div>
-                    <button onClick={() => removeTimeCharge(t.id)} className="text-xs" style={{ color: COLORS.slate }}>削除</button>
+                <div className="rounded p-3" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+                  <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.navy }}>{formatYearMonth(tcViewMonth)}の案件別の稼働時間</p>
+                  <div className="flex flex-col gap-1">
+                    {caseBreakdown(monthCharges).map((c) => (
+                      <button key={c.caseId} onClick={() => onOpenCase(c.caseId)} className="flex items-center justify-between text-sm hover:opacity-70 text-left" style={{ color: COLORS.ink }}>
+                        <span className="truncate underline">{c.title}（No.{c.caseNumber}）</span>
+                        <span className="flex-shrink-0 ml-2 font-bold">{formatMinutes(c.minutes)}</span>
+                      </button>
+                    ))}
                   </div>
-                ))}
-                <p className="text-xs font-bold text-right" style={{ color: COLORS.slate }}>合計：{monthCharges.reduce((s, t) => s + t.hours, 0)}時間</p>
-                <div className="flex flex-col gap-1 mt-1 pt-2" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
-                  {caseBreakdown(monthCharges).map((c) => (
-                    <button key={c.caseId} onClick={() => onOpenCase(c.caseId)} className="flex items-center justify-between text-xs hover:opacity-70" style={{ color: COLORS.slate }}>
-                      <span className="truncate underline">{c.title}（No.{c.caseNumber}）</span>
-                      <span className="flex-shrink-0 ml-2">{c.hours}時間</span>
-                    </button>
-                  ))}
+                  <p className="text-sm font-bold text-right mt-2 pt-2" style={{ color: COLORS.navy, borderTop: `1px solid ${COLORS.brassLight}` }}>月の合計：{formatTotalDuration(monthCharges.map((t) => t.hours))}</p>
                 </div>
+
+                {monthCharges.map((t) =>
+                  editingTcId === t.id ? (
+                    <div key={t.id} className="flex flex-col gap-2 text-sm p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brass}` }}>
+                      <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+                        <TextInput type="date" value={tcEdit.date} onChange={(e) => setTcEdit({ ...tcEdit, date: e.target.value })} />
+                        <select value={tcEdit.caseId} onChange={(e) => setTcEdit({ ...tcEdit, caseId: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+                          {!timeChargeCases.some((c) => c.id === t.case.id) && <option value={t.case.id}>No.{t.case.caseNumber}　{t.case.title}</option>}
+                          {timeChargeCases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
+                        </select>
+                        <TextInput type="text" placeholder="開始" value={tcEdit.startTime} onChange={(e) => setTcEdit({ ...tcEdit, startTime: e.target.value })} onBlur={(e) => setTcEdit((p) => ({ ...p, startTime: normalizeTimeInput(e.target.value) }))} className="sm:w-24" />
+                        <TextInput type="text" placeholder="終了" value={tcEdit.endTime} onChange={(e) => setTcEdit({ ...tcEdit, endTime: e.target.value })} onBlur={(e) => setTcEdit((p) => ({ ...p, endTime: normalizeTimeInput(e.target.value) }))} className="sm:w-24" />
+                      </div>
+                      <TextInput type="text" placeholder="作業内容（任意）" value={tcEdit.content} onChange={(e) => setTcEdit({ ...tcEdit, content: e.target.value })} />
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-xs" style={{ color: COLORS.slate }}>
+                          稼働時間：{editHours > 0 ? <b style={{ color: COLORS.navy }}>{formatDuration(editHours)}</b> : "開始・終了時刻を入力してください"}
+                        </span>
+                        <div className="flex gap-2">
+                          <button onClick={() => setEditingTcId(null)} className="text-xs px-2 py-1" style={{ color: COLORS.slate }}>キャンセル</button>
+                          <button onClick={saveEditTc} disabled={editHours <= 0 || !tcEdit.caseId || !tcEdit.date} className="text-xs font-bold px-3 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>保存</button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={t.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs" style={{ color: COLORS.slate }}>{formatDateShort(t.date)}　</span>
+                        {t.startTime && t.endTime && <span className="text-xs" style={{ color: COLORS.slate }}>{t.startTime}〜{t.endTime}　</span>}
+                        <span className="font-bold">{formatDuration(t.hours)}</span>
+                        {t.billed && <span className="text-xs ml-2 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>請求済み</span>}
+                        <p className="text-xs">
+                          <button onClick={() => onOpenCase(t.case.id)} className="underline hover:opacity-70" style={{ color: COLORS.navy }}>{t.case.title}</button>
+                          {t.content && <span style={{ color: COLORS.slate }}>　{t.content}</span>}
+                        </p>
+                      </div>
+                      {!t.billed && (
+                        <button onClick={() => startEditTc(t)} title="編集" className="flex-shrink-0 p-1 hover:opacity-70" style={{ color: COLORS.navy }}><Pencil size={14} /></button>
+                      )}
+                      <button onClick={() => removeTimeCharge(t.id)} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
+                    </div>
+                  )
+                )}
               </div>
             );
           })()}

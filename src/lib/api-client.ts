@@ -226,6 +226,8 @@ export const deleteAttendanceExtraSegment = (personName: string, segmentId: stri
 // ── タイムチャージ・日報 ──────────────────────────
 export const addTimeCharge = (payload: { date: string; caseId: string; startTime?: string; endTime?: string; hours: number; content?: string }) =>
   request<TimeCharge>("/api/timecharges", { method: "POST", body: JSON.stringify(payload) });
+export const updateTimeCharge = (id: string, payload: { date?: string; caseId?: string; startTime?: string; endTime?: string; hours?: number; content?: string }) =>
+  request<TimeCharge>(`/api/timecharges/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 export const deleteTimeCharge = (id: string) => request<{ ok: true }>(`/api/timecharges/${id}`, { method: "DELETE" });
 
 export const addDailyReport = (payload: {
