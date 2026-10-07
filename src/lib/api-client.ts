@@ -250,6 +250,8 @@ export interface PersonalSummary {
   timeCharges: (TimeCharge & { case: { id: string; title: string; caseNumber: string } })[];
   dailyReports: DailyReport[] | null;
 }
+export const fetchPersonalSuccesses = (name: string) =>
+  request<{ id: string; date: string; todaySuccess: string }[]>(`/api/personal/${encodeURIComponent(name)}/successes`);
 export const fetchPersonalSummary = (name: string) => request<PersonalSummary>(`/api/personal/${encodeURIComponent(name)}/summary`);
 
 // ── 請求書（v12：顧客に紐づけて作成） ──────────────────

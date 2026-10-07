@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { COLORS, FONT_MINCHO, GOAL_KEYS } from "@/lib/constants";
+import { COLORS, FONT_MINCHO, GOAL_KEYS, DAILY_REPORT_STAFF } from "@/lib/constants";
 import { currentYearMonth, formatYearMonth, formatDate } from "@/lib/dates";
 import { YearMonthNav, Pill } from "@/components/ui";
 import * as api from "@/lib/api-client";
-import type { GoalRecord, User, DailyReport } from "@/lib/types";
+import type { GoalRecord, User } from "@/lib/types";
 
 interface Props {
   currentUser: User;
@@ -20,7 +20,9 @@ export default function GoalsView({ currentUser, onError }: Props) {
   const [records, setRecords] = useState<GoalRecord[]>([]);
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
   const [selectedYearMonth, setSelectedYearMonth] = useState(currentYearMonth());
-  const [dailyReports, setDailyReports] = useState<DailyReport[] | null>(null);
+  const [dailyReports, setDailyReports] = useState<{ id: string; date: string; todaySuccess: string }[] | null>(null);
+  // 積み重ね：本人以外のメンバーの「本日の成功」にも切り替えて見られる
+  const [stackingPerson, setStackingPerson] = useState(DAILY_REPORT_STAFF.includes(currentUser.displayName) ? currentUser.displayName : DAILY_REPORT_STAFF[0]);
   const [stackingYear, setStackingYear] = useState("");
   const [stackingMonth, setStackingMonth] = useState("");
   const [stackingDay, setStackingDay] = useState("");
@@ -30,14 +32,19 @@ export default function GoalsView({ currentUser, onError }: Props) {
   };
   useEffect(load, []);
 
-  // v10 4.5「積み重ね」：ログイン中の本人の日報「本日の成功」を自動的に絞り込んで表示する
+  // v10 4.5「積み重ね」：日報「本日の成功」を絞り込んで表示する（v23：メンバーを切り替えて閲覧可能）
   useEffect(() => {
     if (subView !== "stacking") return;
+    setDailyReports(null);
+    let cancelled = false;
     api
-      .fetchPersonalSummary(currentUser.displayName)
-      .then((res) => setDailyReports(res.dailyReports))
+      .fetchPersonalSuccesses(stackingPerson)
+      .then((res) => !cancelled && setDailyReports(res))
       .catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
-  }, [subView, currentUser.displayName, onError]);
+    return () => {
+      cancelled = true;
+    };
+  }, [subView, stackingPerson, onError]);
 
   const saveMemo = async (key: string, yearMonth: string, memo: string) => {
     try {
@@ -130,7 +137,14 @@ export default function GoalsView({ currentUser, onError }: Props) {
 
         {subView === "stacking" ? (
           <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-            <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{currentUser.displayName}さんの「本日の成功」</h3>
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{stackingPerson}さんの「本日の成功」</h3>
+              <div className="flex gap-1.5">
+                {DAILY_REPORT_STAFF.map((n) => (
+                  <Pill key={n} active={stackingPerson === n} color={COLORS.brass} onClick={() => setStackingPerson(n)}>{n}</Pill>
+                ))}
+              </div>
+            </div>
 
             {dailyReports !== null && (() => {
               const years = Array.from(new Set(dailyReports.map((r) => r.date.slice(0, 4)))).sort((a, b) => b.localeCompare(a));

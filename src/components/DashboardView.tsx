@@ -242,7 +242,9 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   const retainerRows = [...retainerByClassification.entries()].sort((a, b) => b[1] - a[1]);
   const retainerMax = Math.max(1, ...retainerRows.map(([, v]) => v));
 
-  const engagementGroups = groupCasesByPeriod(visibleCases, "engagementDate", caseEventGranularity);
+  // 受任件数・終結件数は、案件一覧で非表示にした案件も含めて集計する（個人メモは除く）
+  const analysisCases = cases.filter((c) => !c.isPrivate);
+  const engagementGroups = groupCasesByPeriod(analysisCases, "engagementDate", caseEventGranularity);
   const engagementMax = Math.max(1, ...engagementGroups.map(([, list]) => list.length));
   let engagementCum = 0;
   const engagementWithCumulative = engagementGroups.map(([key, list]) => {
@@ -251,7 +253,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   });
 
   const closedGroups = groupCasesByPeriod(
-    visibleCases.filter((c) => c.stage === "終結"),
+    analysisCases.filter((c) => c.stage === "終結"),
     "closedDate",
     caseEventGranularity
   );
