@@ -121,6 +121,17 @@ export default function CaseTrackerApp() {
         if (PERSONAL_TASK_TABS.includes(user.displayName)) {
           setView(`person:${user.displayName}`);
         }
+        // スマホ幅（768px未満）で開いたときの初期表示は個人メモ（v26）
+        if (window.matchMedia("(max-width: 767px)").matches) {
+          try {
+            const memoCase = await api.fetchOrCreateMemoCase();
+            if (!caseList.some((c) => c.id === memoCase.id)) setCases([memoCase, ...caseList]);
+            setSelectedId(memoCase.id);
+            setView("list");
+          } catch {
+            // 個人メモを開けなかった場合は、通常の初期表示のままにする
+          }
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "データの読み込みに失敗しました。再読み込みしてください。");
       } finally {
@@ -363,25 +374,28 @@ export default function CaseTrackerApp() {
 
       {view === "list" && (
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden" style={resizingSidebar ? { cursor: "col-resize", userSelect: "none" } : undefined}>
-          <CaseListSidebar
-            allCases={cases}
-            cases={filteredCases}
-            selectedId={selectedId}
-            searchQuery={searchQuery}
-            ballFilter={ballFilter}
-            showHiddenCases={showHiddenCases}
-            onSearchChange={setSearchQuery}
-            onBallFilterChange={setBallFilter}
-            onToggleShowHidden={() => setShowHiddenCases((v) => !v)}
-            onSelect={setSelectedId}
-            onToggleHidden={toggleCaseHidden}
-            onUnhideAll={unhideAllCases}
-            onNewCase={() => {
-              setNewCaseClientId(null);
-              setShowNewCaseModal(true);
-            }}
-            widthPx={isDesktopLayout ? sidebarWidth : undefined}
-          />
+          {/* スマホで個人メモを開いているときは、上半分の案件一覧は出さず個人メモだけを表示する */}
+          {(isDesktopLayout || !isMemoActive) && (
+            <CaseListSidebar
+              allCases={cases}
+              cases={filteredCases}
+              selectedId={selectedId}
+              searchQuery={searchQuery}
+              ballFilter={ballFilter}
+              showHiddenCases={showHiddenCases}
+              onSearchChange={setSearchQuery}
+              onBallFilterChange={setBallFilter}
+              onToggleShowHidden={() => setShowHiddenCases((v) => !v)}
+              onSelect={setSelectedId}
+              onToggleHidden={toggleCaseHidden}
+              onUnhideAll={unhideAllCases}
+              onNewCase={() => {
+                setNewCaseClientId(null);
+                setShowNewCaseModal(true);
+              }}
+              widthPx={isDesktopLayout ? sidebarWidth : undefined}
+            />
+          )}
           {isDesktopLayout && (
             <div
               onMouseDown={() => setResizingSidebar(true)}
