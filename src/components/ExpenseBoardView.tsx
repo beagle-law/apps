@@ -181,23 +181,24 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const listItems = [...pastUnbilled, ...monthItems];
 
   // 一覧のグループ（案件別／顧客別）
-  const groups = (() => {
+  const buildGroups = (srcItems: Item[], kind: GroupBy) => {
     const map = new Map<string, { key: string; label: string; first: Case; items: Item[] }>();
-    for (const it of listItems) {
-      const key = groupBy === "case" ? it.c.id : clientKeyOf(it.c);
-      const g = map.get(key) ?? { key, label: groupBy === "case" ? `${it.c.caseNumber}.${it.c.title}` : clientLabelOf(it.c), first: it.c, items: [] };
+    for (const it of srcItems) {
+      const key = kind === "case" ? it.c.id : clientKeyOf(it.c);
+      const g = map.get(key) ?? { key, label: kind === "case" ? `${it.c.caseNumber}.${it.c.title}` : clientLabelOf(it.c), first: it.c, items: [] };
       g.items.push(it);
       map.set(key, g);
     }
     const list = [...map.values()];
     list.forEach((g) => g.items.sort((a, b) => a.e.date.localeCompare(b.e.date)));
     list.sort((a, b) =>
-      groupBy === "case"
+      kind === "case"
         ? compareCaseNumbers(a.first.caseNumber, b.first.caseNumber)
         : (a.first.clientNumber ?? 1e9) - (b.first.clientNumber ?? 1e9) || a.label.localeCompare(b.label, "ja")
     );
     return list;
-  })();
+  };
+  const groups = buildGroups(listItems, groupBy);
   const listTotals = sumOf(listItems);
 
   // 過去月の請求済み：月ごとに折りたたんで表示する（開いた月だけ明細を出すので、量が増えても一覧が長くならない）
@@ -239,6 +240,10 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
     return months;
   })();
   const selectedTotals = sumOf(selectedItems);
+
+  // 案件／顧客をプルダウンで選んで全期間表示へ移れるようにする（経費のある案件・顧客のみ）
+  const pickKind: GroupBy = selected ? selected.kind : groupBy;
+  const pickOptions = buildGroups(allItems, pickKind);
 
   // 案件を選んだ状態で追加フォームを開いたときは、その案件を初期値にする
   const openForm = (caseId = "") => {
@@ -408,6 +413,21 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                 <p className="text-xs px-1">{totalsLine(listTotals)}</p>
               </>
             )}
+
+            <select
+              value={selected?.id ?? ""}
+              onChange={(e) => (e.target.value ? select(pickKind, e.target.value) : setSelected(null))}
+              className="text-sm p-2 rounded outline-none min-w-0 w-full"
+              style={{ border: `1px solid ${COLORS.brassLight}`, backgroundColor: COLORS.card }}
+            >
+              <option value="">{pickKind === "case" ? "案件" : "顧客"}を選んで全期間の経費を表示</option>
+              {pickOptions.map((g) => {
+                const unbilled = sumOf(g.items).unbilled;
+                return (
+                  <option key={g.key} value={g.key}>{g.label}{unbilled > 0 ? `（未請求 ${yen(unbilled)}）` : ""}</option>
+                );
+              })}
+            </select>
 
             {selected && (
               <div className="rounded p-3 flex flex-col gap-1.5" style={cardStyle}>
