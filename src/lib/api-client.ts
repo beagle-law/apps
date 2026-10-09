@@ -176,6 +176,8 @@ export const addExpense = (
 export const deleteExpense = (caseId: string, expenseId: string) =>
   request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "DELETE" });
 
+export const setExpenseBilled = (caseId: string, expenseId: string, billedManually: boolean) =>
+  request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "PATCH", body: JSON.stringify({ billedManually }) });
 export const setExpenseCheckedForBilling = (caseId: string, expenseId: string, checkedForBilling: boolean) =>
   request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "PATCH", body: JSON.stringify({ checkedForBilling }) });
 

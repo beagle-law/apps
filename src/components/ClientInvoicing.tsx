@@ -8,6 +8,7 @@ import { TextInput } from "@/components/ui";
 import { invoiceTotal, buildTimeChargeItem, formatYen, DEFAULT_INVOICE_NOTES } from "@/lib/business/invoice";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
+import { isExpenseBilled } from "@/lib/types";
 import type { Client, TimeCharge, Invoice, ExpenseWithCase } from "@/lib/types";
 
 interface Props {
@@ -65,9 +66,9 @@ export default function ClientInvoicing({ client, onError }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
 
-  const checkedUnbilled = expenseHistory.filter((e) => e.checkedForBilling && !e.billedInInvoiceId);
+  const checkedUnbilled = expenseHistory.filter((e) => e.checkedForBilling && !isExpenseBilled(e));
   const checkedTotal = checkedUnbilled.reduce((s, e) => s + e.amount, 0);
-  const eligibleForSelectAll = expenseHistory.filter((e) => !e.billedInInvoiceId);
+  const eligibleForSelectAll = expenseHistory.filter((e) => !isExpenseBilled(e));
   const allSelected = eligibleForSelectAll.length > 0 && eligibleForSelectAll.every((e) => e.checkedForBilling);
 
   const toggleExpenseChecked = async (e: ExpenseWithCase, checked: boolean) => {
@@ -228,7 +229,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
                     type="checkbox"
                     className="mt-1"
                     checked={e.checkedForBilling}
-                    disabled={!!e.billedInInvoiceId}
+                    disabled={isExpenseBilled(e)}
                     onChange={(ev) => toggleExpenseChecked(e, ev.target.checked)}
                   />
                   <div className="flex-1 min-w-0">
@@ -236,7 +237,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
                       <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>{formatDateShort(e.date)}</span>
                       <span className="flex-1 font-semibold">{e.category}</span>
                       <span className="font-bold flex-shrink-0">¥{e.amount.toLocaleString("ja-JP")}</span>
-                      {e.billedInInvoiceId && <span className="text-xs flex-shrink-0" style={{ color: COLORS.moss }}>請求済</span>}
+                      {isExpenseBilled(e) && <span className="text-xs flex-shrink-0" style={{ color: COLORS.moss }}>請求済</span>}
                     </div>
                     <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{e.caseNumber && `No.${e.caseNumber}　`}{e.caseTitle}</p>
                     {(e.route || e.origin || e.destination) && (

@@ -18,8 +18,12 @@ export interface Expense {
   notes: string;
   billedInInvoiceId: string | null;
   checkedForBilling: boolean;
+  billedManually: boolean;
   createdAt: string;
 }
+
+/** 請求済みかどうか（請求書に反映済み、または経費入力ボードで手動チェック済み）。 */
+export const isExpenseBilled = (e: { billedInInvoiceId: string | null; billedManually: boolean }) => !!e.billedInInvoiceId || e.billedManually;
 
 // 顧客詳細「実費履歴」用（v12 3.2）：案件を横断した実費一覧に、由来案件の情報を添えたもの。
 export interface ExpenseWithCase extends Expense {

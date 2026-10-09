@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       notes: e.notes,
       billedInInvoiceId: e.billedInInvoiceId,
       checkedForBilling: e.checkedForBilling,
+      billedManually: e.billedManually,
       createdAt: e.createdAt.toISOString(),
       caseId: e.case.id,
       caseTitle: e.case.title,

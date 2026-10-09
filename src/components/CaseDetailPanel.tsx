@@ -43,7 +43,7 @@ import {
 } from "@/lib/constants";
 import { formatDate, formatDateShort, formatDateTime, relativeDayLabel, todayStr, currentYearMonth, shiftYearMonth, formatYearMonth } from "@/lib/dates";
 import type { Case, Contact, TimeCharge, CustomField, CaseClassification } from "@/lib/types";
-import { emptyContact } from "@/lib/types";
+import { emptyContact, isExpenseBilled } from "@/lib/types";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
 import { formatYen } from "@/lib/business/invoice";
 import { summarizeByPerson } from "@/lib/business/timecharge";
@@ -883,7 +883,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                         <span className="text-xs" style={{ color: COLORS.slate }}>{formatDateShort(e.date)}</span>
                         <Badge color={COLORS.brass}>{e.category}</Badge>
                         <span className="font-bold">¥{e.amount.toLocaleString("ja-JP")}</span>
-                        <Badge color={e.billedInInvoiceId ? COLORS.moss : COLORS.slate}>{e.billedInInvoiceId ? "請求書反映済" : "請求書未作成"}</Badge>
+                        <Badge color={isExpenseBilled(e) ? COLORS.moss : COLORS.slate}>{e.billedInInvoiceId ? "請求書反映済" : e.billedManually ? "請求済み" : "請求書未作成"}</Badge>
                       </div>
                       {e.route && <p className="text-xs mt-1" style={{ color: COLORS.slate }}>{e.route}</p>}
                       {e.notes && <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{e.notes}</p>}

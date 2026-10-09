@@ -214,6 +214,7 @@ model Expense {
   billedInInvoiceId String? // この実費が反映済みの請求書（v10 3.3）
   invoice           Invoice? @relation(fields: [billedInInvoiceId], references: [id], onDelete: SetNull)
   checkedForBilling Boolean  @default(false) // 顧客詳細「実費履歴」の請求チェック（v12 3.2）
+  billedManually    Boolean  @default(false) // 経費入力ボードで手動チェックした請求済み（v24）。請求書反映済み（billedInInvoiceId）と合わせて請求済み扱い
 
   @@index([caseId])
   @@index([billedInInvoiceId])

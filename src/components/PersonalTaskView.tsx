@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { User, Clock, ChevronLeft, ChevronRight, Download, Pencil } from "lucide-react";
 import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS } from "@/lib/constants";
 import { formatDate, formatDateShort, todayStr, currentYearMonth, shiftDateStr, shiftYearMonth, formatYearMonth } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes, formatDuration, formatMinutes, formatTotalDuration } from "@/lib/business/timecharge";
 import { calcWorkedHoursWithLeave, calcOvertimeMinutes } from "@/lib/business/attendance";
 import { isLeaveEligible, computeLeaveBalance } from "@/lib/business/paidLeave";
-import { TextInput } from "@/components/ui";
+import { TextInput, Pill } from "@/components/ui";
+import TimeChargeForm from "@/components/TimeChargeForm";
+import { compareCaseNumbers } from "@/lib/business/caseSort";
 import UpcomingHearingsView from "@/components/UpcomingHearingsView";
 import * as api from "@/lib/api-client";
 import type { PersonalSummary } from "@/lib/api-client";
@@ -55,7 +57,7 @@ interface Props {
 
 export default function PersonalTaskView({ personName, cases, onError, onOpenCase }: Props) {
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
-  const [timeChargeForm, setTimeChargeForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", content: "" });
+  const [tcSort, setTcSort] = useState<"date" | "case">("date"); // 履歴の並び順：日付順（新しい順）／案件別
   const [editingTcId, setEditingTcId] = useState<string | null>(null);
   const [tcEdit, setTcEdit] = useState({ date: "", caseId: "", startTime: "", endTime: "", content: "", originalHours: 0 });
   const [tcViewMonth, setTcViewMonth] = useState(currentYearMonth());
@@ -350,31 +352,6 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
 
   // 稼働時間は入力欄を設けず、開始・終了時刻から自動算出する（v23）
   const hoursOf = (start: string, end: string) => Number(calcHoursFromTimes(normalizeTimeInput(start), normalizeTimeInput(end))) || 0;
-  const formHours = hoursOf(timeChargeForm.startTime, timeChargeForm.endTime);
-
-  const normalizeFormTime = (field: "startTime" | "endTime", raw: string) => {
-    setTimeChargeForm((prev) => ({ ...prev, [field]: normalizeTimeInput(raw) }));
-  };
-
-  const addTimeCharge = async () => {
-    if (!timeChargeForm.caseId || formHours <= 0) return;
-    try {
-      await api.addTimeCharge({
-        date: timeChargeForm.date,
-        caseId: timeChargeForm.caseId,
-        startTime: normalizeTimeInput(timeChargeForm.startTime),
-        endTime: normalizeTimeInput(timeChargeForm.endTime),
-        hours: formHours,
-        content: timeChargeForm.content,
-      });
-      // 同じ日に細かく続けて入力できるよう、日付は入力したままにする
-      setTimeChargeForm((prev) => ({ date: prev.date, caseId: "", startTime: "", endTime: "", content: "" }));
-      if (/^\d{4}-\d{2}/.test(timeChargeForm.date)) setTcViewMonth(timeChargeForm.date.slice(0, 7)); // 追加した記録がすぐ見えるよう、一覧もその月に合わせる
-      refreshSummary();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "タイムチャージの登録に失敗しました");
-    }
-  };
 
   const startEditTc = (t: PersonalSummary["timeCharges"][number]) => {
     setEditingTcId(t.id);
@@ -594,23 +571,15 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Clock size={15} /> タイムチャージ</h3>
-          <div className="flex flex-col gap-2 mb-3">
-            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-              <TextInput type="date" value={timeChargeForm.date} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, date: e.target.value })} />
-              <select value={timeChargeForm.caseId} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, caseId: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
-                <option value="">案件を選択</option>
-                {timeChargeCases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
-              </select>
-              <TextInput type="text" placeholder="開始（例：1004）" value={timeChargeForm.startTime} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, startTime: e.target.value })} onBlur={(e) => normalizeFormTime("startTime", e.target.value)} className="sm:w-28" />
-              <TextInput type="text" placeholder="終了（例：1230）" value={timeChargeForm.endTime} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, endTime: e.target.value })} onBlur={(e) => normalizeFormTime("endTime", e.target.value)} className="sm:w-28" />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <TextInput type="text" placeholder="作業内容（任意）" value={timeChargeForm.content} onChange={(e) => setTimeChargeForm({ ...timeChargeForm, content: e.target.value })} className="flex-1" />
-              <span className="text-sm flex-shrink-0" style={{ color: formHours > 0 ? COLORS.navy : COLORS.slate }}>
-                稼働時間：{formHours > 0 ? <b>{formatDuration(formHours)}</b> : "開始・終了から自動計算"}
-              </span>
-              <button onClick={addTimeCharge} disabled={!timeChargeForm.caseId || formHours <= 0} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
-            </div>
+          <div className="mb-3">
+            <TimeChargeForm
+              cases={timeChargeCases}
+              onAdded={(date) => {
+                if (/^\d{4}-\d{2}/.test(date)) setTcViewMonth(date.slice(0, 7)); // 追加した記録がすぐ見えるよう、一覧もその月に合わせる
+                refreshSummary();
+              }}
+              onError={onError}
+            />
           </div>
 
           <div className="flex items-center justify-center gap-2 mb-3">
@@ -624,6 +593,12 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
             if (monthCharges.length === 0) {
               return <p className="text-sm" style={{ color: COLORS.slate }}>この月のタイムチャージはありません。</p>;
             }
+            // 履歴は時間が重複しない前提で時系列に並べる：新しいものを上に（日付→開始時刻の降順）。案件別は案件番号順で、案件内は新しい順。
+            const byNewest = (x: (typeof monthCharges)[number], y: (typeof monthCharges)[number]) =>
+              y.date.localeCompare(x.date) || (y.startTime || "").localeCompare(x.startTime || "") || y.createdAt.localeCompare(x.createdAt);
+            const sortedCharges = [...monthCharges].sort((x, y) =>
+              tcSort === "case" ? compareCaseNumbers(x.case.caseNumber, y.case.caseNumber) || x.case.id.localeCompare(y.case.id) || byNewest(x, y) : byNewest(x, y)
+            );
             return (
               <div className="flex flex-col gap-2">
                 <div className="rounded p-3" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
@@ -639,9 +614,22 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
                   <p className="text-sm font-bold text-right mt-2 pt-2" style={{ color: COLORS.navy, borderTop: `1px solid ${COLORS.brassLight}` }}>月の合計：{formatTotalDuration(monthCharges.map((t) => t.hours))}</p>
                 </div>
 
-                {monthCharges.map((t) =>
-                  editingTcId === t.id ? (
-                    <div key={t.id} className="flex flex-col gap-2 text-sm p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brass}` }}>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs font-bold" style={{ color: COLORS.slate }}>並び順</span>
+                  <Pill active={tcSort === "date"} color={COLORS.navy} onClick={() => setTcSort("date")}>日付順（新しい順）</Pill>
+                  <Pill active={tcSort === "case"} color={COLORS.navy} onClick={() => setTcSort("case")}>案件別</Pill>
+                </div>
+
+                {sortedCharges.map((t, i) => (
+                  <Fragment key={t.id}>
+                  {tcSort === "case" && (i === 0 || sortedCharges[i - 1].case.id !== t.case.id) && (
+                    <p className="text-xs font-bold mt-1" style={{ color: COLORS.navy }}>
+                      No.{t.case.caseNumber}　{t.case.title}
+                      <span className="ml-2 font-normal" style={{ color: COLORS.slate }}>{formatTotalDuration(sortedCharges.filter((x) => x.case.id === t.case.id).map((x) => x.hours))}</span>
+                    </p>
+                  )}
+                  {editingTcId === t.id ? (
+                    <div className="flex flex-col gap-2 text-sm p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brass}` }}>
                       <div className="flex flex-col sm:flex-row flex-wrap gap-2">
                         <TextInput type="date" value={tcEdit.date} onChange={(e) => setTcEdit({ ...tcEdit, date: e.target.value })} />
                         <select value={tcEdit.caseId} onChange={(e) => setTcEdit({ ...tcEdit, caseId: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
@@ -663,7 +651,7 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
                       </div>
                     </div>
                   ) : (
-                    <div key={t.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                    <div className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
                       <div className="flex-1 min-w-0">
                         <span className="text-xs" style={{ color: COLORS.slate }}>{formatDateShort(t.date)}　</span>
                         {t.startTime && t.endTime && <span className="text-xs" style={{ color: COLORS.slate }}>{t.startTime}〜{t.endTime}　</span>}
@@ -679,8 +667,9 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
                       )}
                       <button onClick={() => removeTimeCharge(t.id)} className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>削除</button>
                     </div>
-                  )
-                )}
+                  )}
+                  </Fragment>
+                ))}
               </div>
             );
           })()}

@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
 
-// 顧客詳細「実費履歴」の請求チェックの切り替え（v12 3.2）
+// 顧客詳細「実費履歴」の請求チェック（v12 3.2）／経費入力ボードの請求済みチェック（v24）の切り替え
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; expenseId: string }> }
@@ -16,14 +16,18 @@ export async function PATCH(
   const existing = await getAccessibleCaseOrNull(id, user.id);
   if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
 
-  const body = (await req.json()) as { checkedForBilling?: boolean };
-  if (body.checkedForBilling === undefined) {
-    return NextResponse.json({ error: "checkedForBillingは必須です" }, { status: 400 });
+  const body = (await req.json()) as { checkedForBilling?: boolean; billedManually?: boolean };
+  if (body.checkedForBilling === undefined && body.billedManually === undefined) {
+    return NextResponse.json({ error: "checkedForBillingまたはbilledManuallyは必須です" }, { status: 400 });
   }
 
   await prisma.expense.update({
     where: { id: expenseId, caseId: id },
-    data: { checkedForBilling: body.checkedForBilling },
+    data: {
+      ...(body.checkedForBilling !== undefined && { checkedForBilling: body.checkedForBilling }),
+      // 請求済みにした経費は、請求書作成用の「請求チェック」からは外す
+      ...(body.billedManually !== undefined && { billedManually: body.billedManually, ...(body.billedManually && { checkedForBilling: false }) }),
+    },
   });
   const c = await prisma.case.findUnique({ where: { id }, include: caseInclude });
   return NextResponse.json(serializeCase(c!));

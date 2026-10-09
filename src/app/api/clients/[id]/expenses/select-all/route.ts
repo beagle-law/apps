@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { caseVisibilityFilter } from "@/lib/case-access";
 
-// 実費履歴の「すべて選択」チェックボックス（v12 3.2）。未請求（billedInInvoiceIdなし）の実費のみが対象。
+// 実費履歴の「すべて選択」チェックボックス（v12 3.2）。未請求（請求書未反映かつ手動の請求済みチェックなし）の実費のみが対象。
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   await prisma.expense.updateMany({
-    where: { case: { clientId: id, ...caseVisibilityFilter(user.id) }, billedInInvoiceId: null },
+    where: { case: { clientId: id, ...caseVisibilityFilter(user.id) }, billedInInvoiceId: null, billedManually: false },
     data: { checkedForBilling: body.checked },
   });
   return NextResponse.json({ ok: true });

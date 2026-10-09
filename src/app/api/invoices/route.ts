@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
         where: {
           id: { in: billExpenseIds },
           billedInInvoiceId: null,
+          billedManually: false,
           case: { clientId: body.clientId!, ...caseVisibilityFilter(user.id) },
         },
         data: { billedInInvoiceId: invoice.id, checkedForBilling: false },
