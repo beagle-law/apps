@@ -52,20 +52,20 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, onAdd
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className={`flex flex-col ${compact ? "" : "sm:flex-row"} flex-wrap gap-2`}>
-        <TextInput type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-        <select value={form.caseId} onChange={(e) => setForm({ ...form, caseId: e.target.value })} className="text-sm p-2 rounded outline-none flex-1 min-w-0" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+    <div className="flex flex-col gap-2 w-full min-w-0">
+      <div className={`flex flex-col ${compact ? "" : "sm:flex-row"} flex-wrap gap-2 min-w-0`}>
+        <TextInput type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className={compact ? "w-full min-w-0" : ""} />
+        <select value={form.caseId} onChange={(e) => setForm({ ...form, caseId: e.target.value })} className={`text-sm p-2 rounded outline-none min-w-0 ${compact ? "w-full" : "flex-1"}`} style={{ border: `1px solid ${COLORS.brassLight}` }}>
           <option value="">案件を選択</option>
           {cases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
         </select>
-        <div className="flex gap-2">
-          <TextInput type="text" placeholder="開始（例：1004）" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} onBlur={(e) => setForm((p) => ({ ...p, startTime: normalizeTimeInput(e.target.value) }))} className={compact ? "flex-1 min-w-0" : "sm:w-28"} />
-          <TextInput type="text" placeholder="終了（例：1230）" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} onBlur={(e) => setForm((p) => ({ ...p, endTime: normalizeTimeInput(e.target.value) }))} className={compact ? "flex-1 min-w-0" : "sm:w-28"} />
+        <div className="flex gap-2 min-w-0">
+          <TextInput type="text" placeholder="開始（例：1004）" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} onBlur={(e) => setForm((p) => ({ ...p, startTime: normalizeTimeInput(e.target.value) }))} className="w-0 flex-1 min-w-0 sm:w-28 sm:flex-none" />
+          <TextInput type="text" placeholder="終了（例：1230）" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} onBlur={(e) => setForm((p) => ({ ...p, endTime: normalizeTimeInput(e.target.value) }))} className="w-0 flex-1 min-w-0 sm:w-28 sm:flex-none" />
         </div>
       </div>
       <div className={`flex flex-col ${compact ? "" : "sm:flex-row sm:items-center"} gap-2`}>
-        <TextInput type="text" placeholder="作業内容（任意）" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="flex-1" />
+        <TextInput type="text" placeholder="作業内容（任意）" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className={compact ? "w-full min-w-0" : "flex-1"} />
         <span className="text-sm flex-shrink-0" style={{ color: hours > 0 ? COLORS.navy : COLORS.slate }}>
           稼働時間：{hours > 0 ? <b>{formatDuration(hours)}</b> : "開始・終了から自動計算"}
         </span>
