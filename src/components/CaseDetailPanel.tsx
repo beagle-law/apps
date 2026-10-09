@@ -44,6 +44,7 @@ import {
 import { formatDate, formatDateShort, formatDateTime, relativeDayLabel, todayStr, currentYearMonth, shiftYearMonth, formatYearMonth } from "@/lib/dates";
 import type { Case, Contact, TimeCharge, CustomField, CaseClassification } from "@/lib/types";
 import { emptyContact, isExpenseBilled } from "@/lib/types";
+import DepositEditor from "@/components/DepositEditor";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
 import { formatYen } from "@/lib/business/invoice";
 import { summarizeByPerson } from "@/lib/business/timecharge";
@@ -136,6 +137,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     notes: "",
   });
   const [newDeposit, setNewDeposit] = useState({ date: "", amount: "", notes: "" });
+  const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [caseTimeCharges, setCaseTimeCharges] = useState<TimeCharge[]>([]);
   const [tcMonth, setTcMonth] = useState(currentYearMonth());
@@ -404,6 +406,12 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
       return updated;
     });
   };
+  const saveDepositEdit = (depositId: string, patch: { date: string; amount: number; notes: string }) =>
+    run(async () => {
+      const updated = await api.updateDeposit(selectedCase.id, depositId, patch);
+      setEditingDepositId(null);
+      return updated;
+    });
   const removeDepositEntry = (depositId: string) => {
     if (!window.confirm("この預り金の入金を削除します。よろしいですか？")) return;
     run(() => api.deleteDeposit(selectedCase.id, depositId));
@@ -936,7 +944,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                 <p className="text-sm py-1" style={{ color: COLORS.slate }}>預り金の入金はありません。</p>
               ) : (
                 <div className="flex flex-col gap-2 mb-2">
-                  {deposits.map((d) => (
+                  {deposits.map((d) =>
+                    editingDepositId === d.id ? (
+                      <DepositEditor key={d.id} deposit={d} onSave={(patch) => saveDepositEdit(d.id, patch)} onCancel={() => setEditingDepositId(null)} />
+                    ) : (
                     <div key={d.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -946,9 +957,11 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                         </div>
                         {d.notes && <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{d.notes}</p>}
                       </div>
-                      <button onClick={() => removeDepositEntry(d.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                      <button onClick={() => setEditingDepositId(d.id)} title="編集" className="hover:opacity-70" style={{ color: COLORS.navy }}><Pencil size={14} /></button>
+                      <button onClick={() => removeDepositEntry(d.id)} title="削除" style={{ color: COLORS.slate }}><X size={14} /></button>
                     </div>
-                  ))}
+                    )
+                  )}
                 </div>
               )}
               {(deposits.length > 0 || balance !== 0) && (

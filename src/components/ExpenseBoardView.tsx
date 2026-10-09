@@ -8,6 +8,7 @@ import { compareCaseNumbers, sortCasesByCaseNumber } from "@/lib/business/caseSo
 import { formatDuration, formatTotalDuration } from "@/lib/business/timecharge";
 import { TextInput, Pill } from "@/components/ui";
 import TimeChargeForm from "@/components/TimeChargeForm";
+import DepositEditor from "@/components/DepositEditor";
 import * as api from "@/lib/api-client";
 import { isExpenseBilled } from "@/lib/types";
 import type { Case, Expense, Deposit, TimeCharge, MoneyCard } from "@/lib/types";
@@ -21,9 +22,9 @@ interface Props {
 
 const LANE_BG = "#EAE4D6";
 
-function Lane({ title, count, children }: { title: string; count?: string; children: React.ReactNode }) {
+function Lane({ id, title, count, children }: { id?: string; title: string; count?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded p-3 flex flex-col gap-2 min-w-0" style={{ backgroundColor: LANE_BG }}>
+    <div id={id} className="rounded p-3 flex flex-col gap-2 min-w-0 scroll-mt-28 lg:scroll-mt-0" style={{ backgroundColor: LANE_BG }}>
       <div className="flex items-center justify-between px-1 gap-2 flex-wrap">
         <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{title}</h3>
         {count && <span className="text-xs" style={{ color: COLORS.slate }}>{count}</span>}
@@ -151,6 +152,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const [openPastMonths, setOpenPastMonths] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
   const [entryType, setEntryType] = useState<"expense" | "deposit">("expense");
+  const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
 
   useEffect(() => {
@@ -307,6 +309,15 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
     }
   };
 
+  const saveDeposit = async (it: DItem, patch: { date: string; amount: number; notes: string }) => {
+    try {
+      onCaseUpdated(await api.updateDeposit(it.c.id, it.d.id, patch));
+      setEditingDepositId(null);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "更新に失敗しました");
+    }
+  };
+
   const removeDeposit = async (caseId: string, depositId: string) => {
     if (!window.confirm("この預り金の入金を削除します。よろしいですか？")) return;
     try {
@@ -372,6 +383,13 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
 
   const renderDepositRow = (it: DItem, opts: { showCase?: boolean; fullDate?: boolean }) => {
     const { d, c } = it;
+    if (editingDepositId === d.id) {
+      return (
+        <div key={`dep-${d.id}`}>
+          <DepositEditor deposit={d} onSave={(patch) => saveDeposit(it, patch)} onCancel={() => setEditingDepositId(null)} />
+        </div>
+      );
+    }
     return (
       <div key={`dep-${d.id}`} className="text-xs group flex items-start gap-2">
         <span className="mt-0.5 flex-shrink-0 rounded-full px-1.5 py-0.5 font-bold" style={{ backgroundColor: COLORS.navy, color: "#fff", fontSize: 10 }}>預り金</span>
@@ -380,6 +398,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             <span className="flex-shrink-0" style={{ color: COLORS.slate }}>{opts.fullDate ? d.date.replace(/-/g, "/") : formatDateShort(d.date)}</span>
             <span className="flex-1 font-semibold truncate">入金</span>
             <span className="font-bold flex-shrink-0" style={{ color: COLORS.navy }}>+{yen(d.amount)}</span>
+            <button onClick={() => setEditingDepositId(d.id)} title="編集" className="flex-shrink-0 hover:opacity-70" style={{ color: COLORS.navy }}><Pencil size={12} /></button>
             <button onClick={() => removeDeposit(c.id, d.id)} title="削除" className="opacity-0 group-hover:opacity-100 flex-shrink-0" style={{ color: COLORS.slate }}><X size={12} /></button>
           </div>
           {opts.showCase && <p style={{ color: COLORS.slate }}>No.{c.caseNumber}　{c.title}</p>}
@@ -409,18 +428,36 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-[90rem] mx-auto">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>経費入力</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setMonth((m) => shiftYearMonth(m, -1))} style={{ color: COLORS.slate }}><ChevronLeft size={16} /></button>
-            <span className="text-sm font-bold">{formatYearMonth(month)}</span>
-            <button onClick={() => setMonth((m) => shiftYearMonth(m, 1))} style={{ color: COLORS.slate }}><ChevronRight size={16} /></button>
+        {/* スマホ（列が縦に並ぶ幅）では、画面上部に固定して、3つの列へすぐ移動できるプルダウンを出す */}
+        <div className="sticky top-0 z-10 -mx-6 px-6 pt-1 pb-2 mb-3 lg:static lg:mx-0 lg:px-0 lg:pt-0 lg:pb-0 lg:mb-4" style={{ backgroundColor: COLORS.paper }}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>経費入力</h2>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setMonth((m) => shiftYearMonth(m, -1))} style={{ color: COLORS.slate }}><ChevronLeft size={16} /></button>
+              <span className="text-sm font-bold">{formatYearMonth(month)}</span>
+              <button onClick={() => setMonth((m) => shiftYearMonth(m, 1))} style={{ color: COLORS.slate }}><ChevronRight size={16} /></button>
+            </div>
           </div>
+          <select
+            value=""
+            onChange={(e) => {
+              if (!e.target.value) return;
+              document.getElementById(e.target.value)?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            aria-label="表示する項目へ移動"
+            className="lg:hidden mt-2 w-full rounded px-3 py-2 font-bold outline-none"
+            style={{ border: `1px solid ${COLORS.brass}`, backgroundColor: COLORS.card, color: COLORS.navy }}
+          >
+            <option value="">▼ 項目へ移動</option>
+            <option value="board-lane-tc">タイムチャージ案件</option>
+            <option value="board-lane-expense">経費・預り金</option>
+            <option value="board-lane-money">お金の情報</option>
+          </select>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
           {/* タイムチャージ案件：入力フォームと、開始〜終了時刻をカードに表示 */}
-          <Lane title="タイムチャージ案件" count={`${tcCases.length}件`}>
+          <Lane id="board-lane-tc" title="タイムチャージ案件" count={`${tcCases.length}件`}>
             <div className="rounded p-3" style={cardStyle}>
               <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.navy }}>タイムチャージを入力</p>
               <TimeChargeForm
@@ -469,7 +506,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
           </Lane>
 
           {/* 経費：月の一覧（請求済み・未請求すべて）／案件・顧客を選んだ全期間表示 */}
-          <Lane title={selected ? `${selected.kind === "case" ? "案件" : "顧客"}の経費（全期間）` : "経費"} count={selected ? undefined : `${includePast ? "表示中" : formatYearMonth(month)}の合計 ${yen(listTotals.unbilled + listTotals.billed)}`}>
+          <Lane id="board-lane-expense" title={selected ? `${selected.kind === "case" ? "案件" : "顧客"}の経費（全期間）` : "経費"} count={selected ? undefined : `${includePast ? "表示中" : formatYearMonth(month)}の合計 ${yen(listTotals.unbilled + listTotals.billed)}`}>
             {!selected && (
               <>
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -628,7 +665,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
           </Lane>
 
           {/* お金の情報：月に紐づかないフリー入力カード（月を切り替えても同じものを表示） */}
-          <Lane title="お金の情報" count="月を切り替えても共通">
+          <Lane id="board-lane-money" title="お金の情報" count="月を切り替えても共通">
             <button onClick={addMoneyCard} className="text-sm p-2 rounded flex items-center justify-center gap-1 hover:opacity-80" style={{ border: `1px dashed ${COLORS.brass}`, color: COLORS.navy, backgroundColor: COLORS.card }}>
               <Plus size={14} /> カードを追加
             </button>

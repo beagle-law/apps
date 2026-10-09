@@ -179,6 +179,8 @@ export const deleteExpense = (caseId: string, expenseId: string) =>
 
 export const addDeposit = (caseId: string, payload: { date: string; amount: number; notes?: string }) =>
   request<Case>(`/api/cases/${caseId}/deposits`, { method: "POST", body: JSON.stringify(payload) });
+export const updateDeposit = (caseId: string, depositId: string, payload: { date?: string; amount?: number; notes?: string }) =>
+  request<Case>(`/api/cases/${caseId}/deposits/${depositId}`, { method: "PATCH", body: JSON.stringify(payload) });
 export const deleteDeposit = (caseId: string, depositId: string) =>
   request<Case>(`/api/cases/${caseId}/deposits/${depositId}`, { method: "DELETE" });
 export const fetchClientDeposits = (clientId: string) => request<DepositWithCase[]>(`/api/clients/${clientId}/deposits`);
