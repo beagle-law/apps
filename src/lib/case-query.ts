@@ -4,6 +4,7 @@ import { decryptField, encryptField } from "@/lib/crypto";
 export const caseInclude = {
   hearings: { orderBy: { date: "asc" } },
   expenses: { orderBy: { date: "asc" } },
+  deposits: { orderBy: { date: "asc" } },
   updates: { orderBy: { timestamp: "desc" } },
   claimMemos: { orderBy: { createdAt: "desc" }, include: { images: { orderBy: { createdAt: "asc" } } } },
   plans: { orderBy: { date: "asc" } },
@@ -81,6 +82,7 @@ export function serializeCase(c: FullCase) {
 
     hearings: c.hearings,
     expenses: c.expenses.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+    deposits: c.deposits.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() })),
     updates: c.updates.map((u) => ({ ...u, timestamp: u.timestamp.toISOString() })),
     plans: c.plans.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
   };

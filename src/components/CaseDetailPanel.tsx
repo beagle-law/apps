@@ -135,6 +135,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     route: "",
     notes: "",
   });
+  const [newDeposit, setNewDeposit] = useState({ date: "", amount: "", notes: "" });
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [caseTimeCharges, setCaseTimeCharges] = useState<TimeCharge[]>([]);
   const [tcMonth, setTcMonth] = useState(currentYearMonth());
@@ -393,6 +394,20 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     setNewExpenseForm({ date: "", amount: "", category: "", origin: "事務所", destination: "", route: "", notes: "" });
   };
   const removeExpense = (expenseId: string) => run(() => api.deleteExpense(selectedCase.id, expenseId));
+
+  // 預り金の入金（v27）：経費とは別枠で記録し、預り金の残高（入金計 − 経費計）を表示する
+  const addDepositEntry = () => {
+    if (!newDeposit.date || !newDeposit.amount) return;
+    run(async () => {
+      const updated = await api.addDeposit(selectedCase.id, { date: newDeposit.date, amount: Number(newDeposit.amount), notes: newDeposit.notes });
+      setNewDeposit({ date: newDeposit.date, amount: "", notes: "" });
+      return updated;
+    });
+  };
+  const removeDepositEntry = (depositId: string) => {
+    if (!window.confirm("この預り金の入金を削除します。よろしいですか？")) return;
+    run(() => api.deleteDeposit(selectedCase.id, depositId));
+  };
 
   const calculateRoute = async () => {
     if (!newExpenseForm.origin.trim() || !newExpenseForm.destination.trim()) return;
@@ -899,6 +914,52 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                 </button>
               </div>
             </>
+          );
+        })()}
+
+        {/* 預り金の入金履歴（経費とは別枠） */}
+        {(() => {
+          const deposits = [...selectedCase.deposits].sort((a, b) => b.date.localeCompare(a.date));
+          const depositTotal = deposits.reduce((s, d) => s + d.amount, 0);
+          const expenseTotal = selectedCase.expenses.reduce((s, e) => s + e.amount, 0);
+          const balance = depositTotal - expenseTotal;
+          return (
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
+              <h4 className="text-sm font-bold mb-2" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>預り金の入金</h4>
+              <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                <TextInput type="date" value={newDeposit.date} onChange={(e) => setNewDeposit({ ...newDeposit, date: e.target.value })} />
+                <TextInput type="number" placeholder="入金額（プラス）" value={newDeposit.amount} onChange={(e) => setNewDeposit({ ...newDeposit, amount: e.target.value })} className="sm:w-40" />
+                <TextInput type="text" placeholder="メモ（任意）" value={newDeposit.notes} onChange={(e) => setNewDeposit({ ...newDeposit, notes: e.target.value })} className="flex-1" />
+                <button onClick={addDepositEntry} disabled={!newDeposit.date || !newDeposit.amount} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+              </div>
+              {deposits.length === 0 ? (
+                <p className="text-sm py-1" style={{ color: COLORS.slate }}>預り金の入金はありません。</p>
+              ) : (
+                <div className="flex flex-col gap-2 mb-2">
+                  {deposits.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs" style={{ color: COLORS.slate }}>{d.date.replace(/-/g, "/")}</span>
+                          <Badge color={COLORS.navy}>預り金入金</Badge>
+                          <span className="font-bold" style={{ color: COLORS.navy }}>+¥{d.amount.toLocaleString("ja-JP")}</span>
+                        </div>
+                        {d.notes && <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{d.notes}</p>}
+                      </div>
+                      <button onClick={() => removeDepositEntry(d.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(deposits.length > 0 || balance !== 0) && (
+                <div className="text-xs rounded p-2" style={{ backgroundColor: COLORS.paper }}>
+                  <p style={{ color: COLORS.slate }}>預り金の入金計　<b style={{ color: COLORS.navy }}>¥{depositTotal.toLocaleString("ja-JP")}</b>　／　経費計（全期間）　<b style={{ color: COLORS.ink }}>¥{expenseTotal.toLocaleString("ja-JP")}</b></p>
+                  <p className="font-bold mt-0.5" style={{ color: balance < 0 ? COLORS.vermillion : COLORS.moss }}>
+                    預り金の残高　{balance < 0 ? `−¥${Math.abs(balance).toLocaleString("ja-JP")}（不足）` : `¥${balance.toLocaleString("ja-JP")}`}
+                  </p>
+                </div>
+              )}
+            </div>
           );
         })()}
       </div>

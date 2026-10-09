@@ -3,6 +3,7 @@ import type {
   Contact,
   Client,
   ExpenseWithCase,
+  DepositWithCase,
   MoneyCard,
   PasswordEntry,
   TimeCharge,
@@ -176,6 +177,11 @@ export const addExpense = (
 export const deleteExpense = (caseId: string, expenseId: string) =>
   request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "DELETE" });
 
+export const addDeposit = (caseId: string, payload: { date: string; amount: number; notes?: string }) =>
+  request<Case>(`/api/cases/${caseId}/deposits`, { method: "POST", body: JSON.stringify(payload) });
+export const deleteDeposit = (caseId: string, depositId: string) =>
+  request<Case>(`/api/cases/${caseId}/deposits/${depositId}`, { method: "DELETE" });
+export const fetchClientDeposits = (clientId: string) => request<DepositWithCase[]>(`/api/clients/${clientId}/deposits`);
 export const setExpenseBilled = (caseId: string, expenseId: string, billedManually: boolean) =>
   request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "PATCH", body: JSON.stringify({ billedManually }) });
 export const setExpenseCheckedForBilling = (caseId: string, expenseId: string, checkedForBilling: boolean) =>

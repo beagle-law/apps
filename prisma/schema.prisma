@@ -131,6 +131,7 @@ model Case {
 
   hearings    Hearing[]
   expenses    Expense[]
+  deposits    Deposit[]
   updates     UpdateLog[]
   timeCharges TimeCharge[]
   invoices    Invoice[]
@@ -218,6 +219,19 @@ model Expense {
 
   @@index([caseId])
   @@index([billedInInvoiceId])
+}
+
+// 預り金の入金履歴（v27）。経費（実費）とは別枠で、案件ごとに入金日・金額（プラスの数字）・メモを記録する。
+model Deposit {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  date      String
+  amount    Int
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
 }
 
 model UpdateLog {

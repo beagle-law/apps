@@ -9,7 +9,7 @@ import { invoiceTotal, buildTimeChargeItem, formatYen, DEFAULT_INVOICE_NOTES } f
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
 import { isExpenseBilled } from "@/lib/types";
-import type { Client, TimeCharge, Invoice, ExpenseWithCase } from "@/lib/types";
+import type { Client, TimeCharge, Invoice, ExpenseWithCase, DepositWithCase } from "@/lib/types";
 
 interface Props {
   client: Client;
@@ -45,6 +45,7 @@ function newSectionDraft(applyWithholdingDefault: boolean): SectionDraft {
 // v12 4.1：請求書機能を案件から顧客に紐づけ直した中核コンポーネント。実費履歴・請求書作成・請求書履歴の3カード。
 export default function ClientInvoicing({ client, onError }: Props) {
   const [expenseHistory, setExpenseHistory] = useState<ExpenseWithCase[]>([]);
+  const [deposits, setDeposits] = useState<DepositWithCase[]>([]); // 預り金の入金履歴（v27。経費とは別枠・参照のみ）
   const [invoiceHistory, setInvoiceHistory] = useState<Invoice[]>([]);
   const [unbilledTimeCharges, setUnbilledTimeCharges] = useState<TimeCharge[]>([]);
   const [timeChargeRateDraft, setTimeChargeRateDraft] = useState("");
@@ -53,7 +54,10 @@ export default function ClientInvoicing({ client, onError }: Props) {
   const [invoiceSections, setInvoiceSections] = useState<SectionDraft[]>([newSectionDraft(client.clientType === "法人")]);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
 
-  const refreshExpenses = () => api.fetchClientExpenseHistory(client.id).then(setExpenseHistory).catch(() => setExpenseHistory([]));
+  const refreshExpenses = () => {
+    api.fetchClientDeposits(client.id).then(setDeposits).catch(() => setDeposits([]));
+    return api.fetchClientExpenseHistory(client.id).then(setExpenseHistory).catch(() => setExpenseHistory([]));
+  };
   const refreshInvoices = () => api.fetchInvoices({ clientId: client.id }).then(setInvoiceHistory).catch(() => setInvoiceHistory([]));
 
   useEffect(() => {
@@ -253,6 +257,38 @@ export default function ClientInvoicing({ client, onError }: Props) {
               <span className="font-bold">チェック済み合計：¥{checkedTotal.toLocaleString("ja-JP")}</span>
             </div>
           </>
+        )}
+
+        {/* 預り金の入金履歴（経費とは別枠。入力は案件詳細・経費入力画面から） */}
+        {deposits.length > 0 && (
+          <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
+            <p className="text-xs font-bold mb-2" style={{ color: COLORS.navy }}>預り金の入金履歴</p>
+            <div className="flex flex-col gap-1.5 mb-2">
+              {deposits.map((d) => (
+                <div key={d.id} className="flex items-start gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>{formatDateShort(d.date)}</span>
+                      <span className="flex-1 font-semibold">預り金入金</span>
+                      <span className="font-bold flex-shrink-0" style={{ color: COLORS.navy }}>+¥{d.amount.toLocaleString("ja-JP")}</span>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>No.{d.caseNumber}　{d.caseTitle}</p>
+                    {d.notes && <p className="text-xs mt-0.5 whitespace-pre-wrap" style={{ color: COLORS.slate }}>備考：{d.notes}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(() => {
+              const depositTotal = deposits.reduce((s, d) => s + d.amount, 0);
+              const expenseTotal = expenseHistory.reduce((s, e) => s + e.amount, 0);
+              const balance = depositTotal - expenseTotal;
+              return (
+                <p className="text-sm text-right font-bold" style={{ color: balance < 0 ? COLORS.vermillion : COLORS.moss }}>
+                  預り金の残高（入金計 − 実費計）：{balance < 0 ? `−¥${Math.abs(balance).toLocaleString("ja-JP")}（不足）` : `¥${balance.toLocaleString("ja-JP")}`}
+                </p>
+              );
+            })()}
+          </div>
         )}
       </div>
 

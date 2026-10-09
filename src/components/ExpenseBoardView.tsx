@@ -10,7 +10,7 @@ import { TextInput, Pill } from "@/components/ui";
 import TimeChargeForm from "@/components/TimeChargeForm";
 import * as api from "@/lib/api-client";
 import { isExpenseBilled } from "@/lib/types";
-import type { Case, Expense, TimeCharge, MoneyCard } from "@/lib/types";
+import type { Case, Expense, Deposit, TimeCharge, MoneyCard } from "@/lib/types";
 
 interface Props {
   cases: Case[];
@@ -110,9 +110,17 @@ interface Item {
   c: Case;
 }
 
+// 預り金の入金（v27）。経費とは別枠で、未請求・請求済みの集計には含めない。
+interface DItem {
+  d: Deposit;
+  c: Case;
+}
+
 // 顧客ごとの集計キー（顧客に紐づいていない案件は案件単位で扱う）
 const clientKeyOf = (c: Case) => c.clientId || `nocl:${c.id}`;
 const clientLabelOf = (c: Case) => c.clientName || "（顧客未設定）";
+
+const sumDeposits = (items: DItem[]) => items.reduce((s, i) => s + i.d.amount, 0);
 
 const sumOf = (items: Item[]) => ({
   unbilled: items.filter((i) => !isExpenseBilled(i.e)).reduce((s, i) => s + i.e.amount, 0),
@@ -142,6 +150,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const [showPastBilled, setShowPastBilled] = useState(false); // 過去月の請求済み（量が多くなるため月ごとに折りたたむ）
   const [openPastMonths, setOpenPastMonths] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
+  const [entryType, setEntryType] = useState<"expense" | "deposit">("expense");
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
 
   useEffect(() => {
@@ -176,19 +185,24 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const allItems: Item[] = expenseCases.flatMap((c) => c.expenses.map((e) => ({ e, c })));
   const monthStart = `${month}-01`;
 
+  const allDeposits: DItem[] = expenseCases.flatMap((c) => c.deposits.map((d) => ({ d, c })));
+  const monthDeposits = allDeposits.filter((i) => i.d.date.startsWith(month));
+
   const monthItems = allItems.filter((i) => i.e.date.startsWith(month));
   const pastUnbilled = includePast ? allItems.filter((i) => i.e.date < monthStart && !isExpenseBilled(i.e)) : [];
   const listItems = [...pastUnbilled, ...monthItems];
 
   // 一覧のグループ（案件別／顧客別）
-  const buildGroups = (srcItems: Item[], kind: GroupBy) => {
-    const map = new Map<string, { key: string; label: string; first: Case; items: Item[] }>();
-    for (const it of srcItems) {
-      const key = kind === "case" ? it.c.id : clientKeyOf(it.c);
-      const g = map.get(key) ?? { key, label: kind === "case" ? `${it.c.caseNumber}.${it.c.title}` : clientLabelOf(it.c), first: it.c, items: [] };
-      g.items.push(it);
+  const buildGroups = (srcItems: Item[], kind: GroupBy, srcDeposits: DItem[] = []) => {
+    const map = new Map<string, { key: string; label: string; first: Case; items: Item[]; deposits: DItem[] }>();
+    const groupOf = (c: Case) => {
+      const key = kind === "case" ? c.id : clientKeyOf(c);
+      const g = map.get(key) ?? { key, label: kind === "case" ? `${c.caseNumber}.${c.title}` : clientLabelOf(c), first: c, items: [], deposits: [] };
       map.set(key, g);
-    }
+      return g;
+    };
+    for (const it of srcItems) groupOf(it.c).items.push(it);
+    for (const it of srcDeposits) groupOf(it.c).deposits.push(it);
     const list = [...map.values()];
     list.forEach((g) => g.items.sort((a, b) => a.e.date.localeCompare(b.e.date)));
     list.sort((a, b) =>
@@ -198,7 +212,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
     );
     return list;
   };
-  const groups = buildGroups(listItems, groupBy);
+  const groups = buildGroups(listItems, groupBy, monthDeposits);
   const listTotals = sumOf(listItems);
 
   // 過去月の請求済み：月ごとに折りたたんで表示する（開いた月だけ明細を出すので、量が増えても一覧が長くならない）
@@ -229,21 +243,36 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const selectedLabel = selected && selectedItems.length > 0 ? (selected.kind === "case" ? `${selectedItems[0].c.caseNumber}.${selectedItems[0].c.title}` : clientLabelOf(selectedItems[0].c)) : "";
   const selectedCase = selected?.kind === "case" ? cases.find((c) => c.id === selected.id) ?? null : null;
   const selectedShown = showBilled ? selectedItems : selectedItems.filter((i) => !isExpenseBilled(i.e));
+  const selectedDeposits = selected
+    ? allDeposits.filter((i) => (selected.kind === "case" ? i.c.id === selected.id : clientKeyOf(i.c) === selected.id))
+    : [];
+  // 月ごとにまとめる（預り金の入金は請求済みの表示切替に関係なく常に表示する）
   const selectedByMonth = (() => {
-    const map = new Map<string, Item[]>();
+    const map = new Map<string, { items: Item[]; deposits: DItem[] }>();
+    const slot = (ym: string) => map.get(ym) ?? { items: [], deposits: [] };
     for (const it of selectedShown) {
       const ym = it.e.date.slice(0, 7);
-      map.set(ym, [...(map.get(ym) ?? []), it]);
+      const v = slot(ym);
+      v.items.push(it);
+      map.set(ym, v);
     }
-    const months = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-    months.forEach(([, list]) => list.sort((a, b) => b.e.date.localeCompare(a.e.date)));
-    return months;
+    for (const it of selectedDeposits) {
+      const ym = it.d.date.slice(0, 7);
+      const v = slot(ym);
+      v.deposits.push(it);
+      map.set(ym, v);
+    }
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   })();
   const selectedTotals = sumOf(selectedItems);
+  // 預り金の残高＝預り金の入金計 − 経費計（請求済みかどうかに関係なく、すべての経費）
+  const selectedDepositTotal = sumDeposits(selectedDeposits);
+  const selectedExpenseAll = selectedTotals.unbilled + selectedTotals.billed;
+  const selectedBalance = selectedDepositTotal - selectedExpenseAll;
 
   // 案件／顧客をプルダウンで選んで全期間表示へ移れるようにする（経費のある案件・顧客のみ）
   const pickKind: GroupBy = selected ? selected.kind : groupBy;
-  const pickOptions = buildGroups(allItems, pickKind);
+  const pickOptions = buildGroups(allItems, pickKind, allDeposits);
 
   // 案件を選んだ状態で追加フォームを開いたときは、その案件を初期値にする
   const openForm = (caseId = "") => {
@@ -255,20 +284,35 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
     }));
   };
 
-  const addExpense = async () => {
-    if (!expenseForm.caseId || !expenseForm.date || !expenseForm.category || !expenseForm.amount) return;
+  const addEntry = async () => {
+    if (!expenseForm.caseId || !expenseForm.date || !expenseForm.amount) return;
     try {
-      const updated = await api.addExpense(expenseForm.caseId, {
-        date: expenseForm.date,
-        category: expenseForm.category,
-        amount: Number(expenseForm.amount),
-        notes: expenseForm.notes,
-      });
-      onCaseUpdated(updated);
+      if (entryType === "deposit") {
+        const updated = await api.addDeposit(expenseForm.caseId, { date: expenseForm.date, amount: Number(expenseForm.amount), notes: expenseForm.notes });
+        onCaseUpdated(updated);
+      } else {
+        if (!expenseForm.category) return;
+        const updated = await api.addExpense(expenseForm.caseId, {
+          date: expenseForm.date,
+          category: expenseForm.category,
+          amount: Number(expenseForm.amount),
+          notes: expenseForm.notes,
+        });
+        onCaseUpdated(updated);
+      }
       // 続けて入力できるよう、日付と案件は残す
       setExpenseForm((prev) => ({ ...prev, category: "", amount: "", notes: "" }));
     } catch (e) {
       onError(e instanceof Error ? e.message : "登録に失敗しました");
+    }
+  };
+
+  const removeDeposit = async (caseId: string, depositId: string) => {
+    if (!window.confirm("この預り金の入金を削除します。よろしいですか？")) return;
+    try {
+      onCaseUpdated(await api.deleteDeposit(caseId, depositId));
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "削除に失敗しました");
     }
   };
 
@@ -324,6 +368,35 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
         </div>
       </div>
     );
+  };
+
+  const renderDepositRow = (it: DItem, opts: { showCase?: boolean; fullDate?: boolean }) => {
+    const { d, c } = it;
+    return (
+      <div key={`dep-${d.id}`} className="text-xs group flex items-start gap-2">
+        <span className="mt-0.5 flex-shrink-0 rounded-full px-1.5 py-0.5 font-bold" style={{ backgroundColor: COLORS.navy, color: "#fff", fontSize: 10 }}>預り金</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="flex-shrink-0" style={{ color: COLORS.slate }}>{opts.fullDate ? d.date.replace(/-/g, "/") : formatDateShort(d.date)}</span>
+            <span className="flex-1 font-semibold truncate">入金</span>
+            <span className="font-bold flex-shrink-0" style={{ color: COLORS.navy }}>+{yen(d.amount)}</span>
+            <button onClick={() => removeDeposit(c.id, d.id)} title="削除" className="opacity-0 group-hover:opacity-100 flex-shrink-0" style={{ color: COLORS.slate }}><X size={12} /></button>
+          </div>
+          {opts.showCase && <p style={{ color: COLORS.slate }}>No.{c.caseNumber}　{c.title}</p>}
+          {d.notes && <p className="whitespace-pre-wrap" style={{ color: COLORS.slate }}>{d.notes}</p>}
+        </div>
+      </div>
+    );
+  };
+
+  // 経費と預り金の入金を日付順に並べた行にする
+  const mergedRows = (items: Item[], deposits: DItem[], desc: boolean, opts: { showCase?: boolean; fullDate?: (date: string) => boolean | undefined }) => {
+    const rows = [
+      ...items.map((it) => ({ date: it.e.date, node: renderRow(it, { showCase: opts.showCase, fullDate: opts.fullDate?.(it.e.date) }) })),
+      ...deposits.map((it) => ({ date: it.d.date, node: renderDepositRow(it, { showCase: opts.showCase, fullDate: opts.fullDate?.(it.d.date) }) })),
+    ];
+    rows.sort((a, b) => (desc ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)));
+    return rows.map((r) => r.node);
   };
 
   const totalsLine = (t: { unbilled: number; billed: number }) => (
@@ -438,6 +511,15 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                   {selectedCase && <button onClick={() => onOpenCase(selectedCase.id)} className="text-xs underline flex-shrink-0 hover:opacity-70" style={{ color: COLORS.navy }}>案件を開く</button>}
                 </div>
                 <p className="text-xs">{totalsLine(selectedTotals)}<span style={{ color: COLORS.slate }}>（全期間）</span></p>
+                {(selectedDeposits.length > 0 || selectedBalance !== 0) && (
+                  <div className="rounded px-2 py-1.5 text-xs flex flex-col gap-0.5" style={{ backgroundColor: COLORS.paper }}>
+                    <p style={{ color: COLORS.slate }}>預り金の入金計　<b style={{ color: COLORS.navy }}>{yen(selectedDepositTotal)}</b></p>
+                    <p style={{ color: COLORS.slate }}>経費計（請求済み・未請求すべて）　<b style={{ color: COLORS.ink }}>{yen(selectedExpenseAll)}</b></p>
+                    <p className="font-bold" style={{ color: selectedBalance < 0 ? COLORS.vermillion : COLORS.moss }}>
+                      預り金の残高　{selectedBalance < 0 ? `−${yen(Math.abs(selectedBalance))}（不足）` : yen(selectedBalance)}
+                    </p>
+                  </div>
+                )}
                 <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
                   <input type="checkbox" checked={showBilled} onChange={(e) => setShowBilled(e.target.checked)} /> 請求済みも表示する
                 </label>
@@ -445,29 +527,35 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             )}
 
             <button onClick={() => (showForm ? setShowForm(false) : openForm(selectedCase?.id))} className="text-sm p-2 rounded flex items-center justify-center gap-1 hover:opacity-80" style={{ border: `1px dashed ${COLORS.brass}`, color: COLORS.navy, backgroundColor: COLORS.card }}>
-              <Plus size={14} /> {showForm ? "入力欄を閉じる" : "経費を追加"}
+              <Plus size={14} /> {showForm ? "入力欄を閉じる" : "経費・預り金を追加"}
             </button>
             {showForm && (
               <div className="rounded p-3 flex flex-col gap-1.5" style={cardStyle}>
+                <div className="flex gap-1.5">
+                  <Pill active={entryType === "expense"} color={COLORS.navy} onClick={() => setEntryType("expense")}>経費</Pill>
+                  <Pill active={entryType === "deposit"} color={COLORS.navy} onClick={() => setEntryType("deposit")}>預り金の入金</Pill>
+                </div>
                 <select value={expenseForm.caseId} onChange={(e) => setExpenseForm({ ...expenseForm, caseId: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
                   <option value="">案件を選択</option>
                   {formCaseOptions.map((c) => <option key={c.id} value={c.id}>{c.caseNumber}.{c.title}</option>)}
                 </select>
                 <div className="flex gap-1.5">
                   <TextInput type="date" value={expenseForm.date} onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })} className="flex-1 min-w-0" />
-                  <TextInput type="number" placeholder="金額" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} className="w-28" />
+                  <TextInput type="number" placeholder={entryType === "deposit" ? "入金額（プラス）" : "金額"} value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} className="w-28" />
                 </div>
-                <input
-                  list="expense-board-categories"
-                  type="text"
-                  placeholder="内訳"
-                  value={expenseForm.category}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                  className="text-sm p-2 rounded outline-none"
-                  style={{ border: `1px solid ${COLORS.brassLight}` }}
-                />
-                <TextInput type="text" placeholder="備考" value={expenseForm.notes} onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })} />
-                <button onClick={addExpense} disabled={!expenseForm.caseId || !expenseForm.date || !expenseForm.category || !expenseForm.amount} className="self-end text-xs font-bold px-3 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+                {entryType === "expense" && (
+                  <input
+                    list="expense-board-categories"
+                    type="text"
+                    placeholder="内訳"
+                    value={expenseForm.category}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
+                    className="text-sm p-2 rounded outline-none"
+                    style={{ border: `1px solid ${COLORS.brassLight}` }}
+                  />
+                )}
+                <TextInput type="text" placeholder={entryType === "deposit" ? "メモ（例：○○様より振込）" : "備考"} value={expenseForm.notes} onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })} />
+                <button onClick={addEntry} disabled={!expenseForm.caseId || !expenseForm.date || !expenseForm.amount || (entryType === "expense" && !expenseForm.category)} className="self-end text-xs font-bold px-3 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
               </div>
             )}
             <datalist id="expense-board-categories">{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
@@ -476,15 +564,18 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             {selected && (
               <>
                 {selectedByMonth.length === 0 && (
-                  <p className="text-xs px-1" style={{ color: COLORS.slate }}>{selectedItems.length === 0 ? "経費はありません。" : "未請求の経費はありません。"}</p>
+                  <p className="text-xs px-1" style={{ color: COLORS.slate }}>{selectedItems.length === 0 && selectedDeposits.length === 0 ? "経費・預り金の入金はありません。" : "未請求の経費はありません。"}</p>
                 )}
-                {selectedByMonth.map(([ym, list]) => (
+                {selectedByMonth.map(([ym, v]) => (
                   <div key={ym} className="rounded p-3" style={cardStyle}>
-                    <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
                       <p className="text-xs font-bold" style={{ color: COLORS.navy }}>{formatYearMonth(ym)}</p>
-                      <p className="text-xs">{totalsLine(sumOf(list))}</p>
+                      <p className="text-xs">
+                        {totalsLine(sumOf(v.items))}
+                        {v.deposits.length > 0 && <span style={{ color: COLORS.navy }}>　預り金入金 +{yen(sumDeposits(v.deposits))}</span>}
+                      </p>
                     </div>
-                    <div className="flex flex-col gap-1.5">{list.map((it) => renderRow(it, { showCase: selected.kind === "client", fullDate: true }))}</div>
+                    <div className="flex flex-col gap-1.5">{mergedRows(v.items, v.deposits, true, { showCase: selected.kind === "client", fullDate: () => true })}</div>
                   </div>
                 ))}
               </>
@@ -493,7 +584,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             {/* 月の一覧：その月に発生した経費を請求済み・未請求問わずすべて表示 */}
             {!selected && (
               <>
-                {groups.length === 0 && <p className="text-xs px-1" style={{ color: COLORS.slate }}>この月の経費はありません。</p>}
+                {groups.length === 0 && <p className="text-xs px-1" style={{ color: COLORS.slate }}>この月の経費・預り金の入金はありません。</p>}
                 {groups.map((g) => (
                   <div key={g.key} className="rounded p-3" style={cardStyle}>
                     <div className="flex items-start justify-between gap-2">
@@ -503,9 +594,12 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                       {groupBy === "case" && <button onClick={() => openForm(g.first.id)} title="この案件の経費を追加" className="flex-shrink-0 hover:opacity-70" style={{ color: COLORS.navy }}><Plus size={15} /></button>}
                     </div>
                     <div className="flex flex-col gap-1.5 mt-2">
-                      {g.items.map((it) => renderRow(it, { showCase: groupBy === "client", fullDate: !it.e.date.startsWith(month) }))}
+                      {mergedRows(g.items, g.deposits, false, { showCase: groupBy === "client", fullDate: (date) => !date.startsWith(month) })}
                     </div>
-                    <p className="text-xs font-bold text-right pt-1 mt-1.5" style={{ borderTop: `1px solid ${COLORS.paper}` }}>{totalsLine(sumOf(g.items))}</p>
+                    <p className="text-xs font-bold text-right pt-1 mt-1.5" style={{ borderTop: `1px solid ${COLORS.paper}` }}>
+                      {totalsLine(sumOf(g.items))}
+                      {g.deposits.length > 0 && <span style={{ color: COLORS.navy }}>　預り金入金 +{yen(sumDeposits(g.deposits))}</span>}
+                    </p>
                   </div>
                 ))}
 
