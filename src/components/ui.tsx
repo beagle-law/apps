@@ -133,7 +133,7 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`text-sm p-2 rounded outline-none ${props.className || ""}`}
+      className={`text-sm p-2 rounded outline-none min-w-0 ${props.className || ""}`}
       style={{ border: `1px solid ${COLORS.brassLight}`, ...(props.style || {}) }}
     />
   );

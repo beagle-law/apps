@@ -16,3 +16,24 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+/* アプリ全体の高さ：スマホのブラウザではアドレスバーを除いた実際の表示高さ（dvh）に合わせる */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* v25：スマホでの入力しやすさ。
+   ・16px未満の入力欄はiPhoneで入力時に画面が自動拡大され、はみ出したように見えるため16pxにそろえる
+   ・日付入力欄はiPhoneで本来の幅を持ちやすく、枠からはみ出すことがあるため幅を枠内に抑える */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+input[type="date"] {
+  min-width: 0;
+  max-width: 100%;
+}

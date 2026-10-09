@@ -16,6 +16,7 @@ import {
   BookOpen,
   FileSpreadsheet,
   Wallet,
+  User as UserIcon,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { COLORS, FONT_MINCHO, FONT_GOTHIC, PERSONAL_TASK_TABS } from "@/lib/constants";
@@ -232,8 +233,20 @@ export default function CaseTrackerApp() {
 
   const personTabs = PERSONAL_TASK_TABS.filter((name) => isAdmin || currentUser.displayName === name);
 
+  // スマホ用メニュー（プルダウン／よく使うボタン）の選択処理
+  const isMemoActive = view === "list" && !!selectedCase?.isPrivate;
+  const mobileMenuValue = isMemoActive ? "memo" : view;
+  const goMobile = (value: string) => {
+    if (value === "memo") {
+      openPrivateMemo();
+      return;
+    }
+    if (value === "list") setSelectedId(null);
+    setView(value as View);
+  };
+
   return (
-    <div className="flex flex-col" style={{ height: "100vh", overflow: "hidden", backgroundColor: COLORS.paper, fontFamily: FONT_GOTHIC, color: COLORS.ink }}>
+    <div className="app-shell flex flex-col" style={{ overflow: "hidden", backgroundColor: COLORS.paper, fontFamily: FONT_GOTHIC, color: COLORS.ink }}>
       <header className="flex items-center justify-between px-5 py-3 gap-4 flex-shrink-0" style={{ backgroundColor: COLORS.navy }}>
         <div className="flex items-center gap-3">
           <img src="/logo-mark.png" alt="Beagle総合法律事務所" style={{ height: 38, width: 38 }} />
@@ -250,7 +263,45 @@ export default function CaseTrackerApp() {
         </div>
       </header>
 
-      <nav className="flex items-center gap-1 px-5 flex-shrink-0 overflow-x-auto" style={{ backgroundColor: COLORS.brass }}>
+      {/* スマホ用メニュー：横スクロールをやめ、よく使う画面のボタンとプルダウンにまとめる */}
+      <nav className="md:hidden flex flex-col gap-2 px-3 py-2 flex-shrink-0" style={{ backgroundColor: COLORS.brass }}>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ...(personTabs.length > 0 ? [{ id: `person:${currentUser.displayName}`, label: personTabs.includes(currentUser.displayName) ? currentUser.displayName : personTabs[0], icon: UserIcon, active: view.startsWith("person:") }] : []),
+            { id: "memo", label: "個人メモ", icon: StickyNote, active: isMemoActive },
+            { id: "expenses", label: "経費入力", icon: Wallet, active: view === "expenses" },
+          ].map((q) => {
+            const Icon = q.icon;
+            return (
+              <button
+                key={q.id}
+                onClick={() => goMobile(q.id === `person:${currentUser.displayName}` && !personTabs.includes(currentUser.displayName) ? `person:${personTabs[0]}` : q.id)}
+                className="flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded"
+                style={{ backgroundColor: q.active ? "#fff" : "rgba(255,255,255,0.18)", color: q.active ? COLORS.navy : "#fff" }}
+              >
+                <Icon size={15} /> {q.label}
+              </button>
+            );
+          })}
+        </div>
+        <select
+          value={mobileMenuValue}
+          onChange={(e) => goMobile(e.target.value)}
+          className="w-full rounded px-3 py-2.5 font-bold outline-none"
+          style={{ backgroundColor: COLORS.navyLight, color: "#fff", border: "none" }}
+          aria-label="メニュー"
+        >
+          <optgroup label="個人">
+            {personTabs.map((name) => <option key={name} value={`person:${name}`}>{name}</option>)}
+            <option value="memo">個人メモ</option>
+          </optgroup>
+          <optgroup label="メニュー">
+            {MAIN_TABS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </optgroup>
+        </select>
+      </nav>
+
+      <nav className="hidden md:flex items-center gap-1 px-5 flex-shrink-0 overflow-x-auto" style={{ backgroundColor: COLORS.brass }}>
         {personTabs.map((name) => {
           const active = view === `person:${name}`;
           return (
@@ -278,7 +329,7 @@ export default function CaseTrackerApp() {
         </button>
       </nav>
 
-      <nav className="flex items-center gap-1 px-5 flex-shrink-0 overflow-x-auto" style={{ backgroundColor: COLORS.navyLight }}>
+      <nav className="hidden md:flex items-center gap-1 px-5 flex-shrink-0 overflow-x-auto" style={{ backgroundColor: COLORS.navyLight }}>
         {MAIN_TABS.map((t) => {
           const Icon = t.icon;
           const active = view === t.key;

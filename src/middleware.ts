@@ -9,7 +9,11 @@ export async function middleware(req: NextRequest) {
     pathname === "/api/auth/login" ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    pathname === "/logo-mark.png"
+    pathname === "/logo-mark.png" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/icon-192.png" ||
+    pathname === "/icon-512.png" ||
+    pathname === "/apple-touch-icon.png"
   ) {
     return NextResponse.next();
   }
