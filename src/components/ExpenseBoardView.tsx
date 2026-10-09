@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Pencil, Plus, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, X } from "lucide-react";
 import { COLORS, FONT_MINCHO, EXPENSE_CATEGORIES } from "@/lib/constants";
 import { currentYearMonth, shiftYearMonth, formatYearMonth, formatDateShort, todayStr } from "@/lib/dates";
 import { compareCaseNumbers, sortCasesByCaseNumber } from "@/lib/business/caseSort";
@@ -139,6 +139,8 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const [selected, setSelected] = useState<Selected | null>(null);
   const [showBilled, setShowBilled] = useState(false);
   const [includePast, setIncludePast] = useState(false);
+  const [showPastBilled, setShowPastBilled] = useState(false); // 過去月の請求済み（量が多くなるため月ごとに折りたたむ）
+  const [openPastMonths, setOpenPastMonths] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
 
@@ -197,6 +199,27 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
     return list;
   })();
   const listTotals = sumOf(listItems);
+
+  // 過去月の請求済み：月ごとに折りたたんで表示する（開いた月だけ明細を出すので、量が増えても一覧が長くならない）
+  const pastBilledByMonth = (() => {
+    const map = new Map<string, Item[]>();
+    for (const it of allItems) {
+      if (it.e.date < monthStart && isExpenseBilled(it.e)) {
+        const ym = it.e.date.slice(0, 7);
+        map.set(ym, [...(map.get(ym) ?? []), it]);
+      }
+    }
+    const months = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    months.forEach(([, list]) => list.sort((a, b) => b.e.date.localeCompare(a.e.date)));
+    return months;
+  })();
+  const toggleMonthOpen = (ym: string) =>
+    setOpenPastMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(ym)) next.delete(ym);
+      else next.add(ym);
+      return next;
+    });
 
   // 案件／顧客を選んだときの全期間表示
   const selectedItems = selected
@@ -373,8 +396,13 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <Pill active={groupBy === "case"} color={COLORS.navy} onClick={() => setGroupBy("case")}>案件別</Pill>
                   <Pill active={groupBy === "client"} color={COLORS.navy} onClick={() => setGroupBy("client")}>顧客別</Pill>
-                  <label className="flex items-center gap-1 text-xs ml-auto" style={{ color: COLORS.slate }}>
+                </div>
+                <div className="flex items-center gap-x-4 gap-y-1 flex-wrap px-1">
+                  <label className="flex items-center gap-1 text-xs" style={{ color: COLORS.slate }}>
                     <input type="checkbox" checked={includePast} onChange={(e) => setIncludePast(e.target.checked)} /> 過去月の未請求も表示
+                  </label>
+                  <label className="flex items-center gap-1 text-xs" style={{ color: COLORS.slate }}>
+                    <input type="checkbox" checked={showPastBilled} onChange={(e) => setShowPastBilled(e.target.checked)} /> 過去月の請求済みも表示
                   </label>
                 </div>
                 <p className="text-xs px-1">{totalsLine(listTotals)}</p>
@@ -459,6 +487,27 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                     <p className="text-xs font-bold text-right pt-1 mt-1.5" style={{ borderTop: `1px solid ${COLORS.paper}` }}>{totalsLine(sumOf(g.items))}</p>
                   </div>
                 ))}
+
+                {showPastBilled && (
+                  <div className="rounded p-3 flex flex-col gap-1" style={cardStyle}>
+                    <p className="text-xs font-bold" style={{ color: COLORS.navy }}>過去月の請求済み（月を押すと開きます）</p>
+                    {pastBilledByMonth.length === 0 && <p className="text-xs" style={{ color: COLORS.slate }}>過去月の請求済みの経費はありません。</p>}
+                    {pastBilledByMonth.map(([ym, list]) => {
+                      const open = openPastMonths.has(ym);
+                      return (
+                        <div key={ym}>
+                          <button onClick={() => toggleMonthOpen(ym)} className="w-full flex items-center gap-1.5 text-xs py-1 hover:opacity-70 text-left">
+                            {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                            <span className="font-bold">{formatYearMonth(ym)}</span>
+                            <span style={{ color: COLORS.slate }}>{list.length}件</span>
+                            <span className="ml-auto font-bold">{yen(list.reduce((a, i) => a + i.e.amount, 0))}</span>
+                          </button>
+                          {open && <div className="flex flex-col gap-1.5 pl-5 pb-1.5">{list.map((it) => renderRow(it, { showCase: true, fullDate: true }))}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             )}
           </Lane>
