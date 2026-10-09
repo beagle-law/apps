@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { getAccessibleCaseOrNull, caseVisibilityFilter } from "@/lib/case-access";
+import { findTimeChargeOverlap } from "@/lib/timecharge-overlap";
 
 // v21：経費入力ボード用。指定月（YYYY-MM）の全案件のタイムチャージを返す（閲覧可能な案件のみ）。
 export async function GET(req: NextRequest) {
@@ -38,6 +39,15 @@ export async function POST(req: NextRequest) {
 
   const targetCase = await getAccessibleCaseOrNull(body.caseId, user.id);
   if (!targetCase) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+
+  // 同じ人の時間帯が重なる登録はエラーにする（案件が同じでも別でも対象）
+  const overlap = await findTimeChargeOverlap({
+    personName: user.displayName,
+    date: body.date,
+    startTime: body.startTime?.trim() || "",
+    endTime: body.endTime?.trim() || "",
+  });
+  if (overlap) return NextResponse.json({ error: overlap }, { status: 409 });
 
   const created = await prisma.timeCharge.create({
     data: {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
+import { findTimeChargeOverlap } from "@/lib/timecharge-overlap";
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -60,6 +61,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.hours = Number(body.hours);
   }
   if (body.content !== undefined) data.content = body.content.trim();
+
+  // 日付・時刻を変える場合は、同じ人の他のタイムチャージと時間帯が重ならないか確認する
+  if (data.date !== undefined || data.startTime !== undefined || data.endTime !== undefined) {
+    const overlap = await findTimeChargeOverlap({
+      personName: existing.personName,
+      date: data.date ?? existing.date,
+      startTime: data.startTime ?? existing.startTime,
+      endTime: data.endTime ?? existing.endTime,
+      excludeId: id,
+    });
+    if (overlap) return NextResponse.json({ error: overlap }, { status: 409 });
+  }
 
   const updated = await prisma.timeCharge.update({ where: { id }, data });
   return NextResponse.json({ ...updated, createdAt: updated.createdAt.toISOString() });
