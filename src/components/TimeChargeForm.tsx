@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { COLORS } from "@/lib/constants";
 import { todayStr } from "@/lib/dates";
-import { normalizeTimeInput, calcHoursFromTimes, formatDuration } from "@/lib/business/timecharge";
+import { normalizeTimeInput, calcHoursFromTimes, formatDuration, formatTotalDuration } from "@/lib/business/timecharge";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
-import type { Case } from "@/lib/types";
+import { formatDateShort } from "@/lib/dates";
+import type { Case, TimeCharge } from "@/lib/types";
 
 interface Props {
   /** 選択できる案件（タイムチャージ対象の案件） */
@@ -15,6 +16,8 @@ interface Props {
   presetCaseId?: string;
   /** 同じ案件を続けて指定しても反映されるよう、指定のたびに増やす番号 */
   presetNonce?: number;
+  /** 親側で記録が増減・変更されたときに変わる値（入力済み履歴を取り直す） */
+  refreshToken?: string | number;
   /** 追加できたあとに、入力した日付を渡して呼ばれる */
   onAdded: (date: string) => void;
   onError: (msg: string) => void;
@@ -23,12 +26,31 @@ interface Props {
 
 // v24：個人画面と経費入力画面で共通のタイムチャージ入力フォーム。
 // 稼働時間は入力欄を設けず、開始・終了時刻から自動算出する。追加後も日付は残し、同じ日に続けて入力できる。
-export default function TimeChargeForm({ cases, presetCaseId, presetNonce, onAdded, onError, compact }: Props) {
+export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refreshToken, onAdded, onError, compact }: Props) {
   const [form, setForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", content: "" });
 
   useEffect(() => {
     if (presetCaseId) setForm((prev) => ({ ...prev, caseId: presetCaseId }));
   }, [presetCaseId, presetNonce]);
+
+  // 日付と案件を選んだ時点で、同じ日・同じ案件の入力済みの稼働履歴を入力欄の直下に表示する
+  const [existing, setExisting] = useState<TimeCharge[] | null>(null);
+  const [localReload, setLocalReload] = useState(0);
+  useEffect(() => {
+    if (!form.caseId || !form.date) {
+      setExisting(null);
+      return;
+    }
+    let cancelled = false;
+    setExisting(null);
+    api
+      .fetchCaseTimeCharges(form.caseId)
+      .then((rows) => !cancelled && setExisting(rows.filter((t) => t.date === form.date).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))))
+      .catch(() => !cancelled && setExisting([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [form.caseId, form.date, refreshToken, localReload]);
 
   const hours = Number(calcHoursFromTimes(normalizeTimeInput(form.startTime), normalizeTimeInput(form.endTime))) || 0;
 
@@ -45,6 +67,7 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, onAdd
       });
       const addedDate = form.date;
       setForm((prev) => ({ date: prev.date, caseId: "", startTime: "", endTime: "", content: "" }));
+      setLocalReload((n) => n + 1);
       onAdded(addedDate);
     } catch (e) {
       onError(e instanceof Error ? e.message : "タイムチャージの登録に失敗しました");
@@ -71,6 +94,31 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, onAdd
         </span>
         <button onClick={add} disabled={!form.caseId || hours <= 0} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
       </div>
+
+      {form.caseId && form.date && (
+        <div className="rounded p-2.5 text-xs flex flex-col gap-1" style={{ backgroundColor: COLORS.paper, border: `1px dashed ${COLORS.brassLight}` }}>
+          <p className="font-bold" style={{ color: COLORS.navy }}>
+            {formatDateShort(form.date)}・この案件の入力済み履歴
+          </p>
+          {existing === null ? (
+            <p style={{ color: COLORS.slate }}>確認中...</p>
+          ) : existing.length === 0 ? (
+            <p style={{ color: COLORS.slate }}>入力なし</p>
+          ) : (
+            <>
+              {existing.map((t) => (
+                <div key={t.id} className="flex items-baseline gap-2 flex-wrap" style={{ color: COLORS.ink }}>
+                  <span className="font-bold">{t.startTime && t.endTime ? `${t.startTime}〜${t.endTime}` : "時刻なし"}</span>
+                  <span>{formatDuration(t.hours)}</span>
+                  <span style={{ color: COLORS.slate }}>{t.personName}</span>
+                  {t.content && <span className="w-full" style={{ color: COLORS.slate }}>{t.content}</span>}
+                </div>
+              ))}
+              <p className="text-right font-bold" style={{ color: COLORS.navy }}>合計 {formatTotalDuration(existing.map((t) => t.hours))}</p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

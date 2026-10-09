@@ -353,6 +353,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
               <TimeChargeForm
                 compact
                 cases={tcCases}
+                refreshToken={timeCharges.map((t) => `${t.id}${t.date}${t.startTime}${t.endTime}${t.hours}${t.content}`).join("|")}
                 presetCaseId={tcPreset.id}
                 presetNonce={tcPreset.nonce}
                 onAdded={(date) => {

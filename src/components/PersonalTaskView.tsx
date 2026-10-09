@@ -574,6 +574,7 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
           <div className="mb-3">
             <TimeChargeForm
               cases={timeChargeCases}
+              refreshToken={summary.timeCharges.map((t) => `${t.id}${t.date}${t.startTime}${t.endTime}${t.hours}${t.content}`).join("|")}
               onAdded={(date) => {
                 if (/^\d{4}-\d{2}/.test(date)) setTcViewMonth(date.slice(0, 7)); // 追加した記録がすぐ見えるよう、一覧もその月に合わせる
                 refreshSummary();
