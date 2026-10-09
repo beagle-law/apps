@@ -54,6 +54,9 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refre
 
   const hours = Number(calcHoursFromTimes(normalizeTimeInput(form.startTime), normalizeTimeInput(form.endTime))) || 0;
 
+  // 入力内容をすべて空に戻す（日付は本日、案件も未選択に戻る）
+  const clear = () => setForm({ date: todayStr(), caseId: "", startTime: "", endTime: "", content: "" });
+
   const add = async () => {
     if (!form.caseId || hours <= 0) return;
     try {
@@ -66,7 +69,8 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refre
         content: form.content,
       });
       const addedDate = form.date;
-      setForm((prev) => ({ date: prev.date, caseId: "", startTime: "", endTime: "", content: "" }));
+      // 同じ日・同じ案件で続けて入力することが多いため、日付と案件は残す
+      setForm((prev) => ({ date: prev.date, caseId: prev.caseId, startTime: "", endTime: "", content: "" }));
       setLocalReload((n) => n + 1);
       onAdded(addedDate);
     } catch (e) {
@@ -92,7 +96,10 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refre
         <span className="text-sm flex-shrink-0" style={{ color: hours > 0 ? COLORS.navy : COLORS.slate }}>
           稼働時間：{hours > 0 ? <b>{formatDuration(hours)}</b> : "開始・終了から自動計算"}
         </span>
-        <button onClick={add} disabled={!form.caseId || hours <= 0} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+        <div className="flex gap-2 flex-shrink-0">
+          <button onClick={clear} className="text-sm px-3 py-2 rounded flex-1 sm:flex-none" style={{ border: `1px solid ${COLORS.brassLight}`, color: COLORS.slate, backgroundColor: COLORS.card }}>クリア</button>
+          <button onClick={add} disabled={!form.caseId || hours <= 0} className="text-sm font-bold px-4 py-2 rounded disabled:opacity-40 flex-1 sm:flex-none" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>追加</button>
+        </div>
       </div>
 
       {form.caseId && form.date && (
