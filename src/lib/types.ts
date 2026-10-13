@@ -137,7 +137,6 @@ export interface Case {
   opposingCounselEmail: string;
   opposingCounselContactMethod: string;
   engagementDate: string;
-  litigationEngagementDate: string;
   noticeSentDate: string;
   filingDate: string;
   claimAmount: number | "";
@@ -170,6 +169,7 @@ export interface Client {
   source: string; // "紹介" | "HP経由"
   referrerName: string;
   notes: string;
+  isAdvisor: boolean;
   createdAt: string;
 }
 
@@ -337,6 +337,7 @@ export interface Invoice {
   sourceExpenseIds: string[];
   paid: boolean;
   paidAt: string;
+  isExternal: boolean; // アプリ外で作成した請求書（請求額のみ登録）
   createdAt: string;
   sections: InvoiceSection[];
   timeCharges: InvoiceTimeChargeRow[];

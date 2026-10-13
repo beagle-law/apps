@@ -29,6 +29,7 @@ export function serializeInvoice(inv: FullInvoice) {
     sourceExpenseIds: Array.isArray(inv.sourceExpenseIds) ? inv.sourceExpenseIds : [],
     paid: inv.paid,
     paidAt: inv.paidAt,
+    isExternal: inv.isExternal,
     createdAt: inv.createdAt.toISOString(),
     sections: inv.sections.map((sec) => ({
       id: sec.id,

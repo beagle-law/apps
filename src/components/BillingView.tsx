@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { Download, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { COLORS, FONT_MINCHO } from "@/lib/constants";
-import { formatDate, currentYearMonth, shiftYearMonth, formatYearMonth } from "@/lib/dates";
+import { TextInput } from "@/components/ui";
+import { formatDate, currentYearMonth, shiftYearMonth, formatYearMonth, todayStr } from "@/lib/dates";
 import { invoiceTotal, formatYen } from "@/lib/business/invoice";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import AutoSaveNote from "@/components/AutoSaveNote";
 import * as api from "@/lib/api-client";
-import type { Invoice } from "@/lib/types";
+import type { Invoice, Client } from "@/lib/types";
 
 interface Props {
   onOpenCase: (id: string) => void;
@@ -35,6 +36,68 @@ function MonthlyNoteCard({ onError }: { onError: (msg: string) => void }) {
         placeholder={"その月の予定請求・支出を自由に記入できます（例）\n【請求予定】\nコレカ 10\n【支出】\n・5日 コピー機 3"}
         onError={onError}
       />
+    </div>
+  );
+}
+
+// v29：アプリ外（別のExcel等）で作成した請求書を、請求額のみで登録して入金管理する。
+function ExternalInvoiceCard({ onCreated, onError }: { onCreated: (inv: Invoice) => void; onError: (msg: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [form, setForm] = useState({ clientId: "", issueDate: todayStr(), amount: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open || clients.length > 0) return;
+    api.fetchClients().then(setClients).catch((e) => onError(e instanceof Error ? e.message : "顧客の取得に失敗しました"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const valid = !!form.clientId && !!form.issueDate && Number(form.amount) > 0;
+
+  const create = async () => {
+    if (!valid || saving) return;
+    setSaving(true);
+    try {
+      const inv = await api.createExternalInvoice({ clientId: form.clientId, issueDate: form.issueDate, amount: Number(form.amount), notes: form.notes });
+      onCreated(inv);
+      setForm((prev) => ({ ...prev, amount: "", notes: "" }));
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "登録に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded p-4 mb-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between text-left">
+        <span className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>外部で作成した請求書の登録（請求額のみ）</span>
+        <span className="text-xs" style={{ color: COLORS.slate }}>{open ? "閉じる" : "開く"}</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2 mt-3">
+          <p className="text-xs" style={{ color: COLORS.slate }}>別のExcelなどで作成した請求書を、請求額だけ登録して、他の請求と同じように入金管理できます。</p>
+          <select value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} className="text-sm p-2 rounded outline-none w-full min-w-0" style={{ border: `1px solid ${COLORS.brassLight}` }}>
+            <option value="">顧客を選択</option>
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.clientNumber ? `No.${c.clientNumber}　` : ""}{c.companyName}</option>)}
+          </select>
+          <div className="flex gap-2 min-w-0">
+            <label className="text-xs flex-1 min-w-0" style={{ color: COLORS.slate }}>
+              請求日
+              <TextInput type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} className="mt-1 w-full" />
+            </label>
+            <label className="text-xs flex-1 min-w-0" style={{ color: COLORS.slate }}>
+              請求額（円）
+              <TextInput type="number" placeholder="例：110000" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="mt-1 w-full" />
+            </label>
+          </div>
+          <TextInput type="text" placeholder="メモ（請求書の名称・番号など。任意）" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full" />
+          <button onClick={create} disabled={!valid || saving} className="self-end text-sm font-bold px-4 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+            {saving ? "登録中..." : "登録する"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -96,6 +159,8 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
 
         <MonthlyNoteCard onError={onError} />
 
+        <ExternalInvoiceCard onCreated={(inv) => setInvoices((prev) => [inv, ...prev])} onError={onError} />
+
         {sortedMonths.length === 0 ? (
           <p className="text-sm py-10 text-center rounded" style={{ color: COLORS.slate, backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>請求書がありません。</p>
         ) : (
@@ -126,12 +191,19 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
                             {inv.dueDate && `　支払期限：${formatDate(inv.dueDate)}`}
                             {inv.paidAt && `　入金日：${formatDate(inv.paidAt)}`}
                           </p>
+                          {inv.isExternal && inv.notes && <p className="text-xs" style={{ color: COLORS.slate }}>{inv.notes}</p>}
                         </button>
                         <span className="font-bold flex-shrink-0">{formatYen(invoiceTotal(inv.sections).total)}</span>
-                        <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: inv.paid ? COLORS.moss : COLORS.slate, color: "#fff" }}>
+                        {inv.isExternal && <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ border: `1px solid ${COLORS.brass}`, color: COLORS.brass }}>外部作成</span>}
+                        <span className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: inv.paid ? COLORS.moss : COLORS.slate, color: "#fff" }}>
                           {inv.paid ? "入金済み" : "未入金"}
-                        </button>
-                        <button onClick={() => downloadPdf(inv)} className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFをダウンロード"><Download size={14} /></button>
+                        </span>
+                        {inv.paid ? (
+                          <button onClick={() => togglePaid(inv)} className="text-xs px-2 py-1 rounded flex-shrink-0 hover:opacity-70" style={{ border: `1px solid ${COLORS.brassLight}`, color: COLORS.slate }} title="入金済みを未入金に戻す">消込取消</button>
+                        ) : (
+                          <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-3 py-1 rounded flex-shrink-0 hover:opacity-80" style={{ backgroundColor: COLORS.navy, color: "#fff" }} title="入金を確認したら押します（入金済みになり、一覧から消えます）">消込み</button>
+                        )}
+                        {!inv.isExternal && <button onClick={() => downloadPdf(inv)} className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFをダウンロード"><Download size={14} /></button>}
                         <button onClick={() => removeInvoice(inv.id)} className="flex-shrink-0" style={{ color: COLORS.slate }} title="削除"><X size={14} /></button>
                       </div>
                     ))}

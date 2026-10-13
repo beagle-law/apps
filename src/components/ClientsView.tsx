@@ -216,6 +216,19 @@ export default function ClientsView({ cases, onOpenCase, onNewCaseForClient, onE
                     }}
                   />
                 </label>
+                <label className="text-xs sm:col-span-2 flex items-center gap-2 cursor-pointer" style={{ color: COLORS.ink }}>
+                  <input
+                    type="checkbox"
+                    checked={!!draft.isAdvisor}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setDraft({ ...draft, isAdvisor: checked });
+                      api.patchClient(draft.id, { isAdvisor: checked }).then((updated) => setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))).catch((e2) => onError(e2 instanceof Error ? e2.message : "保存に失敗しました"));
+                    }}
+                  />
+                  <span className="font-bold">顧問（顧問契約先）</span>
+                  <span style={{ color: COLORS.slate }}>チェックすると、分析の「顧問数」に数えられます</span>
+                </label>
                 {draft.source === "紹介" && (
                   <label className="text-xs sm:col-span-2" style={{ color: COLORS.slate }}>
                     紹介者名

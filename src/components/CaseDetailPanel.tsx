@@ -45,6 +45,7 @@ import { formatDate, formatDateShort, formatDateTime, relativeDayLabel, todayStr
 import type { Case, Contact, TimeCharge, CustomField, CaseClassification } from "@/lib/types";
 import { emptyContact, isExpenseBilled } from "@/lib/types";
 import DepositEditor from "@/components/DepositEditor";
+import { enqueueMemo, getPendingMemos, removePendingMemo, subscribePending, isNetworkFailure, type PendingMemo } from "@/lib/offline-queue";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
 import { formatYen } from "@/lib/business/invoice";
 import { summarizeByPerson } from "@/lib/business/timecharge";
@@ -96,8 +97,6 @@ function financeDraftFromCase(c: Case) {
     opposingCounselEmail: c.opposingCounselEmail,
     opposingCounselContactMethod: c.opposingCounselContactMethod,
     engagementDate: c.engagementDate,
-    closedDate: c.closedDate,
-    litigationEngagementDate: c.litigationEngagementDate,
     noticeSentDate: c.noticeSentDate,
     filingDate: c.filingDate,
     claimAmount: c.claimAmount,
@@ -208,6 +207,8 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     if (stage === selectedCase.stage) return;
     run(() => api.patchCase(selectedCase.id, { stage, autoNote: `ステータスを「${stage}」に変更` }));
   };
+  // v29：終結日を入力すると案件は非表示になる（サーバー側で連動）。終結日を消すと再び表示される。
+  const saveClosedDate = (date: string) => run(() => api.patchFinance(selectedCase.id, { closedDate: date }));
   const changeBallOwner = (owner: string) => {
     if (owner === selectedCase.ballOwner) return;
     run(() => api.patchCase(selectedCase.id, { ballOwner: owner, autoNote: `ボール（次のアクション）を「${owner}」に更新` }));
@@ -263,11 +264,32 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     run(() => api.addClaimMemo(selectedCase.id, newClaimMemoText.trim()));
     setNewClaimMemoText("");
   };
-  const addLaneMemo = (lane: "task" | "memo") => {
+  // 電波がない・弱いときは、端末に一時保存して、つながったときに自動で送信する（v29）
+  const [pendingMemos, setPendingMemos] = useState<PendingMemo[]>([]);
+  useEffect(() => {
+    const refresh = () => setPendingMemos(getPendingMemos(selectedCase.id));
+    refresh();
+    return subscribePending(refresh);
+  }, [selectedCase.id]);
+
+  const addLaneMemo = async (lane: "task" | "memo") => {
     const text = newLaneText[lane].trim();
     if (!text) return;
-    run(() => api.addClaimMemo(selectedCase.id, text, lane));
     setNewLaneText((prev) => ({ ...prev, [lane]: "" }));
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      enqueueMemo(selectedCase.id, text, lane);
+      return;
+    }
+    try {
+      onCaseUpdated(await api.addClaimMemo(selectedCase.id, text, lane));
+    } catch (e) {
+      if (isNetworkFailure(e)) {
+        enqueueMemo(selectedCase.id, text, lane);
+      } else {
+        setNewLaneText((prev) => ({ ...prev, [lane]: text }));
+        onError(e instanceof Error ? e.message : "保存に失敗しました");
+      }
+    }
   };
   const moveClaimMemo = (memoId: string, lane: "task" | "memo") => run(() => api.moveClaimMemo(selectedCase.id, memoId, lane));
   const removeClaimMemoEntry = (memoId: string) => run(() => api.deleteClaimMemo(selectedCase.id, memoId));
@@ -561,22 +583,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     return (
       <>
         <div className="max-w-6xl mx-auto flex flex-col gap-5">
-          <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <Badge color={COLORS.brass}>個人メモ</Badge>
-                <input
-                  type="text"
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  onBlur={saveTitle}
-                  className="text-xl mt-1 w-full rounded outline-none px-1.5 py-1"
-                  style={{ fontFamily: FONT_MINCHO, letterSpacing: "0.02em", border: `1px solid ${COLORS.brassLight}` }}
-                />
-                <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>記載された内容は他のメンバーは閲覧できません。</p>
-              </div>
-            </div>
-          </div>
+          <p className="text-xs px-1" style={{ color: COLORS.slate }}>記載された内容は他のメンバーは閲覧できません。</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
             {(["task", "memo"] as const).map((lane) => (
               <div
@@ -609,8 +616,22 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                 </div>
                 {(() => {
                   const items = selectedCase.claimMemos.filter((m) => (m.lane || "memo") === lane);
-                  if (items.length === 0) return <p className="text-sm py-2" style={{ color: COLORS.slate }}>{lane === "task" ? "タスクはありません。" : "メモはありません。"}</p>;
-                  return <div className="flex flex-col gap-2">{items.map((m) => renderClaimMemoItem(m, lane === "task" ? "memo" : "task"))}</div>;
+                  const waiting = pendingMemos.filter((m) => m.lane === lane);
+                  if (items.length === 0 && waiting.length === 0) return <p className="text-sm py-2" style={{ color: COLORS.slate }}>{lane === "task" ? "タスクはありません。" : "メモはありません。"}</p>;
+                  return (
+                    <div className="flex flex-col gap-2">
+                      {waiting.map((m) => (
+                        <div key={m.id} className="rounded p-3 text-sm" style={{ backgroundColor: "#FBF3E0", border: `1px dashed ${COLORS.amber}` }}>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-xs font-bold" style={{ color: COLORS.amber }}>未送信（電波がつながると自動で送信されます）</span>
+                            <button onClick={() => removePendingMemo(m.id)} className="text-xs underline" style={{ color: COLORS.slate }}>取り消す</button>
+                          </div>
+                          <p className="whitespace-pre-wrap">{m.content}</p>
+                        </div>
+                      ))}
+                      {items.map((m) => renderClaimMemoItem(m, lane === "task" ? "memo" : "task"))}
+                    </div>
+                  );
                 })()}
               </div>
             ))}
@@ -750,6 +771,24 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
               <Pill key={s} active={selectedCase.stage === s} color={STAGE_COLOR[s]} onClick={() => changeStage(s)}>{s}</Pill>
             ))}
           </div>
+          {selectedCase.stage === "終結" && (
+            <div className="mt-2 p-2.5 rounded flex flex-col gap-1.5" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+              <label className="text-xs font-bold" style={{ color: COLORS.ink }}>
+                終結日
+                <TextInput
+                  type="date"
+                  value={selectedCase.closedDate}
+                  onChange={(e) => saveClosedDate(e.target.value)}
+                  className="mt-1 w-full"
+                />
+              </label>
+              <p className="text-xs" style={{ color: selectedCase.closedDate ? COLORS.moss : COLORS.vermillion }}>
+                {selectedCase.closedDate
+                  ? "終結日が入力されたため、この案件は案件一覧から非表示になっています（経費入力などにも出なくなります）。終結日を消すと再び表示されます。"
+                  : "終結日を入力すると、案件一覧から非表示になります（経費入力などにも出なくなります）。"}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 p-3 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${BALL_COLOR[selectedCase.ballOwner]}` }}>
@@ -1046,14 +1085,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <label className="text-xs" style={{ color: COLORS.slate }}>
             受任日
             <TextInput type="date" value={financeDraft.engagementDate} onChange={(e) => { setFinanceDraft({ ...financeDraft, engagementDate: e.target.value }); setFinanceSaved(false); }} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            終結日
-            <TextInput type="date" value={financeDraft.closedDate} onChange={(e) => { setFinanceDraft({ ...financeDraft, closedDate: e.target.value }); setFinanceSaved(false); }} className="mt-1 w-full" />
-          </label>
-          <label className="text-xs" style={{ color: COLORS.slate }}>
-            訴訟受任日
-            <TextInput type="date" value={financeDraft.litigationEngagementDate} onChange={(e) => { setFinanceDraft({ ...financeDraft, litigationEngagementDate: e.target.value }); setFinanceSaved(false); }} className="mt-1 w-full" />
           </label>
           <label className="text-xs" style={{ color: COLORS.slate }}>
             通知書発送日

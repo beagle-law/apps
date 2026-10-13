@@ -102,7 +102,6 @@ export const patchFinance = (
     opposingCounselEmail: string;
     opposingCounselContactMethod: string;
     engagementDate: string;
-    litigationEngagementDate: string;
     noticeSentDate: string;
     filingDate: string;
     closedDate: string;
@@ -374,3 +373,7 @@ export const addMoneyCard = (content: string) => request<MoneyCard>("/api/money-
 export const updateMoneyCard = (id: string, content: string) =>
   request<MoneyCard>(`/api/money-cards/${id}`, { method: "PATCH", body: JSON.stringify({ content }) });
 export const deleteMoneyCard = (id: string) => request<{ ok: true }>(`/api/money-cards/${id}`, { method: "DELETE" });
+
+// v29：アプリ外（別のExcel等）で作成した請求書を、請求額のみで登録する
+export const createExternalInvoice = (payload: { clientId: string; issueDate: string; amount: number; notes?: string; dueDate?: string }) =>
+  request<Invoice>("/api/invoices", { method: "POST", body: JSON.stringify({ ...payload, external: true }) });

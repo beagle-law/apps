@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -24,6 +24,7 @@ import { suggestedCaseNumber } from "@/lib/business/caseNumber";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
 import type { Case, User, CaseClassification } from "@/lib/types";
 import * as api from "@/lib/api-client";
+import { getPendingMemos, removePendingMemo, subscribePending, isNetworkFailure } from "@/lib/offline-queue";
 import CaseListSidebar from "@/components/CaseListSidebar";
 import CaseDetailPanel from "@/components/CaseDetailPanel";
 
@@ -141,6 +142,58 @@ export default function CaseTrackerApp() {
   }, []);
 
   const selectedCase = cases.find((c) => c.id === selectedId) || null;
+
+  // ── 未送信の個人メモの自動送信（v29）──
+  const [pendingCount, setPendingCount] = useState(0);
+  const [online, setOnline] = useState(true);
+  const flushing = useRef(false);
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const refresh = () => setPendingCount(getPendingMemos().length);
+    refresh();
+    const unsub = subscribePending(refresh);
+    const flush = async () => {
+      if (flushing.current || !navigator.onLine) return;
+      const list = getPendingMemos();
+      if (list.length === 0) return;
+      flushing.current = true;
+      try {
+        for (const m of list) {
+          try {
+            const updated = await api.addClaimMemo(m.caseId, m.content, m.lane);
+            removePendingMemo(m.id);
+            setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          } catch (e) {
+            if (isNetworkFailure(e)) break; // まだつながらない。次の機会に再送する
+            removePendingMemo(m.id); // 送信先が見つからない等、再送しても通らないものは取り除き、内容を通知する
+            setError(`未送信だったメモを送信できませんでした。内容：${m.content.slice(0, 60)}`);
+          }
+        }
+      } finally {
+        flushing.current = false;
+      }
+    };
+    const onOnline = () => {
+      setOnline(true);
+      flush();
+    };
+    const onOffline = () => setOnline(false);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") flush();
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(flush, 20000); // 電波が弱くonlineイベントが来ない場合に備えて定期的に再送する
+    flush();
+    return () => {
+      unsub();
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
+    };
+  }, []);
   const isAdmin = currentUser?.role === "admin";
 
   const updateCaseInState = (updated: Case) => setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
@@ -363,6 +416,13 @@ export default function CaseTrackerApp() {
           );
         })}
       </nav>
+
+      {(!online || pendingCount > 0) && (
+        <div className="px-4 py-1.5 text-xs flex-shrink-0" style={{ backgroundColor: "#FBF3E0", color: COLORS.amber }}>
+          {!online ? "オフラインです。個人メモは端末に一時保存され、電波がつながると自動で送信されます。" : ""}
+          {pendingCount > 0 ? `未送信のメモが${pendingCount}件あります。電波がつながると自動で送信します。` : ""}
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 px-4 py-2 text-sm flex-shrink-0" style={{ backgroundColor: "#F3DEDC", color: COLORS.vermillion }}>

@@ -69,7 +69,6 @@ export function serializeCase(c: FullCase) {
     opposingCounselEmail: decryptField(c.opposingCounselEmail),
     opposingCounselContactMethod: c.opposingCounselContactMethod,
     engagementDate: c.engagementDate,
-    litigationEngagementDate: c.litigationEngagementDate,
     noticeSentDate: c.noticeSentDate,
     filingDate: c.filingDate,
     claimAmount: c.claimAmount ?? "",

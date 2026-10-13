@@ -17,6 +17,7 @@ interface PatchClientBody {
   source?: string;
   referrerName?: string;
   notes?: string;
+  isAdvisor?: boolean;
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.source !== undefined) data.source = body.source;
   if (body.referrerName !== undefined) data.referrerName = body.source === "紹介" || body.source === undefined ? body.referrerName : "";
   if (body.notes !== undefined) data.notes = body.notes;
+  if (body.isAdvisor !== undefined) data.isAdvisor = !!body.isAdvisor;
 
   try {
     const updated = await prisma.client.update({ where: { id }, data });

@@ -13,6 +13,7 @@ interface RawClient {
   source: string;
   referrerName: string;
   notes: string;
+  isAdvisor: boolean;
   createdAt: Date;
 }
 
@@ -30,6 +31,7 @@ export function serializeClient(c: RawClient) {
     source: c.source,
     referrerName: c.referrerName,
     notes: c.notes,
+    isAdvisor: c.isAdvisor,
     createdAt: c.createdAt.toISOString(),
   };
 }

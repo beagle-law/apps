@@ -40,6 +40,9 @@ interface CreateInvoiceBody {
   notes?: string;
   billTimeChargeIds?: string[];
   billExpenseIds?: string[];
+  /** アプリ外で作成した請求書を、請求額のみで登録する（v29） */
+  external?: boolean;
+  amount?: number;
 }
 
 // v12 3.1：請求書は「顧客」に紐づけて作成する。1顧客の複数案件をまたいで
@@ -49,6 +52,47 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
 
   const body = (await req.json()) as CreateInvoiceBody;
+  // 外部作成の請求書：請求額（プラス）のみ。税・源泉の計算はせず、入力した金額をそのまま請求額として扱う。
+  if (body.external) {
+    const amount = Math.round(Number(body.amount));
+    if (!body.clientId || !body.issueDate || !Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json({ error: "顧客・請求日・請求額（プラスの数字）は必須です" }, { status: 400 });
+    }
+    const [client, last] = await Promise.all([
+      prisma.client.findUnique({ where: { id: body.clientId } }),
+      prisma.invoice.findFirst({ orderBy: { invoiceNumber: "desc" } }),
+    ]);
+    if (!client) return NextResponse.json({ error: "顧客が見つかりません" }, { status: 404 });
+    const created = await prisma.invoice.create({
+      data: {
+        invoiceNumber: (last?.invoiceNumber ?? 0) + 1,
+        clientId: body.clientId,
+        clientName: encryptField(client.companyName),
+        addressee: "",
+        issueDate: body.issueDate,
+        billingMonth: body.billingMonth?.trim() || "",
+        honorific: client.clientType === "個人" ? "様" : "御中",
+        dueDate: body.dueDate?.trim() || "",
+        notes: body.notes?.trim() || "",
+        isExternal: true,
+        sections: {
+          create: [
+            {
+              type: "その他",
+              customTypeLabel: "外部作成の請求書",
+              applyTax: false,
+              applyWithholding: false,
+              sortOrder: 0,
+              items: { create: [{ description: "外部で作成した請求書（請求額のみ登録）", amount, sortOrder: 0 }] },
+            },
+          ],
+        },
+      },
+      include: invoiceInclude,
+    });
+    return NextResponse.json(serializeInvoice(created), { status: 201 });
+  }
+
   const sections = (body.sections || []).filter((s) => s.items.some((i) => i.description.trim() && i.amount !== undefined));
   if (!body.clientId || !body.issueDate || !sections.length) {
     return NextResponse.json({ error: "顧客・発行日・区分の項目は必須です" }, { status: 400 });

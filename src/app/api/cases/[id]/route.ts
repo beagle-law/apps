@@ -51,7 +51,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const data: Prisma.CaseUpdateInput = {};
   if (body.title !== undefined && body.title.trim()) data.title = body.title.trim();
   if (body.caseNumber !== undefined && body.caseNumber.trim()) data.caseNumber = body.caseNumber.trim();
-  if (body.stage !== undefined) data.stage = body.stage;
+  if (body.stage !== undefined) {
+    data.stage = body.stage;
+    // v29：「終結」から別のステータスへ戻したときは、終結日を消して案件を再び表示する
+    if (body.stage !== "終結" && existing.stage === "終結" && existing.closedDate) {
+      data.closedDate = "";
+      data.hidden = false;
+    }
+  }
   if (body.priority !== undefined) data.priority = body.priority;
   if (body.ballOwner !== undefined) {
     data.ballOwner = body.ballOwner;

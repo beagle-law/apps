@@ -56,6 +56,7 @@ model Client {
   source        String   @default("") // "紹介" | "HP経由"
   referrerName  String   @default("") // sourceが「紹介」の場合の紹介者名
   notes         String   @default("")
+  isAdvisor     Boolean  @default(false) // 顧問契約先かどうか（v29）。分析の顧問数に使う
   createdAt     DateTime @default(now())
 
   cases    Case[]
@@ -434,6 +435,7 @@ model Invoice {
   sourceExpenseIds Json     @default("[]") // 作成時点で請求チェックが入っていた実費ID一覧（v12 3.1）
   paid             Boolean  @default(false)
   paidAt           String   @default("")
+  isExternal       Boolean  @default(false) // アプリ外（別のExcel等）で作成した請求書。請求額のみ登録して入金管理する（v29）
   createdAt        DateTime @default(now())
 
   sections    InvoiceSection[]

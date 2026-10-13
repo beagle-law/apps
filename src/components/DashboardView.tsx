@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 import { COLORS, FONT_MINCHO, STAGES, STAGE_COLOR } from "@/lib/constants";
 import { todayStr, formatDateShort } from "@/lib/dates";
 import { getPeriodRange, getPeriodLabel, shiftAnchor, isWithinPeriod, type DashboardGranularity } from "@/lib/business/dashboard";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
 import * as api from "@/lib/api-client";
-import type { Case } from "@/lib/types";
+import type { Case, Client } from "@/lib/types";
 
 interface Props {
   cases: Case[];
@@ -123,7 +123,6 @@ type ColumnKey =
   | "opposingParty"
   | "engagementDate"
   | "noticeSentDate"
-  | "litigationEngagementDate"
   | "filingDate"
   | "claimAmount"
   | "retainerFee"
@@ -138,7 +137,6 @@ const COLUMNS: { key: ColumnKey; label: string; numeric?: boolean }[] = [
   { key: "opposingParty", label: "相手方" },
   { key: "engagementDate", label: "受任日" },
   { key: "noticeSentDate", label: "通知書発送日" },
-  { key: "litigationEngagementDate", label: "訴訟受任日" },
   { key: "filingDate", label: "提訴日" },
   { key: "claimAmount", label: "請求額(税込)", numeric: true },
   { key: "retainerFee", label: "着手金(税込)", numeric: true },
@@ -165,7 +163,14 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [caseEventGranularity, setCaseEventGranularity] = useState<"month" | "year">("month");
 
-  const visibleCases = cases.filter((c) => !c.hidden && !c.isPrivate);
+  // 終結日を入力した案件は案件一覧では非表示になるが、分析の集計には含める（個人メモは除く）
+  const visibleCases = cases.filter((c) => !c.isPrivate && (!c.hidden || c.stage === "終結"));
+  const [showClosedInTable, setShowClosedInTable] = useState(false); // 案件一覧表に終結した案件も表示するか
+  const [clients, setClients] = useState<Client[]>([]);
+  useEffect(() => {
+    api.fetchClients().then(setClients).catch(() => setClients([]));
+  }, []);
+  const advisors = clients.filter((c) => c.isAdvisor);
   const range = getPeriodRange(granularity, anchor);
   // v10 4.3：期間フィルターの判定基準を登録日時（createdAt）から受任日（engagementDate）に変更。
   // 「全期間」では受任日未登録の案件も含める。年・半期・月単位では受任日が範囲内の案件のみ対象。
@@ -198,7 +203,10 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
 
   const stageMax = Math.max(1, ...Object.values(stageCounts));
 
-  const financeTotals = periodCases.reduce(
+  // 案件一覧表に出す案件：終結した案件は既定では出さない（切り替えで表示）
+  const tableCases = periodCases.filter((c) => showClosedInTable || c.stage !== "終結");
+
+  const financeTotals = tableCases.reduce(
     (acc, c) => ({
       claimAmount: acc.claimAmount + (Number(c.claimAmount) || 0),
       retainerFee: acc.retainerFee + (Number(c.retainerFee) || 0),
@@ -211,19 +219,19 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   const engagementToNotice = average(
     visibleCases.map((c) => daysBetween(c.engagementDate, c.noticeSentDate)).filter((v): v is number => v !== null && v >= 0)
   );
-  const litigationToFiling = average(
-    visibleCases.map((c) => daysBetween(c.litigationEngagementDate, c.filingDate)).filter((v): v is number => v !== null && v >= 0)
-  );
 
   const expectedFeeByMonth = new Map<string, number>();
+  const expectedFeeCasesByMonth = new Map<string, Case[]>();
   visibleCases
     .filter((c) => c.stage !== "終結" && c.expectedFeeDate && c.expectedFee)
     .forEach((c) => {
       const ym = c.expectedFeeDate.slice(0, 7);
       expectedFeeByMonth.set(ym, (expectedFeeByMonth.get(ym) || 0) + Number(c.expectedFee));
+      expectedFeeCasesByMonth.set(ym, [...(expectedFeeCasesByMonth.get(ym) || []), c]);
     });
   const expectedFeeMonths = [...expectedFeeByMonth.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
   const expectedFeeMax = Math.max(1, ...expectedFeeMonths.map(([, v]) => v));
+  const expectedFeeTotal = expectedFeeMonths.reduce((sum, [, v]) => sum + v, 0);
 
   const byClassification = new Map<string, number>();
   visibleCases.forEach((c) => {
@@ -232,15 +240,6 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   });
   const classificationRows = [...byClassification.entries()].sort((a, b) => b[1] - a[1]);
   const totalCases = visibleCases.length || 1;
-
-  const retainerByClassification = new Map<string, number>();
-  visibleCases.forEach((c) => {
-    if (!c.retainerFee) return;
-    const key = c.caseClassification || "未分類";
-    retainerByClassification.set(key, (retainerByClassification.get(key) || 0) + Number(c.retainerFee));
-  });
-  const retainerRows = [...retainerByClassification.entries()].sort((a, b) => b[1] - a[1]);
-  const retainerMax = Math.max(1, ...retainerRows.map(([, v]) => v));
 
   // 受任件数・終結件数は、案件一覧で非表示にした案件も含めて集計する（個人メモは除く）
   const analysisCases = cases.filter((c) => !c.isPrivate);
@@ -273,7 +272,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
     }
   };
 
-  const sortedCases = [...periodCases].sort((a, b) => {
+  const sortedCases = [...tableCases].sort((a, b) => {
     const av = cellValue(a, sortKey);
     const bv = cellValue(b, sortKey);
     if (av === bv) return 0;
@@ -315,7 +314,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="rounded p-4" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <p className="text-xs" style={{ color: COLORS.slate }}>総案件数</p>
             <p className="text-2xl mt-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{periodCases.length}</p>
@@ -324,6 +323,20 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
             <p className="text-xs" style={{ color: COLORS.slate }}>対応中</p>
             <p className="text-2xl mt-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.vermillion }}>{activeCount}</p>
           </button>
+          <div className="rounded p-4 relative group" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+            <p className="text-xs" style={{ color: COLORS.slate }}>顧問数</p>
+            <p className="text-2xl mt-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{advisors.length}</p>
+            {advisors.length > 0 && (
+              <div
+                className="hidden group-hover:block absolute left-0 top-full mt-1 z-10 rounded p-3 text-xs shadow-lg"
+                style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, width: 240, maxHeight: 260, overflowY: "auto" }}
+              >
+                {advisors.map((c) => (
+                  <div key={c.id} className="py-0.5 truncate">{c.companyName}</div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="rounded p-4 relative group" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
             <p className="text-xs" style={{ color: COLORS.slate }}>今後の期日</p>
             <p className="text-2xl mt-1" style={{ fontFamily: FONT_MINCHO, color: COLORS.moss }}>{upcoming.length}</p>
@@ -367,11 +380,6 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
               {engagementToNotice !== null ? `${engagementToNotice}日` : "—"}
             </p>
           </SummaryCard>
-          <SummaryCard title="訴訟受任日 → 提訴日（平均日数）">
-            <p className="text-3xl font-bold" style={{ color: COLORS.navy }}>
-              {litigationToFiling !== null ? `${litigationToFiling}日` : "—"}
-            </p>
-          </SummaryCard>
         </div>
 
         <div className="mb-6">
@@ -381,8 +389,26 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
             ) : (
               <div className="flex flex-col gap-1.5">
                 {expectedFeeMonths.map(([ym, v]) => (
-                  <BarRow key={ym} label={ym} value={v} max={expectedFeeMax} formatValue={(n) => `¥${n.toLocaleString("ja-JP")}`} />
+                  <div key={ym} className="relative group">
+                    <BarRow label={ym} value={v} max={expectedFeeMax} formatValue={(n) => `¥${n.toLocaleString("ja-JP")}`} />
+                    {/* マウスを合わせると、その月の案件名と見込報酬額をフロート表示する */}
+                    <div
+                      className="hidden group-hover:block absolute left-0 top-full mt-1 z-10 rounded p-3 text-xs shadow-lg"
+                      style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, width: 320, maxHeight: 260, overflowY: "auto" }}
+                    >
+                      {(expectedFeeCasesByMonth.get(ym) || []).map((c) => (
+                        <div key={c.id} className="flex items-center justify-between gap-2 py-0.5">
+                          <span className="truncate">{c.caseNumber}.{c.title}</span>
+                          <span className="flex-shrink-0 font-bold">¥{Number(c.expectedFee).toLocaleString("ja-JP")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
+                <div className="flex items-center justify-between text-sm font-bold pt-2 mt-1" style={{ borderTop: `1px solid ${COLORS.brassLight}`, color: COLORS.navy }}>
+                  <span>合計</span>
+                  <span>¥{expectedFeeTotal.toLocaleString("ja-JP")}</span>
+                </div>
               </div>
             )}
           </SummaryCard>
@@ -398,17 +424,6 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
                 </div>
               ))}
             </div>
-          </SummaryCard>
-          <SummaryCard title="案件分類ごとの着手金合計">
-            {retainerRows.length === 0 ? (
-              <p className="text-sm" style={{ color: COLORS.slate }}>データがありません。</p>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {retainerRows.map(([name, v]) => (
-                  <BarRow key={name} label={name} value={v} max={retainerMax} formatValue={(n) => `¥${n.toLocaleString("ja-JP")}`} />
-                ))}
-              </div>
-            )}
           </SummaryCard>
         </div>
 
@@ -461,7 +476,12 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
         </div>
 
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>案件一覧表</h3>
+          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+            <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>案件一覧表</h3>
+            <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
+              <input type="checkbox" checked={showClosedInTable} onChange={(e) => setShowClosedInTable(e.target.checked)} /> 終結した案件も表示する
+            </label>
+          </div>
           <table className="text-xs w-full table-fixed">
             <thead>
               <tr style={{ color: COLORS.slate, borderBottom: `1px solid ${COLORS.brassLight}` }}>
@@ -477,7 +497,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
             </thead>
             <tbody>
               <tr className="font-bold" style={{ borderBottom: `2px solid ${COLORS.brassLight}` }}>
-                <td className="py-1.5 pr-2" colSpan={8}>合計</td>
+                <td className="py-1.5 pr-2" colSpan={7}>合計</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.claimAmount)}</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.retainerFee)}</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.expectedFee)}</td>
@@ -499,9 +519,6 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
                   </td>
                   <td className="py-1.5 pr-2 truncate">
                     <EditableCell type="date" value={c.noticeSentDate} onSave={(v) => saveFinanceField(c.id, { noticeSentDate: v })} />
-                  </td>
-                  <td className="py-1.5 pr-2 truncate">
-                    <EditableCell type="date" value={c.litigationEngagementDate} onSave={(v) => saveFinanceField(c.id, { litigationEngagementDate: v })} />
                   </td>
                   <td className="py-1.5 pr-2 truncate">
                     <EditableCell type="date" value={c.filingDate} onSave={(v) => saveFinanceField(c.id, { filingDate: v })} />

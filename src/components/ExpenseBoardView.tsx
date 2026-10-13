@@ -151,6 +151,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const [showPastBilled, setShowPastBilled] = useState(false); // 過去月の請求済み（量が多くなるため月ごとに折りたたむ）
   const [openPastMonths, setOpenPastMonths] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
+  const [showHiddenCases, setShowHiddenCases] = useState(false); // 非表示（終結済みなど）の案件の経費も表示するか
   const [entryType, setEntryType] = useState<"expense" | "deposit">("expense");
   const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
@@ -182,8 +183,8 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const tcCases = sortCasesByCaseNumber(cases.filter((c) => !c.hidden && !c.isPrivate && c.isTimeChargeCase));
   const byNewest = (a: TimeCharge, b: TimeCharge) => b.date.localeCompare(a.date) || (b.startTime || "").localeCompare(a.startTime || "");
 
-  // ── 経費（非表示の案件も、請求漏れを防ぐため対象に含める。個人メモは除く） ──
-  const expenseCases = sortCasesByCaseNumber(cases.filter((c) => !c.isPrivate));
+  // ── 経費（個人メモは除く。非表示＝終結日が入った案件などは、既定では出さず、切り替えで表示する） ──
+  const expenseCases = sortCasesByCaseNumber(cases.filter((c) => !c.isPrivate && (showHiddenCases || !c.hidden)));
   const allItems: Item[] = expenseCases.flatMap((c) => c.expenses.map((e) => ({ e, c })));
   const monthStart = `${month}-01`;
 
@@ -524,6 +525,10 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                 <p className="text-xs px-1">{totalsLine(listTotals)}</p>
               </>
             )}
+
+            <label className="flex items-center gap-1.5 text-xs px-1" style={{ color: COLORS.slate }}>
+              <input type="checkbox" checked={showHiddenCases} onChange={(e) => setShowHiddenCases(e.target.checked)} /> 非表示の案件（終結済みなど）も表示する
+            </label>
 
             <select
               value={selected?.id ?? ""}

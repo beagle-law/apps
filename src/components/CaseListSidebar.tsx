@@ -127,7 +127,7 @@ export default function CaseListSidebar({
                 <p className="text-xs truncate" style={{ color: COLORS.slate }}>{c.clientName}</p>
               )}
               <p className="text-sm font-semibold leading-snug truncate" style={{ fontFamily: FONT_MINCHO }}>
-                {c.title}{c.isPrivate && "　個人メモ"}
+                {c.isPrivate ? "個人メモ" : c.title}
               </p>
             </button>
             <button

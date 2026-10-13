@@ -434,15 +434,18 @@ export default function ClientInvoicing({ client, onError }: Props) {
               return (
                 <div key={inv.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
                   <div className="flex-1">
-                    <p>{formatDate(inv.issueDate)}　{formatYen(totals.total)}{inv.billingMonth && `　（${formatYearMonth(inv.billingMonth)}分）`}</p>
+                    <p>{formatDate(inv.issueDate)}　{formatYen(totals.total)}{inv.billingMonth && `　（${formatYearMonth(inv.billingMonth)}分）`}{inv.isExternal && <span className="text-xs ml-2 px-1.5 py-0.5 rounded" style={{ border: `1px solid ${COLORS.brass}`, color: COLORS.brass }}>外部作成</span>}</p>
+                    {inv.isExternal && inv.notes && <p className="text-xs" style={{ color: COLORS.slate }}>{inv.notes}</p>}
                     {inv.dueDate && <p className="text-xs" style={{ color: COLORS.slate }}>支払期限：{formatDate(inv.dueDate)}{inv.paidAt && `　入金日：${formatDate(inv.paidAt)}`}</p>}
                   </div>
                   <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ color: "#fff", backgroundColor: inv.paid ? COLORS.moss : COLORS.slate }}>
                     {inv.paid ? "入金済み" : "未入金"}
                   </button>
-                  <button onClick={() => downloadPdf(inv)} className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFをダウンロード">
-                    <Download size={14} />
-                  </button>
+                  {!inv.isExternal && (
+                    <button onClick={() => downloadPdf(inv)} className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFをダウンロード">
+                      <Download size={14} />
+                    </button>
+                  )}
                   <button onClick={() => removeInvoice(inv.id)} style={{ color: COLORS.slate }} className="flex-shrink-0" title="削除"><X size={14} /></button>
                 </div>
               );

@@ -19,7 +19,6 @@ interface FinanceBody {
   opposingCounselEmail?: string;
   opposingCounselContactMethod?: string;
   engagementDate?: string;
-  litigationEngagementDate?: string;
   noticeSentDate?: string;
   filingDate?: string;
   closedDate?: string;
@@ -62,7 +61,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
   );
   if (body.engagementDate !== undefined) data.engagementDate = body.engagementDate;
-  if (body.litigationEngagementDate !== undefined) data.litigationEngagementDate = body.litigationEngagementDate;
   if (body.noticeSentDate !== undefined) data.noticeSentDate = body.noticeSentDate;
   if (body.filingDate !== undefined) data.filingDate = body.filingDate;
   if (body.closedDate !== undefined) data.closedDate = body.closedDate;
@@ -81,6 +79,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     { engagementDate: body.engagementDate, closedDate: body.closedDate }
   );
   if (autoStage) data.stage = autoStage;
+  // v29：終結日が入力されると案件は一覧から非表示になる（経費入力などにも出なくなる）。終結日を空にすると再び表示される。
+  if (body.closedDate !== undefined) {
+    data.hidden = body.closedDate.trim() !== "";
+  }
 
   const updated = await prisma.case.update({ where: { id }, data, include: caseInclude });
   return NextResponse.json(serializeCase(updated));
