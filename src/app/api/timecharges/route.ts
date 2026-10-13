@@ -5,9 +5,18 @@ import { getAccessibleCaseOrNull, caseVisibilityFilter } from "@/lib/case-access
 import { findTimeChargeOverlap } from "@/lib/timecharge-overlap";
 
 // v21：経費入力ボード用。指定月（YYYY-MM）の全案件のタイムチャージを返す（閲覧可能な案件のみ）。
+// v30：unbilled=1 を指定すると、月に関係なく未請求のタイムチャージをすべて返す（過去月の未請求を表示し続けるため）。
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+
+  if (req.nextUrl.searchParams.get("unbilled")) {
+    const unbilled = await prisma.timeCharge.findMany({
+      where: { billed: false, case: caseVisibilityFilter(user.id) },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    });
+    return NextResponse.json(unbilled.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })));
+  }
 
   const month = req.nextUrl.searchParams.get("month");
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {

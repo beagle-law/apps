@@ -233,13 +233,23 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   const expectedFeeMax = Math.max(1, ...expectedFeeMonths.map(([, v]) => v));
   const expectedFeeTotal = expectedFeeMonths.reduce((sum, [, v]) => sum + v, 0);
 
-  const byClassification = new Map<string, number>();
+  // 案件分類ごとの件数と売上（売上＝案件に入力された「着手金」＋「見込報酬額」の合計）
+  const byClassification = new Map<string, { count: number; retainer: number; fee: number }>();
   visibleCases.forEach((c) => {
     const key = c.caseClassification || "未分類";
-    byClassification.set(key, (byClassification.get(key) || 0) + 1);
+    const cur = byClassification.get(key) || { count: 0, retainer: 0, fee: 0 };
+    cur.count += 1;
+    cur.retainer += Number(c.retainerFee) || 0;
+    cur.fee += Number(c.expectedFee) || 0;
+    byClassification.set(key, cur);
   });
-  const classificationRows = [...byClassification.entries()].sort((a, b) => b[1] - a[1]);
+  const classificationRows = [...byClassification.entries()]
+    .map(([name, v]) => ({ name, ...v, revenue: v.retainer + v.fee }))
+    .sort((a, b) => b.count - a.count);
   const totalCases = visibleCases.length || 1;
+  const revenueTotal = classificationRows.reduce((s, r) => s + r.revenue, 0);
+  const retainerTotal = classificationRows.reduce((s, r) => s + r.retainer, 0);
+  const feeTotal = classificationRows.reduce((s, r) => s + r.fee, 0);
 
   // 受任件数・終結件数は、案件一覧で非表示にした案件も含めて集計する（個人メモは除く）
   const analysisCases = cases.filter((c) => !c.isPrivate);
@@ -414,16 +424,43 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
           </SummaryCard>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
-          <SummaryCard title="案件分類の割合">
-            <div className="flex flex-col gap-1.5">
-              {classificationRows.map(([name, count]) => (
-                <div key={name} className="flex items-center justify-between text-sm">
-                  <span>{name}</span>
-                  <span style={{ color: COLORS.slate }}>{count}件（{Math.round((count / totalCases) * 100)}%）</span>
-                </div>
-              ))}
+        <div className="grid grid-cols-1 gap-5 mb-6">
+          <SummaryCard title="案件分類の割合・売上">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs" style={{ color: COLORS.slate, borderBottom: `1px solid ${COLORS.brassLight}` }}>
+                    <th className="text-left font-normal py-1 pr-2">分類</th>
+                    <th className="text-right font-normal py-1 px-2 whitespace-nowrap">件数（割合）</th>
+                    <th className="text-right font-normal py-1 px-2 whitespace-nowrap">着手金</th>
+                    <th className="text-right font-normal py-1 px-2 whitespace-nowrap">見込報酬額</th>
+                    <th className="text-right font-normal py-1 pl-2 whitespace-nowrap">売上（割合）</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classificationRows.map((r) => (
+                    <tr key={r.name} style={{ borderBottom: `1px solid ${COLORS.paper}` }}>
+                      <td className="py-1.5 pr-2">{r.name}</td>
+                      <td className="py-1.5 px-2 text-right whitespace-nowrap" style={{ color: COLORS.slate }}>{r.count}件（{Math.round((r.count / totalCases) * 100)}%）</td>
+                      <td className="py-1.5 px-2 text-right whitespace-nowrap">{yen(r.retainer)}</td>
+                      <td className="py-1.5 px-2 text-right whitespace-nowrap">{yen(r.fee)}</td>
+                      <td className="py-1.5 pl-2 text-right whitespace-nowrap font-bold">
+                        {yen(r.revenue)}
+                        <span className="font-normal text-xs ml-1" style={{ color: COLORS.slate }}>（{revenueTotal > 0 ? Math.round((r.revenue / revenueTotal) * 100) : 0}%）</span>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="font-bold" style={{ borderTop: `2px solid ${COLORS.brassLight}` }}>
+                    <td className="py-1.5 pr-2">合計</td>
+                    <td className="py-1.5 px-2 text-right whitespace-nowrap">{visibleCases.length}件</td>
+                    <td className="py-1.5 px-2 text-right whitespace-nowrap">{yen(retainerTotal)}</td>
+                    <td className="py-1.5 px-2 text-right whitespace-nowrap">{yen(feeTotal)}</td>
+                    <td className="py-1.5 pl-2 text-right whitespace-nowrap">{yen(revenueTotal)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+            <p className="text-xs mt-2" style={{ color: COLORS.slate }}>売上は、各案件に入力された「着手金」と「見込報酬額」の合計です（終結した案件も含みます）。</p>
           </SummaryCard>
         </div>
 

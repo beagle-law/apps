@@ -142,6 +142,8 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
   const [month, setMonth] = useState(currentYearMonth());
   const [timeCharges, setTimeCharges] = useState<TimeCharge[]>([]);
   const [tcReload, setTcReload] = useState(0);
+  const [pastUnbilledTc, setPastUnbilledTc] = useState<TimeCharge[]>([]); // 月に関係なく未請求のもの
+  const [showPastTc, setShowPastTc] = useState(true); // 過去月の未請求を表示し続ける（既定でオン）
   const [tcPreset, setTcPreset] = useState<{ id: string; nonce: number }>({ id: "", nonce: 0 });
   const [moneyCards, setMoneyCards] = useState<MoneyCard[]>([]);
   const [groupBy, setGroupBy] = useState<GroupBy>("case");
@@ -163,6 +165,14 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, tcReload]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.fetchUnbilledTimeCharges().then((r) => !cancelled && setPastUnbilledTc(r)).catch(() => !cancelled && setPastUnbilledTc([]));
+    return () => {
+      cancelled = true;
+    };
   }, [month, tcReload]);
 
   useEffect(() => {
@@ -474,9 +484,14 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                 onError={onError}
               />
             </div>
+            <label className="flex items-center gap-1.5 text-xs px-1" style={{ color: COLORS.slate }}>
+              <input type="checkbox" checked={showPastTc} onChange={(e) => setShowPastTc(e.target.checked)} /> 過去月の未請求も表示する
+            </label>
             {tcCases.length === 0 && <p className="text-xs px-1" style={{ color: COLORS.slate }}>タイムチャージ案件はありません。</p>}
             {tcCases.map((c) => {
               const rows = timeCharges.filter((t) => t.caseId === c.id).sort(byNewest);
+              // 過去月の未請求（請求書にまだ反映されていないもの）は、月を切り替えても表示し続ける
+              const pastRows = showPastTc ? pastUnbilledTc.filter((t) => t.caseId === c.id && t.date < monthStart).sort(byNewest) : [];
               return (
                 <div key={c.id} className="rounded p-3" style={cardStyle}>
                   <div className="flex items-start justify-between gap-2">
@@ -499,6 +514,22 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                         </div>
                       ))}
                       <p className="text-xs font-bold text-right pt-1" style={{ color: COLORS.navy, borderTop: `1px solid ${COLORS.paper}` }}>合計 {formatTotalDuration(rows.map((t) => t.hours))}</p>
+                    </div>
+                  )}
+                  {pastRows.length > 0 && (
+                    <div className="mt-2 pt-2 flex flex-col gap-1" style={{ borderTop: `1px dashed ${COLORS.brassLight}` }}>
+                      <p className="text-xs font-bold" style={{ color: COLORS.vermillion }}>
+                        過去月の未請求　{pastRows.length}件　{formatTotalDuration(pastRows.map((t) => t.hours))}
+                      </p>
+                      {pastRows.map((t) => (
+                        <div key={t.id} className="text-xs flex items-baseline gap-2 flex-wrap" style={{ color: COLORS.ink }}>
+                          <span style={{ color: COLORS.slate }}>{t.date.replace(/-/g, "/")}</span>
+                          <span className="font-bold">{t.startTime && t.endTime ? `${t.startTime}〜${t.endTime}` : "時刻なし"}</span>
+                          <span>{formatDuration(t.hours)}</span>
+                          <span style={{ color: COLORS.slate }}>{t.personName}</span>
+                          {t.content && <span className="w-full" style={{ color: COLORS.slate }}>{t.content}</span>}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

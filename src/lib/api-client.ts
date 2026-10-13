@@ -366,6 +366,8 @@ export const fetchMonthlyNote = (yearMonth: string) => request<{ yearMonth: stri
 export const saveMonthlyNote = (yearMonth: string, content: string) =>
   request<{ yearMonth: string; content: string }>(`/api/monthly-notes/${yearMonth}`, { method: "PUT", body: JSON.stringify({ content }) });
 
+// 月に関係なく、未請求のタイムチャージをすべて取得する（経費入力ボードで過去月の未請求を表示し続けるため）
+export const fetchUnbilledTimeCharges = () => request<TimeCharge[]>("/api/timecharges?unbilled=1");
 export const fetchTimeChargesByMonth = (month: string) => request<TimeCharge[]>(`/api/timecharges?month=${month}`);
 
 export const fetchMoneyCards = () => request<MoneyCard[]>("/api/money-cards");
