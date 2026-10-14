@@ -503,7 +503,7 @@ export default function CaseTrackerApp() {
       {PERSONAL_TASK_TABS.map(
         (name) =>
           view === `person:${name}` && (
-            <PersonalTaskView key={name} personName={name} cases={cases} onError={setError} onOpenCase={openCaseFromElsewhere} />
+            <PersonalTaskView key={name} personName={name} cases={cases} onError={setError} onOpenCase={openCaseFromElsewhere} currentUserName={currentUser.displayName} isAdmin={isAdmin} />
           )
       )}
 
@@ -530,7 +530,7 @@ export default function CaseTrackerApp() {
       {view === "billing" && <BillingView onOpenCase={openCaseFromElsewhere} onOpenClient={openClientFromCase} onError={setError} />}
 
       {view === "expenses" && (
-        <ExpenseBoardView cases={cases} onOpenCase={openCaseFromElsewhere} onCaseUpdated={updateCaseInState} onError={setError} />
+        <ExpenseBoardView cases={cases} onOpenCase={openCaseFromElsewhere} onCaseUpdated={updateCaseInState} onError={setError} currentUserName={currentUser.displayName} isAdmin={isAdmin} />
       )}
 
       {view === "settings" && <SettingsView currentUser={currentUser} onError={setError} />}

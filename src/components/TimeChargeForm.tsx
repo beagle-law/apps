@@ -22,11 +22,15 @@ interface Props {
   onAdded: (date: string) => void;
   onError: (msg: string) => void;
   compact?: boolean;
+  /** 稼働者を選べる場合（管理者のみ）の選択肢と、初期値（ログイン中の本人） */
+  workerChoices?: string[];
+  defaultWorker?: string;
 }
 
 // v24：個人画面と経費入力画面で共通のタイムチャージ入力フォーム。
 // 稼働時間は入力欄を設けず、開始・終了時刻から自動算出する。追加後も日付は残し、同じ日に続けて入力できる。
-export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refreshToken, onAdded, onError, compact }: Props) {
+export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refreshToken, onAdded, onError, compact, workerChoices, defaultWorker }: Props) {
+  const [worker, setWorker] = useState(defaultWorker || "");
   const [form, setForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", content: "" });
 
   useEffect(() => {
@@ -67,6 +71,7 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refre
         endTime: normalizeTimeInput(form.endTime),
         hours,
         content: form.content,
+        ...(workerChoices && worker ? { personName: worker } : {}),
       });
       const addedDate = form.date;
       // 同じ日・同じ案件で続けて入力することが多いため、日付と案件は残す
@@ -81,6 +86,14 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refre
   return (
     <div className="flex flex-col gap-2 w-full min-w-0">
       <div className={`flex flex-col ${compact ? "" : "sm:flex-row"} flex-wrap gap-2 min-w-0`}>
+        {workerChoices && (
+          <label className={`flex items-center gap-1.5 text-xs font-bold ${compact ? "" : "sm:flex-shrink-0"}`} style={{ color: COLORS.navy }}>
+            稼働者
+            <select value={worker} onChange={(e) => setWorker(e.target.value)} className="text-sm p-2 rounded outline-none min-w-0 flex-1" style={{ border: `1px solid ${COLORS.brass}`, backgroundColor: COLORS.card }}>
+              {workerChoices.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        )}
         <TextInput type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className={compact ? "w-full min-w-0" : ""} />
         <select value={form.caseId} onChange={(e) => setForm({ ...form, caseId: e.target.value })} className={`text-sm p-2 rounded outline-none min-w-0 ${compact ? "w-full" : "flex-1"}`} style={{ border: `1px solid ${COLORS.brassLight}` }}>
           <option value="">案件を選択</option>

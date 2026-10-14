@@ -507,9 +507,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                         {moveTo === "memo" ? "長期メモへ →" : "← タスクへ"}
                       </button>
                     )}
-                    <span className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
-                    <button onClick={() => startEditClaimMemo(m)} style={{ color: COLORS.slate }} title="編集する"><Pencil size={13} /></button>
-                    <button onClick={() => removeClaimMemoEntry(m.id)} style={{ color: COLORS.slate }}><X size={14} /></button>
+                    {/* 押しやすいよう大きくする。スマホ（マウスを合わせられない画面）では常に表示し、パソコンでは従来どおりマウスを合わせたときに表示 */}
+                    <span className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
+                      <button onClick={() => startEditClaimMemo(m)} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.navy, backgroundColor: COLORS.paper }} title="編集する" aria-label="編集する"><Pencil size={20} /></button>
+                      <button onClick={() => removeClaimMemoEntry(m.id)} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.vermillion, backgroundColor: COLORS.paper }} title="削除する" aria-label="削除する"><X size={22} /></button>
                     </span>
                   </div>
                 </div>

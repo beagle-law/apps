@@ -233,7 +233,7 @@ export const deleteAttendanceExtraSegment = (personName: string, segmentId: stri
   request<AttendanceRecord>(`/api/attendance/${encodeURIComponent(personName)}/extra-segments/${segmentId}`, { method: "DELETE" });
 
 // ── タイムチャージ・日報 ──────────────────────────
-export const addTimeCharge = (payload: { date: string; caseId: string; startTime?: string; endTime?: string; hours: number; content?: string }) =>
+export const addTimeCharge = (payload: { date: string; caseId: string; startTime?: string; endTime?: string; hours: number; content?: string; personName?: string }) =>
   request<TimeCharge>("/api/timecharges", { method: "POST", body: JSON.stringify(payload) });
 export const updateTimeCharge = (id: string, payload: { date?: string; caseId?: string; startTime?: string; endTime?: string; hours?: number; content?: string }) =>
   request<TimeCharge>(`/api/timecharges/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -377,5 +377,5 @@ export const updateMoneyCard = (id: string, content: string) =>
 export const deleteMoneyCard = (id: string) => request<{ ok: true }>(`/api/money-cards/${id}`, { method: "DELETE" });
 
 // v29：アプリ外（別のExcel等）で作成した請求書を、請求額のみで登録する
-export const createExternalInvoice = (payload: { clientId: string; issueDate: string; amount: number; notes?: string; dueDate?: string }) =>
+export const createExternalInvoice = (payload: { clientId: string; issueDate: string; billingMonth: string; amount: number; notes?: string; dueDate?: string }) =>
   request<Invoice>("/api/invoices", { method: "POST", body: JSON.stringify({ ...payload, external: true }) });

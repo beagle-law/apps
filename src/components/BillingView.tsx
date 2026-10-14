@@ -44,7 +44,7 @@ function MonthlyNoteCard({ onError }: { onError: (msg: string) => void }) {
 function ExternalInvoiceCard({ onCreated, onError }: { onCreated: (inv: Invoice) => void; onError: (msg: string) => void }) {
   const [open, setOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
-  const [form, setForm] = useState({ clientId: "", issueDate: todayStr(), amount: "", notes: "" });
+  const [form, setForm] = useState({ clientId: "", issueDate: todayStr(), billingMonth: "", amount: "", notes: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -53,13 +53,13 @@ function ExternalInvoiceCard({ onCreated, onError }: { onCreated: (inv: Invoice)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const valid = !!form.clientId && !!form.issueDate && Number(form.amount) > 0;
+  const valid = !!form.clientId && !!form.issueDate && !!form.billingMonth && Number(form.amount) > 0;
 
   const create = async () => {
     if (!valid || saving) return;
     setSaving(true);
     try {
-      const inv = await api.createExternalInvoice({ clientId: form.clientId, issueDate: form.issueDate, amount: Number(form.amount), notes: form.notes });
+      const inv = await api.createExternalInvoice({ clientId: form.clientId, issueDate: form.issueDate, billingMonth: form.billingMonth, amount: Number(form.amount), notes: form.notes });
       onCreated(inv);
       setForm((prev) => ({ ...prev, amount: "", notes: "" }));
     } catch (e) {
@@ -82,7 +82,11 @@ function ExternalInvoiceCard({ onCreated, onError }: { onCreated: (inv: Invoice)
             <option value="">顧客を選択</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.clientNumber ? `No.${c.clientNumber}　` : ""}{c.companyName}</option>)}
           </select>
-          <div className="flex gap-2 min-w-0">
+          <div className="flex gap-2 min-w-0 flex-wrap">
+            <label className="text-xs flex-1 min-w-0" style={{ color: COLORS.slate }}>
+              請求対象月（必須）
+              <input type="month" value={form.billingMonth} onChange={(e) => setForm({ ...form, billingMonth: e.target.value })} className="mt-1 w-full text-sm p-2 rounded outline-none block" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+            </label>
             <label className="text-xs flex-1 min-w-0" style={{ color: COLORS.slate }}>
               請求日
               <TextInput type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} className="mt-1 w-full" />
@@ -141,7 +145,8 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
   // その月の全請求書を対象に「未入金計／入金済計／合計」の3種類を算出する。
   const allGroups = new Map<string, Invoice[]>();
   invoices.forEach((inv) => {
-    const ym = (inv.issueDate || inv.createdAt).slice(0, 7);
+    // 請求対象月の請求書として表示する。対象月が未設定の過去の請求書は、請求日の月で表示する。
+    const ym = (inv.billingMonth || inv.issueDate || inv.createdAt).slice(0, 7);
     if (!allGroups.has(ym)) allGroups.set(ym, []);
     allGroups.get(ym)!.push(inv);
   });
@@ -174,7 +179,7 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
               return (
                 <div key={ym} className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
                   <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
-                    <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{ym}</h3>
+                    <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{ym}<span className="text-xs font-normal ml-1.5" style={{ color: COLORS.slate }}>請求対象月</span></h3>
                     <span className="text-xs" style={{ color: COLORS.slate }}>
                       未入金計 <span className="font-bold" style={{ color: COLORS.ink }}>{formatYen(unpaidTotal)}</span>
                       　入金済計 <span className="font-bold" style={{ color: COLORS.ink }}>{formatYen(paidTotal)}</span>

@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { User, Clock, ChevronLeft, ChevronRight, Download, Pencil } from "lucide-react";
-import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS } from "@/lib/constants";
+import { COLORS, FONT_MINCHO, DAILY_REPORT_STAFF, GOAL_KEYS, STAFF_MEMBERS } from "@/lib/constants";
 import { formatDate, formatDateShort, todayStr, currentYearMonth, shiftDateStr, shiftYearMonth, formatYearMonth } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes, formatDuration, formatMinutes, formatTotalDuration } from "@/lib/business/timecharge";
 import { calcWorkedHoursWithLeave, calcOvertimeMinutes } from "@/lib/business/attendance";
@@ -53,9 +53,12 @@ interface Props {
   cases: Case[];
   onError: (msg: string) => void;
   onOpenCase: (id: string) => void;
+  /** ログイン中のユーザー。管理者（宮村）は、タイムチャージの稼働者を選べる */
+  currentUserName: string;
+  isAdmin: boolean;
 }
 
-export default function PersonalTaskView({ personName, cases, onError, onOpenCase }: Props) {
+export default function PersonalTaskView({ personName, cases, onError, onOpenCase, currentUserName, isAdmin }: Props) {
   const [summary, setSummary] = useState<PersonalSummary | null>(null);
   const [tcSort, setTcSort] = useState<"date" | "case">("date"); // 履歴の並び順：日付順（新しい順）／案件別
   const [editingTcId, setEditingTcId] = useState<string | null>(null);
@@ -573,6 +576,8 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
           <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><Clock size={15} /> タイムチャージ</h3>
           <div className="mb-3">
             <TimeChargeForm
+              workerChoices={isAdmin ? STAFF_MEMBERS : undefined}
+              defaultWorker={currentUserName}
               cases={timeChargeCases}
               refreshToken={summary.timeCharges.map((t) => `${t.id}${t.date}${t.startTime}${t.endTime}${t.hours}${t.content}`).join("|")}
               onAdded={(date) => {

@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
     if (!body.clientId || !body.issueDate || !Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: "顧客・請求日・請求額（プラスの数字）は必須です" }, { status: 400 });
     }
+    if (!/^\d{4}-\d{2}$/.test(body.billingMonth?.trim() || "")) {
+      return NextResponse.json({ error: "請求対象月は必須です" }, { status: 400 });
+    }
     const [client, last] = await Promise.all([
       prisma.client.findUnique({ where: { id: body.clientId } }),
       prisma.invoice.findFirst({ orderBy: { invoiceNumber: "desc" } }),
@@ -96,6 +99,9 @@ export async function POST(req: NextRequest) {
   const sections = (body.sections || []).filter((s) => s.items.some((i) => i.description.trim() && i.amount !== undefined));
   if (!body.clientId || !body.issueDate || !sections.length) {
     return NextResponse.json({ error: "顧客・発行日・区分の項目は必須です" }, { status: 400 });
+  }
+  if (!/^\d{4}-\d{2}$/.test(body.billingMonth?.trim() || "")) {
+    return NextResponse.json({ error: "請求対象月は必須です" }, { status: 400 });
   }
 
   const [client, last] = await Promise.all([

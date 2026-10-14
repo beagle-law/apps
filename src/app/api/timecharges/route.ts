@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAdmin } from "@/lib/auth";
+import { STAFF_MEMBERS } from "@/lib/constants";
 import { getAccessibleCaseOrNull, caseVisibilityFilter } from "@/lib/case-access";
 import { findTimeChargeOverlap } from "@/lib/timecharge-overlap";
 
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
     endTime?: string;
     hours?: number;
     content?: string;
+    personName?: string;
   };
   if (!body.date || !body.caseId || !body.hours) {
     return NextResponse.json({ error: "日付・案件・時間は必須です" }, { status: 400 });
@@ -49,9 +51,18 @@ export async function POST(req: NextRequest) {
   const targetCase = await getAccessibleCaseOrNull(body.caseId, user.id);
   if (!targetCase) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
 
+  // 稼働者（v31）：管理者（宮村）のみ、他のメンバー（石谷・上田など）の稼働として登録できる。それ以外は本人名義に固定する（なりすまし防止）。
+  let personName = user.displayName;
+  const requested = body.personName?.trim();
+  if (requested && requested !== user.displayName) {
+    if (!isAdmin(user)) return NextResponse.json({ error: "他のメンバーの稼働は登録できません" }, { status: 403 });
+    if (!STAFF_MEMBERS.includes(requested)) return NextResponse.json({ error: "稼働者が不正です" }, { status: 400 });
+    personName = requested;
+  }
+
   // 同じ人の時間帯が重なる登録はエラーにする（案件が同じでも別でも対象）
   const overlap = await findTimeChargeOverlap({
-    personName: user.displayName,
+    personName,
     date: body.date,
     startTime: body.startTime?.trim() || "",
     endTime: body.endTime?.trim() || "",
@@ -60,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   const created = await prisma.timeCharge.create({
     data: {
-      personName: user.displayName, // 本人名義に固定（なりすまし防止）
+      personName,
       date: body.date,
       caseId: body.caseId,
       startTime: body.startTime?.trim() || "",

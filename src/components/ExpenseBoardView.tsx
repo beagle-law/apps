@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, X } from "lucide-react";
-import { COLORS, FONT_MINCHO, EXPENSE_CATEGORIES } from "@/lib/constants";
+import { COLORS, FONT_MINCHO, EXPENSE_CATEGORIES, STAFF_MEMBERS } from "@/lib/constants";
 import { currentYearMonth, shiftYearMonth, formatYearMonth, formatDateShort, todayStr } from "@/lib/dates";
 import { compareCaseNumbers, sortCasesByCaseNumber } from "@/lib/business/caseSort";
 import { formatDuration, formatTotalDuration } from "@/lib/business/timecharge";
@@ -18,6 +18,9 @@ interface Props {
   onOpenCase: (id: string) => void;
   onCaseUpdated: (c: Case) => void;
   onError: (msg: string) => void;
+  /** ログイン中のユーザー。管理者（宮村）は、タイムチャージの稼働者を選べる */
+  currentUserName: string;
+  isAdmin: boolean;
 }
 
 const LANE_BG = "#EAE4D6";
@@ -138,7 +141,7 @@ const emptyExpenseForm = { date: "", caseId: "", category: "", amount: "", notes
 
 // v21：Trello風のカード形式で、タイムチャージ案件（開始〜終了時刻）・経費・お金の情報（フリー入力）を表示／入力する。
 // v24：経費に「請求済み」チェックを追加。月の一覧（請求済み・未請求すべて）と、案件／顧客を選んだときの全期間表示（請求済みの表示／非表示を切替）を持つ。
-export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onError }: Props) {
+export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onError, currentUserName, isAdmin }: Props) {
   const [month, setMonth] = useState(currentYearMonth());
   const [timeCharges, setTimeCharges] = useState<TimeCharge[]>([]);
   const [tcReload, setTcReload] = useState(0);
@@ -473,6 +476,8 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
               <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.navy }}>タイムチャージを入力</p>
               <TimeChargeForm
                 compact
+                workerChoices={isAdmin ? STAFF_MEMBERS : undefined}
+                defaultWorker={currentUserName}
                 cases={tcCases}
                 refreshToken={timeCharges.map((t) => `${t.id}${t.date}${t.startTime}${t.endTime}${t.hours}${t.content}`).join("|")}
                 presetCaseId={tcPreset.id}

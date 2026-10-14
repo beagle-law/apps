@@ -157,14 +157,14 @@ export default function ClientInvoicing({ client, onError }: Props) {
         items: s.items.filter((i) => i.description.trim() && i.amount !== "").map((i) => ({ description: i.description.trim(), amount: Number(i.amount) })),
       }))
       .filter((s) => s.items.length > 0);
-    if (!cleanedSections.length || !invoiceForm.issueDate) return;
+    if (!cleanedSections.length || !invoiceForm.issueDate || !invoiceForm.billingMonth) return;
     setCreatingInvoice(true);
     try {
       const inv = await api.createInvoice({
         clientId: client.id,
         addressee: invoiceForm.addressee.trim(),
         issueDate: invoiceForm.issueDate,
-        billingMonth: invoiceForm.billingMonth || undefined,
+        billingMonth: invoiceForm.billingMonth,
         honorific: invoiceForm.honorific || undefined,
         dueDate: invoiceForm.dueDate || undefined,
         sections: cleanedSections,
@@ -306,7 +306,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
             <TextInput type="date" value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })} className="mt-1 w-full sm:w-48" />
           </label>
           <label className="text-xs" style={{ color: COLORS.slate }}>
-            請求対象月（任意）
+            請求対象月（必須）
             <input
               type="month"
               value={invoiceForm.billingMonth}
@@ -417,7 +417,8 @@ export default function ClientInvoicing({ client, onError }: Props) {
           </div>
         )}
 
-        <button onClick={submitInvoice} disabled={!hasAnyInvoiceItem || creatingInvoice} className="mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
+        {!invoiceForm.billingMonth && <p className="text-xs mt-3" style={{ color: COLORS.vermillion }}>請求対象月を選択してください（請求管理では、この月の請求書として表示されます）。</p>}
+        <button onClick={submitInvoice} disabled={!hasAnyInvoiceItem || creatingInvoice || !invoiceForm.billingMonth} className="mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.vermillion, color: "#fff" }}>
           <Download size={15} /> 請求書PDFを作成
         </button>
       </div>
