@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { COLORS, FONT_GOTHIC, FONT_MINCHO } from "@/lib/constants";
 import * as api from "@/lib/api-client";
+import { clearBootCache } from "@/lib/boot-cache";
 
 function LoginForm() {
   const router = useRouter();
@@ -21,6 +22,7 @@ function LoginForm() {
     setError("");
     try {
       await api.login(loginId, password);
+      clearBootCache(); // 別のユーザーの保存内容が表示されないよう、ログイン時に消す
       const next = searchParams.get("next") || "/";
       router.push(next);
       router.refresh();

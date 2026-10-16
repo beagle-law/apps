@@ -25,6 +25,7 @@ import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
 import type { Case, User, CaseClassification } from "@/lib/types";
 import * as api from "@/lib/api-client";
 import { getPendingMemos, removePendingMemo, subscribePending, isNetworkFailure } from "@/lib/offline-queue";
+import { loadBootCache, saveBootCache, clearBootCache } from "@/lib/boot-cache";
 import CaseListSidebar from "@/components/CaseListSidebar";
 import CaseDetailPanel from "@/components/CaseDetailPanel";
 
@@ -107,39 +108,82 @@ export default function CaseTrackerApp() {
     };
   }, [resizingSidebar]);
 
+  // ── 起動時の読み込み（v32：スマホでは段階的に表示して、操作できるまでの時間を短くする）──
+  // ・パソコン：従来どおり、ユーザー・案件一覧・分類をそろえてから表示
+  // ・スマホ：個人メモを最優先で読み込み（ユーザー情報・個人メモ・案件一覧を並列で取得）、個人メモが届いた時点で表示を始め、
+  //   容量の大きい案件一覧は裏で読み込む。前回の内容を端末に保存してあれば、通信を待たずにすぐ表示する。
+  const [casesLoading, setCasesLoading] = useState(false);
+  const bootCached = useRef(false);
   useEffect(() => {
+    const isPhone = window.matchMedia("(max-width: 767px)").matches;
+
+    if (isPhone) {
+      const boot = loadBootCache();
+      if (boot) {
+        bootCached.current = true;
+        setCurrentUser(boot.user);
+        setCases([boot.memoCase]);
+        setSelectedId(boot.memoCase.id);
+        setView("list");
+        setLoading(false);
+      }
+    }
+
     (async () => {
       try {
-        const [{ user }, caseList, classificationList] = await Promise.all([
-          api.fetchMe(),
-          api.fetchCases(),
-          api.fetchCaseClassifications(),
-        ]);
+        const mePromise = api.fetchMe();
+        const casesPromise = api.fetchCases();
+        const classPromise = api.fetchCaseClassifications();
+        const memoPromise = isPhone ? api.fetchOrCreateMemoCase().catch(() => null) : null;
+
+        const { user } = await mePromise;
         setCurrentUser(user);
-        setCases(caseList);
-        setClassifications(classificationList);
         // ログイン後の初期表示画面は、ログインしたアカウントの個人タスク画面（v6 2.2）
-        if (PERSONAL_TASK_TABS.includes(user.displayName)) {
+        if (!bootCached.current && PERSONAL_TASK_TABS.includes(user.displayName)) {
           setView(`person:${user.displayName}`);
         }
-        // スマホ幅（768px未満）で開いたときの初期表示は個人メモ（v26）
-        if (window.matchMedia("(max-width: 767px)").matches) {
-          try {
-            const memoCase = await api.fetchOrCreateMemoCase();
-            if (!caseList.some((c) => c.id === memoCase.id)) setCases([memoCase, ...caseList]);
-            setSelectedId(memoCase.id);
-            setView("list");
-          } catch {
-            // 個人メモを開けなかった場合は、通常の初期表示のままにする
+
+        if (isPhone && memoPromise) {
+          setCasesLoading(true);
+          const memoCase = await memoPromise;
+          if (memoCase) {
+            setCases((prev) => [memoCase, ...prev.filter((c) => c.id !== memoCase.id)]);
+            if (!bootCached.current) {
+              setSelectedId(memoCase.id); // スマホ幅（768px未満）で開いたときの初期表示は個人メモ（v26）
+              setView("list");
+            }
+            saveBootCache(user, memoCase);
           }
+          setLoading(false); // 個人メモが届いたら、案件一覧を待たずに表示を始める
         }
+
+        const [caseList, classificationList] = await Promise.all([casesPromise, classPromise]);
+        // 読み込み中に個人メモへ追加・編集していても失われないよう、すでに手元にある案件は手元の内容を優先する
+        setCases((prev) => {
+          const local = new Map(prev.map((c) => [c.id, c]));
+          const merged = caseList.map((c) => local.get(c.id) ?? c);
+          const extra = prev.filter((c) => !caseList.some((x) => x.id === c.id));
+          return [...extra, ...merged];
+        });
+        setClassifications(classificationList);
       } catch (e) {
+        if (e instanceof Error && /認証/.test(e.message)) clearBootCache();
         setError(e instanceof Error ? e.message : "データの読み込みに失敗しました。再読み込みしてください。");
       } finally {
+        setCasesLoading(false);
         setLoading(false);
       }
     })();
   }, []);
+
+  // スマホでは、個人メモの最新の内容を端末に保存しておく（次回の起動を速くするため。個人メモのみ）
+  useEffect(() => {
+    if (!currentUser || !window.matchMedia("(max-width: 767px)").matches) return;
+    const memo = cases.find((c) => c.isPrivate);
+    if (!memo) return;
+    const t = window.setTimeout(() => saveBootCache(currentUser, memo), 1000);
+    return () => window.clearTimeout(t);
+  }, [cases, currentUser]);
 
   const selectedCase = cases.find((c) => c.id === selectedId) || null;
 
@@ -268,6 +312,7 @@ export default function CaseTrackerApp() {
   };
 
   const doLogout = async () => {
+    clearBootCache(); // 端末に保存した個人メモを消してからログアウトする
     await api.logout();
     router.push("/login");
     router.refresh();
@@ -416,6 +461,12 @@ export default function CaseTrackerApp() {
           );
         })}
       </nav>
+
+      {casesLoading && (
+        <div className="px-4 py-1.5 text-xs flex-shrink-0 flex items-center gap-2" style={{ backgroundColor: COLORS.paper, color: COLORS.slate, borderBottom: `1px solid ${COLORS.brassLight}` }}>
+          <Loader2 className="animate-spin" size={12} /> 案件データを読み込み中です。個人メモはすぐにご利用いただけます。
+        </div>
+      )}
 
       {(!online || pendingCount > 0) && (
         <div className="px-4 py-1.5 text-xs flex-shrink-0" style={{ backgroundColor: "#FBF3E0", color: COLORS.amber }}>

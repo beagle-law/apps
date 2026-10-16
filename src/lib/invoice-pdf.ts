@@ -37,6 +37,17 @@ async function appendHtmlBlock(doc: JsPDFInstance, html: string, isFirstPageOver
 
   try {
     if (document.fonts?.ready) await document.fonts.ready;
+    // ロゴなどの画像の読み込み完了を待つ（読み込み前にcanvas化すると画像が抜けるため）
+    await Promise.all(
+      Array.from(container.querySelectorAll("img")).map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete && img.naturalWidth > 0) return resolve();
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          })
+      )
+    );
     // レイアウト確定を待つ。requestAnimationFrameはバックグラウンドタブで発火が
     // 止まることがあるため使わず、setTimeoutで待つ（バックグラウンドでも必ず進む）。
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
