@@ -7,7 +7,7 @@ const FIRM_LAWYER = "弁護士　宮村頼光";
 const FIRM_REG_NUMBER = "登録番号　T5810678070063";
 const FIRM_ADDRESS = ["〒103-0025", "東京都中央区日本橋茅場町1丁目6番3号KTビル404号"];
 const FIRM_PHONE = "03-6869-1076";
-const LOGO_SRC = "/invoice-logo.png"; // 請求書用ロゴ（public配下。同一オリジンのためPDF化時にそのまま描画できる）
+export const LOGO_SRC = "/invoice-logo.png"; // 請求書用ロゴ（public配下。同一オリジンのためPDF化時にそのまま描画できる）
 
 const yen = formatYen;
 
@@ -69,9 +69,9 @@ const COMMON_STYLE = `
     .inv-meta b { display:inline-block; width:7.5em; font-weight:600; color:#3F3A6B; }
     .inv-firm-block { text-align:right; white-space:pre-line; font-size:14px; color:#4A4860; line-height:1.75; flex-shrink:0; }
     .inv-firm-name { font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.05em; }
-    .inv-amount-box { width:100%; background:#F3F2FB; border-left:5px solid #3F3A6B; padding:7px 20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:baseline; }
-    .inv-amount-box .inv-label { font-size:16px; color:#55527F; letter-spacing:0.1em; }
-    .inv-amount-box .inv-value { font-size:27px; font-weight:700; color:#3F3A6B; line-height:1.3; }
+    .inv-amount-box { width:100%; background:#F3F2FB; border-left:5px solid #3F3A6B; padding:3px 20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; }
+    .inv-amount-box .inv-label { font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.08em; line-height:1.2; }
+    .inv-amount-box .inv-value { font-size:26px; font-weight:700; color:#3F3A6B; line-height:1.2; }
     table.inv-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:22px; }
     table.inv-table th { background:#3F3A6B; color:#ffffff; font-weight:600; font-size:15px; letter-spacing:0.12em; padding:6px 12px; text-align:center; vertical-align:middle; }
     table.inv-table td { border-bottom:1px solid #DAD8EE; padding:5px 12px; font-size:17px; line-height:1.5; vertical-align:middle; overflow-wrap:break-word; }
@@ -173,7 +173,7 @@ TEL　${FIRM_PHONE}</div>
     </div>
 
     <div class="inv-amount-box">
-      <span class="inv-label">ご請求額</span>
+      <span class="inv-label">税込ご請求額</span>
       <span class="inv-value">${yen(total)}</span>
     </div>
 

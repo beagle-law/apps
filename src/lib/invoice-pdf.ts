@@ -1,6 +1,6 @@
 "use client";
 
-import { buildInvoiceElement, buildTimeChargeAttachment, buildExpenseAttachment, type InvoiceForHtml } from "@/lib/invoice-html";
+import { buildInvoiceElement, buildTimeChargeAttachment, buildExpenseAttachment, LOGO_SRC, type InvoiceForHtml } from "@/lib/invoice-html";
 
 /** ファイル名に使えない文字を全角に置き換える。 */
 function sanitizeForFilename(s: string): string {
@@ -28,25 +28,37 @@ function isBlankCanvas(c: HTMLCanvasElement, ctx: CanvasRenderingContext2D): boo
   return true;
 }
 
-/**
- * 1つのHTMLフラグメントをレンダリングし、jsPDFドキュメントへページを追加する。
- * `isFirstPageOverall`がfalseの場合、このブロックの最初のページの前に必ず改ページする
- * （本体・各別紙をそれぞれ独立した新規ページから開始させるため、v10 3.2）。
- * 1ブロックが1ページに収まらない場合は、従来どおりcanvasをページ高さ単位でスライスして
- * 複数ページに分割する。
- */
-async function appendHtmlBlock(doc: JsPDFInstance, html: string, isFirstPageOverall: boolean): Promise<void> {
-  const html2canvasModule = await import("html2canvas");
-  const html2canvas = html2canvasModule.default;
 
+let logoDataUrlCache: string | null | undefined;
+/** ロゴを埋め込み画像（data URL）にして返す。foreignObject方式では外部URLの画像が描画されないことがあるため。 */
+async function getLogoDataUrl(): Promise<string | null> {
+  if (logoDataUrlCache !== undefined) return logoDataUrlCache;
+  try {
+    const blob = await fetch(LOGO_SRC).then((r) => (r.ok ? r.blob() : Promise.reject(new Error("logo"))));
+    logoDataUrlCache = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result as string);
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  } catch {
+    logoDataUrlCache = null;
+  }
+  return logoDataUrlCache;
+}
+
+/** HTMLフラグメントを画面の裏でレンダリングしてcanvas化する。foreignObject方式は、画面内（背面）に置かないと描画されない。 */
+async function renderBlockToCanvas(
+  html2canvas: typeof import("html2canvas").default,
+  html: string,
+  foreignObject: boolean
+): Promise<HTMLCanvasElement> {
   const container = document.createElement("div");
-  container.style.position = "fixed";
-  container.style.left = "-10000px";
-  container.style.top = "0";
-  container.style.width = "780px";
+  container.style.cssText = foreignObject
+    ? "position:absolute;left:0;top:0;width:780px;z-index:-1;background:#fff;pointer-events:none"
+    : "position:fixed;left:-10000px;top:0;width:780px";
   container.innerHTML = html;
   document.body.appendChild(container);
-
   try {
     if (document.fonts?.ready) await document.fonts.ready;
     // ロゴなどの画像の読み込み完了を待つ（読み込み前にcanvas化すると画像が抜けるため）
@@ -63,12 +75,53 @@ async function appendHtmlBlock(doc: JsPDFInstance, html: string, isFirstPageOver
     // レイアウト確定を待つ。requestAnimationFrameはバックグラウンドタブで発火が
     // 止まることがあるため使わず、setTimeoutで待つ（バックグラウンドでも必ず進む）。
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    return await html2canvas(container, { scale: 2, backgroundColor: "#ffffff", useCORS: true, foreignObjectRendering: foreignObject });
+  } finally {
+    document.body.removeChild(container);
+  }
+}
 
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      backgroundColor: "#ffffff",
-      useCORS: true,
-    });
+/** 描画結果がほぼ真っ白か（描画に失敗していないか）の簡易判定。 */
+function looksBlank(c: HTMLCanvasElement): boolean {
+  if (c.width === 0 || c.height === 0) return true;
+  const small = document.createElement("canvas");
+  small.width = 120;
+  small.height = Math.max(1, Math.round((120 * c.height) / c.width));
+  const ctx = small.getContext("2d");
+  if (!ctx) return false;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, small.width, small.height);
+  ctx.drawImage(c, 0, 0, small.width, small.height);
+  const d = ctx.getImageData(0, 0, small.width, small.height).data;
+  let nonWhite = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i] < 240 || d[i + 1] < 240 || d[i + 2] < 240) nonWhite++;
+  return nonWhite < 40;
+}
+
+/**
+ * 1つのHTMLフラグメントをレンダリングし、jsPDFドキュメントへページを追加する。
+ * `isFirstPageOverall`がfalseの場合、このブロックの最初のページの前に必ず改ページする
+ * （本体・各別紙をそれぞれ独立した新規ページから開始させるため、v10 3.2）。
+ * 1ブロックが1ページに収まらない場合は、従来どおりcanvasをページ高さ単位でスライスして
+ * 複数ページに分割する。
+ */
+async function appendHtmlBlock(doc: JsPDFInstance, html: string, isFirstPageOverall: boolean): Promise<void> {
+  const html2canvasModule = await import("html2canvas");
+  const html2canvas = html2canvasModule.default;
+
+  // v34：html2canvasの標準の描画は、文字が行・セルの下寄りにずれて描かれる（上下中央にならない）ため、
+  // ブラウザ本来の描画（foreignObject方式）で画像化する。うまく描画できなかった場合（空白など）は従来の方式に切り替える。
+  let canvas: HTMLCanvasElement | null = null;
+  try {
+    const logo = await getLogoDataUrl();
+    const c = await renderBlockToCanvas(html2canvas, logo ? html.split(`src="${LOGO_SRC}"`).join(`src="${logo}"`) : html, true);
+    if (!looksBlank(c)) canvas = c;
+  } catch {
+    canvas = null;
+  }
+  if (!canvas) canvas = await renderBlockToCanvas(html2canvas, html, false);
+
+  {
     if (canvas.width === 0 || canvas.height === 0) {
       throw new Error("請求書のレンダリングに失敗しました（サイズが0でした）");
     }
@@ -114,8 +167,6 @@ async function appendHtmlBlock(doc: JsPDFInstance, html: string, isFirstPageOver
       renderedPx += sliceHeightPx;
       isFirstPageOfBlock = false;
     }
-  } finally {
-    document.body.removeChild(container);
   }
 }
 
