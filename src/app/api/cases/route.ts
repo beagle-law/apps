@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { caseInclude, serializeCase } from "@/lib/case-query";
+import { caseInclude, serializeCase, type FullCase } from "@/lib/case-query";
 import { caseVisibilityFilter } from "@/lib/case-access";
 import { suggestedCaseNumber } from "@/lib/business/caseNumber";
 import { encryptField } from "@/lib/crypto";
@@ -10,12 +10,21 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
 
-  const cases = await prisma.case.findMany({
-    where: caseVisibilityFilter(user.id),
-    include: caseInclude,
-    orderBy: { createdAt: "desc" },
-  });
-  return NextResponse.json(cases.map(serializeCase));
+  // v33：一覧の取得量を減らすため、個人メモ以外の案件は「主張予定メモ」「経過記録」（容量が大きい）を省く。
+  // これらは案件を開いたときに /api/cases/[id] で読み込む（detailLoaded=false の間は画面側で読み込み中の表示）。
+  // 個人メモは、スマホで最初に表示するため、全文を含める。
+  const { claimMemos: _memos, updates: _updates, ...slimInclude } = caseInclude;
+  void _memos;
+  void _updates;
+  const visible = caseVisibilityFilter(user.id);
+  const [normal, privateCases] = await Promise.all([
+    prisma.case.findMany({ where: { AND: [visible, { isPrivate: false }] }, include: slimInclude }),
+    prisma.case.findMany({ where: { AND: [visible, { isPrivate: true }] }, include: caseInclude }),
+  ]);
+  const slim = normal.map((c) => ({ ...serializeCase({ ...c, claimMemos: [], updates: [] } as FullCase), detailLoaded: false }));
+  const full = privateCases.map(serializeCase);
+  const all = [...slim, ...full].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  return NextResponse.json(all);
 }
 
 interface CreateCaseBody {

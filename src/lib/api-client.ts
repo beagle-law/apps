@@ -49,6 +49,7 @@ export const resetUserPassword = (id: string, newPassword: string) =>
 
 // ── 案件 ──────────────────────────────────────────
 export const fetchCases = () => request<Case[]>("/api/cases");
+export const fetchCase = (id: string) => request<Case>(`/api/cases/${id}`);
 export const unhideAllCases = () => request<{ ok: true }>("/api/cases/unhide-all", { method: "POST" });
 
 export const createCase = (payload: {

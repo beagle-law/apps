@@ -569,7 +569,9 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <Send size={13} /> メモを追加
         </button>
       </div>
-      {selectedCase.claimMemos.length === 0 ? (
+      {!selectedCase.detailLoaded ? (
+        <p className="text-sm py-2" style={{ color: COLORS.slate }}>読み込み中...</p>
+      ) : selectedCase.claimMemos.length === 0 ? (
         <p className="text-sm py-2" style={{ color: COLORS.slate }}>まだメモがありません。</p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -841,7 +843,9 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             <Send size={13} /> 記録を追加
           </button>
         </div>
-        {selectedCase.updates.length === 0 ? (
+        {!selectedCase.detailLoaded ? (
+          <p className="text-sm py-6 text-center" style={{ color: COLORS.slate }}>読み込み中...</p>
+        ) : selectedCase.updates.length === 0 ? (
           <p className="text-sm py-6 text-center" style={{ color: COLORS.slate }}>まだ記録がありません。</p>
         ) : (
           <div className="flex flex-col gap-4 pl-4" style={{ borderLeft: `2px solid ${COLORS.brassLight}` }}>

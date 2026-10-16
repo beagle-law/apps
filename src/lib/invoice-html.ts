@@ -64,17 +64,17 @@ const COMMON_STYLE = `
     .inv-title-en { font-size:12px; letter-spacing:0.55em; color:#8A86B8; margin-top:6px; }
     .inv-header-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; gap:24px; }
     .inv-client-block { flex:1; min-width:0; padding-top:6px; }
-    .inv-client-name { font-size:23px; font-weight:700; border-bottom:2px solid #6B63C8; padding-bottom:5px; display:inline-block; min-width:240px; color:#1F1D2B; }
+    .inv-client-name { font-size:23px; font-weight:700; display:inline-block; color:#1F1D2B; }
     .inv-meta { margin-top:14px; font-size:15px; color:#4A4860; line-height:1.9; }
     .inv-meta b { display:inline-block; width:7.5em; font-weight:600; color:#3F3A6B; }
     .inv-firm-block { text-align:right; white-space:pre-line; font-size:14px; color:#4A4860; line-height:1.75; flex-shrink:0; }
     .inv-firm-name { font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.05em; }
-    .inv-amount-box { width:100%; background:#F3F2FB; border-left:6px solid #3F3A6B; padding:16px 22px; margin-bottom:26px; display:flex; justify-content:space-between; align-items:baseline; }
-    .inv-amount-box .inv-label { font-size:18px; color:#55527F; letter-spacing:0.1em; }
-    .inv-amount-box .inv-value { font-size:32px; font-weight:700; color:#3F3A6B; }
-    table.inv-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:26px; }
-    table.inv-table th { background:#3F3A6B; color:#ffffff; font-weight:600; font-size:16px; letter-spacing:0.12em; padding:11px 12px; text-align:center; vertical-align:middle; }
-    table.inv-table td { border-bottom:1px solid #DAD8EE; padding:12px 12px; font-size:18px; vertical-align:middle; overflow-wrap:break-word; }
+    .inv-amount-box { width:100%; background:#F3F2FB; border-left:5px solid #3F3A6B; padding:7px 20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:baseline; }
+    .inv-amount-box .inv-label { font-size:16px; color:#55527F; letter-spacing:0.1em; }
+    .inv-amount-box .inv-value { font-size:27px; font-weight:700; color:#3F3A6B; line-height:1.3; }
+    table.inv-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:22px; }
+    table.inv-table th { background:#3F3A6B; color:#ffffff; font-weight:600; font-size:15px; letter-spacing:0.12em; padding:6px 12px; text-align:center; vertical-align:middle; }
+    table.inv-table td { border-bottom:1px solid #DAD8EE; padding:5px 12px; font-size:17px; line-height:1.5; vertical-align:middle; overflow-wrap:break-word; }
     .section-cell { text-align:center; white-space:nowrap; width:7%; }
     td.section-cell { background:#F8F7FD; color:#3F3A6B; font-weight:700; border-right:1px solid #DAD8EE; }
     .no-cell { text-align:center; white-space:nowrap; width:6%; color:#8A86B8; }
@@ -82,11 +82,10 @@ const COMMON_STYLE = `
     .desc-cell { text-align:left; }
     .amount-cell { text-align:center; white-space:nowrap; width:16%; font-weight:600; }
     .date-cell { text-align:center; white-space:nowrap; width:23%; }
-    .inv-total-row td { font-weight:700; font-size:20px; color:#3F3A6B; background:#F3F2FB; border-top:2px solid #3F3A6B; border-bottom:2px solid #3F3A6B; }
+    .inv-total-row td { font-weight:700; font-size:18px; color:#3F3A6B; background:#F3F2FB; border-top:2px solid #3F3A6B; border-bottom:2px solid #3F3A6B; }
     .inv-total-row .total-label { text-align:right; letter-spacing:0.08em; }
     .inv-footer { white-space:pre-line; font-size:14px; line-height:1.8; color:#4A4860; border-top:1px solid #DAD8EE; padding-top:14px; }
-    .inv-bottom-bar { display:flex; margin-top:22px; }
-    .inv-bottom-bar span { display:block; height:5px; }
+    .inv-bottom-line { margin-top:22px; border-top:3px solid #3F3A6B; height:0; }
     .inv-attachment-title { text-align:left; font-size:22px; font-weight:700; letter-spacing:0.18em; margin:0; color:#3F3A6B; }
 `;
 
@@ -96,7 +95,7 @@ function pageWrapperOpen(): string {
   <div class="inv-root">`;
 }
 function pageWrapperClose(): string {
-  return `    <div class="inv-bottom-bar"><span style="width:62%;background:#3F3A6B;"></span><span style="width:24%;background:#6B63C8;"></span><span style="width:14%;background:#A5A0DC;"></span></div>
+  return `    <div class="inv-bottom-line"></div>
   </div>
 </div>`;
 }

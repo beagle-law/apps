@@ -16,6 +16,8 @@ export type FullCase = Prisma.CaseGetPayload<{ include: typeof caseInclude }>;
 
 export function serializeCase(c: FullCase) {
   return {
+    // 主張予定メモ・経過記録まで含めた完全な案件か（案件一覧の軽量版は false。案件を開いたときに読み込む）
+    detailLoaded: true,
     id: c.id,
     caseNumber: c.caseNumber,
     title: c.title,

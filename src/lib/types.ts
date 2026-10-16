@@ -95,6 +95,8 @@ export interface CustomField {
 }
 
 export interface Case {
+  /** 主張予定メモ・経過記録まで読み込み済みか（案件一覧の軽量版は false。案件を開いたときに読み込む） */
+  detailLoaded: boolean;
   id: string;
   caseNumber: string;
   title: string;

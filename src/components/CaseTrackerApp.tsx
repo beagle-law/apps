@@ -187,6 +187,23 @@ export default function CaseTrackerApp() {
 
   const selectedCase = cases.find((c) => c.id === selectedId) || null;
 
+  // 案件一覧は軽量版（主張予定メモ・経過記録なし）で読み込むため、案件を開いたときに詳細を取りに行く（v33）
+  const selectedDetailLoaded = selectedCase?.detailLoaded;
+  useEffect(() => {
+    if (!selectedId || selectedDetailLoaded !== false) return;
+    let cancelled = false;
+    api
+      .fetchCase(selectedId)
+      .then((full) => {
+        // 読み込み中に保存して最新になった案件を、古い内容で上書きしない
+        if (!cancelled) setCases((prev) => prev.map((c) => (c.id === full.id && !c.detailLoaded ? full : c)));
+      })
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "案件の詳細の読み込みに失敗しました"));
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, selectedDetailLoaded]);
+
   // ── 未送信の個人メモの自動送信（v29）──
   const [pendingCount, setPendingCount] = useState(0);
   const [online, setOnline] = useState(true);

@@ -16,6 +16,18 @@ function invoiceFileName(inv: InvoiceForHtml): string {
 
 type JsPDFInstance = InstanceType<typeof import("jspdf").jsPDF>;
 
+/** ほぼ真っ白（余白だけ）のcanvasか。1ページ目からはみ出した数ピクセルが白紙ページになるのを防ぐ。 */
+function isBlankCanvas(c: HTMLCanvasElement, ctx: CanvasRenderingContext2D): boolean {
+  const { width, height } = c;
+  if (width === 0 || height === 0) return true;
+  const data = ctx.getImageData(0, 0, width, height).data;
+  for (let i = 0; i < data.length; i += 4 * 7) {
+    // 白に近くない画素が1つでもあれば、内容がある
+    if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245) return false;
+  }
+  return true;
+}
+
 /**
  * 1つのHTMLフラグメントをレンダリングし、jsPDFドキュメントへページを追加する。
  * `isFirstPageOverall`がfalseの場合、このブロックの最初のページの前に必ず改ページする
@@ -68,6 +80,17 @@ async function appendHtmlBlock(doc: JsPDFInstance, html: string, isFirstPageOver
     const pxPerPt = canvas.width / imgWidthPt;
     const pageHeightPx = (pageHeight - margin * 2) * pxPerPt;
 
+    // 1ページ分をわずかに（約8%以内）超えるだけの場合は、2ページに分けず、1ページに収まるよう縮小して出力する
+    // （数ピクセルはみ出しただけの内容が、ほぼ白紙の2ページ目になるのを防ぐ）
+    const fullHeightPt = canvas.height / pxPerPt;
+    const maxHeightPt = pageHeight - margin * 2;
+    if (fullHeightPt > maxHeightPt && fullHeightPt <= maxHeightPt * 1.08) {
+      const k = maxHeightPt / fullHeightPt;
+      if (!isFirstPageOverall) doc.addPage();
+      doc.addImage(canvas.toDataURL("image/jpeg", 0.85), "JPEG", margin + (imgWidthPt * (1 - k)) / 2, margin, imgWidthPt * k, maxHeightPt, undefined, "FAST");
+      return;
+    }
+
     let renderedPx = 0;
     let isFirstPageOfBlock = true;
     while (renderedPx < canvas.height) {
@@ -81,6 +104,9 @@ async function appendHtmlBlock(doc: JsPDFInstance, html: string, isFirstPageOver
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
       ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+      // 2ページ目以降で、残りがほぼ白紙（余白だけ）の場合は、ページを追加しない
+      if (!isFirstPageOfBlock && isBlankCanvas(pageCanvas, ctx)) break;
 
       if (!(isFirstPageOverall && isFirstPageOfBlock)) doc.addPage();
       doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.85), "JPEG", margin, margin, imgWidthPt, sliceHeightPx / pxPerPt, undefined, "FAST");
