@@ -100,6 +100,7 @@ function financeDraftFromCase(c: Case) {
     noticeSentDate: c.noticeSentDate,
     filingDate: c.filingDate,
     claimAmount: c.claimAmount,
+    recoveredAmount: c.recoveredAmount,
     retainerFee: c.retainerFee,
     expectedFee: c.expectedFee,
     expectedFeeDate: c.expectedFeeDate,
@@ -116,7 +117,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [courtInfoSaved, setCourtInfoSaved] = useState(true);
   const [newClaimMemoText, setNewClaimMemoText] = useState("");
   const [newLaneText, setNewLaneText] = useState({ task: "", memo: "" });
-  const [draggingMemoId, setDraggingMemoId] = useState<string | null>(null);
   const [editingClaimMemoId, setEditingClaimMemoId] = useState<string | null>(null);
   const [claimMemoEditDraft, setClaimMemoEditDraft] = useState("");
   const [uploadingClaimMemoImageId, setUploadingClaimMemoImageId] = useState<string | null>(null);
@@ -494,10 +494,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
               <div
                 key={m.id}
                 className="text-sm p-2.5 rounded group"
-                style={{ backgroundColor: COLORS.paper, cursor: moveTo ? "grab" : undefined }}
-                draggable={!!moveTo}
-                onDragStart={() => setDraggingMemoId(m.id)}
-                onDragEnd={() => setDraggingMemoId(null)}
+                style={{ backgroundColor: COLORS.paper }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-xs" style={{ color: COLORS.slate }}>{formatDateTime(m.createdAt)}{m.author && <>　<span className="font-bold">{m.author}</span></>}</p>
@@ -514,7 +511,8 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                     </span>
                   </div>
                 </div>
-                <p className="mt-0.5 whitespace-pre-wrap">{m.content}</p>
+                {/* 内容をクリックすると編集できる（ペンのボタンでも編集可） */}
+                <p className="mt-0.5 whitespace-pre-wrap cursor-text rounded hover:bg-white/60" onClick={() => startEditClaimMemo(m)} title="クリックして編集">{m.content}</p>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   {m.images.map((img) => (
                     <div key={img.id} className="relative group/img">
@@ -593,13 +591,6 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                 key={lane}
                 className="rounded p-5"
                 style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (!draggingMemoId) return;
-                  const dragged = selectedCase.claimMemos.find((m) => m.id === draggingMemoId);
-                  setDraggingMemoId(null);
-                  if (dragged && (dragged.lane || "memo") !== lane) moveClaimMemo(dragged.id, lane);
-                }}
               >
                 <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
                   {lane === "task" ? "近日中に処理するタスク" : "長期的なメモ"}
@@ -1105,6 +1096,10 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <label className="text-xs" style={{ color: COLORS.slate }}>
             請求額(税込)
             <TextInput type="number" value={financeDraft.claimAmount} onChange={(e) => { setFinanceDraft({ ...financeDraft, claimAmount: e.target.value === "" ? "" : Number(e.target.value) }); setFinanceSaved(false); }} className="mt-1 w-full" />
+          </label>
+          <label className="text-xs" style={{ color: COLORS.slate }}>
+            回収額(税込)
+            <TextInput type="number" value={financeDraft.recoveredAmount} onChange={(e) => { setFinanceDraft({ ...financeDraft, recoveredAmount: e.target.value === "" ? "" : Number(e.target.value) }); setFinanceSaved(false); }} className="mt-1 w-full" />
           </label>
           <label className="text-xs" style={{ color: COLORS.slate }}>
             着手金(税込)

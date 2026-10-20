@@ -125,6 +125,7 @@ type ColumnKey =
   | "noticeSentDate"
   | "filingDate"
   | "claimAmount"
+  | "recoveredAmount"
   | "retainerFee"
   | "expectedFee"
   | "expectedFeeDate"
@@ -139,6 +140,7 @@ const COLUMNS: { key: ColumnKey; label: string; numeric?: boolean }[] = [
   { key: "noticeSentDate", label: "通知書発送日" },
   { key: "filingDate", label: "提訴日" },
   { key: "claimAmount", label: "請求額(税込)", numeric: true },
+  { key: "recoveredAmount", label: "回収額(税込)", numeric: true },
   { key: "retainerFee", label: "着手金(税込)", numeric: true },
   { key: "expectedFee", label: "見込報酬額(税込)", numeric: true },
   { key: "expectedFeeDate", label: "報酬見込日" },
@@ -148,6 +150,7 @@ const COLUMNS: { key: ColumnKey; label: string; numeric?: boolean }[] = [
 function cellValue(c: Case, key: ColumnKey): string | number {
   switch (key) {
     case "claimAmount":
+    case "recoveredAmount":
     case "retainerFee":
     case "expectedFee":
       return c[key] === "" ? -Infinity : Number(c[key]);
@@ -209,10 +212,11 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   const financeTotals = tableCases.reduce(
     (acc, c) => ({
       claimAmount: acc.claimAmount + (Number(c.claimAmount) || 0),
+      recoveredAmount: acc.recoveredAmount + (Number(c.recoveredAmount) || 0),
       retainerFee: acc.retainerFee + (Number(c.retainerFee) || 0),
       expectedFee: acc.expectedFee + (Number(c.expectedFee) || 0),
     }),
-    { claimAmount: 0, retainerFee: 0, expectedFee: 0 }
+    { claimAmount: 0, recoveredAmount: 0, retainerFee: 0, expectedFee: 0 }
   );
 
   // v16：「データ」タブの集計（案件横断・期間フィルターの影響を受けない全案件ベース）
@@ -536,6 +540,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
               <tr className="font-bold" style={{ borderBottom: `2px solid ${COLORS.brassLight}` }}>
                 <td className="py-1.5 pr-2" colSpan={7}>合計</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.claimAmount)}</td>
+                <td className="py-1.5 pr-2 text-right">{yen(financeTotals.recoveredAmount)}</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.retainerFee)}</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.expectedFee)}</td>
                 <td></td>
@@ -562,6 +567,10 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
                   </td>
                   <td className="py-1.5 pr-2 truncate text-right">
                     <EditableCell type="number" align="right" value={c.claimAmount === "" ? "" : String(c.claimAmount)} display={yen(c.claimAmount)} onSave={(v) => saveFinanceField(c.id, { claimAmount: v === "" ? "" : Number(v) })} />
+                  </td>
+
+                  <td className="py-1.5 pr-2 truncate text-right">
+                    <EditableCell type="number" align="right" value={c.recoveredAmount === "" ? "" : String(c.recoveredAmount)} display={yen(c.recoveredAmount)} onSave={(v) => saveFinanceField(c.id, { recoveredAmount: v === "" ? "" : Number(v) })} />
                   </td>
                   <td className="py-1.5 pr-2 truncate text-right">
                     <EditableCell type="number" align="right" value={c.retainerFee === "" ? "" : String(c.retainerFee)} display={yen(c.retainerFee)} onSave={(v) => saveFinanceField(c.id, { retainerFee: v === "" ? "" : Number(v) })} />

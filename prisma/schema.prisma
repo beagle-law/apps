@@ -123,6 +123,7 @@ model Case {
   noticeSentDate               String @default("")
   filingDate                   String @default("")
   claimAmount                  Int?
+  recoveredAmount              Int? // 回収額（円・税込）。案件ごとに入力し、分析の一覧表でも入力できる（v35）
   retainerFee                  Int?
   expectedFee                  Int?
   expectedFeeDate              String @default("")

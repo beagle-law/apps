@@ -142,6 +142,7 @@ export interface Case {
   noticeSentDate: string;
   filingDate: string;
   claimAmount: number | "";
+  recoveredAmount: number | ""; // 回収額（円・税込）
   retainerFee: number | "";
   expectedFee: number | "";
   expectedFeeDate: string;

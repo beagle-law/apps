@@ -74,6 +74,8 @@ export function serializeCase(c: FullCase) {
     noticeSentDate: c.noticeSentDate,
     filingDate: c.filingDate,
     claimAmount: c.claimAmount ?? "",
+
+    recoveredAmount: c.recoveredAmount ?? "",
     retainerFee: c.retainerFee ?? "",
     expectedFee: c.expectedFee ?? "",
     expectedFeeDate: c.expectedFeeDate,

@@ -24,6 +24,7 @@ interface FinanceBody {
   closedDate?: string;
   claimAmount?: number | "" | null;
   retainerFee?: number | "" | null;
+  recoveredAmount?: number | "" | null;
   expectedFee?: number | "" | null;
   expectedFeeDate?: string;
   customFields?: { label: string; value: string }[];
@@ -68,6 +69,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (claimAmount !== undefined) data.claimAmount = claimAmount;
   const retainerFee = toNullableInt(body.retainerFee);
   if (retainerFee !== undefined) data.retainerFee = retainerFee;
+  const recoveredAmount = toNullableInt(body.recoveredAmount);
+  if (recoveredAmount !== undefined) data.recoveredAmount = recoveredAmount;
   const expectedFee = toNullableInt(body.expectedFee);
   if (expectedFee !== undefined) data.expectedFee = expectedFee;
   if (body.expectedFeeDate !== undefined) data.expectedFeeDate = body.expectedFeeDate;

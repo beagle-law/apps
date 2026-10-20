@@ -107,6 +107,7 @@ export const patchFinance = (
     filingDate: string;
     closedDate: string;
     claimAmount: number | "";
+    recoveredAmount: number | "";
     retainerFee: number | "";
     expectedFee: number | "";
     expectedFeeDate: string;
