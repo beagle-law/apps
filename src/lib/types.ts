@@ -362,3 +362,9 @@ export interface MoneyCard {
   content: string;
   createdAt: string;
 }
+
+// パスワード管理のカテゴリ（v36）
+export interface PasswordCategory {
+  id: string;
+  name: string;
+}

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Eye, EyeOff, Copy, X, Pencil, Save } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Copy, X, Pencil, Save, Settings, Plus } from "lucide-react";
 import { COLORS, FONT_MINCHO, PASSWORD_CATEGORIES } from "@/lib/constants";
 import { TextInput } from "@/components/ui";
 import * as api from "@/lib/api-client";
-import type { PasswordEntry } from "@/lib/types";
+import type { PasswordEntry, PasswordCategory } from "@/lib/types";
 
 interface Props {
   onError: (msg: string) => void;
@@ -15,6 +15,14 @@ const emptyForm = { category: PASSWORD_CATEGORIES[0], service: "", url: "", user
 
 export default function PasswordsView({ onError }: Props) {
   const [entries, setEntries] = useState<PasswordEntry[]>([]);
+  // カテゴリは画面から追加・名前変更・削除できる（v36）。取得できるまでは従来の固定カテゴリを表示する。
+  const [categories, setCategories] = useState<PasswordCategory[]>(PASSWORD_CATEGORIES.map((n) => ({ id: `fallback-${n}`, name: n })));
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [renamingCategoryId, setRenamingCategoryId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [confirmDeleteCategoryId, setConfirmDeleteCategoryId] = useState<string | null>(null);
   const [category, setCategory] = useState(PASSWORD_CATEGORIES[0]);
   const [form, setForm] = useState(emptyForm);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]); // デフォルトは表示状態。個別に隠したものだけ記録する
@@ -24,8 +32,65 @@ export default function PasswordsView({ onError }: Props) {
 
   useEffect(() => {
     api.fetchPasswords().then(setEntries).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
+    api
+      .fetchPasswordCategories()
+      .then((list) => {
+        if (list.length > 0) {
+          setCategories(list);
+          setCategory((cur) => (list.some((c) => c.name === cur) ? cur : list[0].name));
+        }
+        setCategoriesLoaded(true);
+      })
+      .catch(() => {
+        // カテゴリを取得できない場合は、従来の固定カテゴリのまま使う（管理はできない）
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const addCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    try {
+      const created = await api.createPasswordCategory(name);
+      setCategories((prev) => [...prev, created]);
+      setNewCategoryName("");
+      setCategory(created.name);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "カテゴリの追加に失敗しました");
+    }
+  };
+
+  const renameCategory = async (c: PasswordCategory) => {
+    const name = renameDraft.trim();
+    if (!name || name === c.name) {
+      setRenamingCategoryId(null);
+      return;
+    }
+    try {
+      const updated = await api.renamePasswordCategory(c.id, name);
+      setCategories((prev) => prev.map((x) => (x.id === c.id ? updated : x)));
+      setEntries((prev) => prev.map((e) => (e.category === c.name ? { ...e, category: updated.name } : e)));
+      if (category === c.name) setCategory(updated.name);
+      setRenamingCategoryId(null);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "名前の変更に失敗しました");
+    }
+  };
+
+  const removeCategory = async (c: PasswordCategory) => {
+    try {
+      await api.deletePasswordCategory(c.id);
+      setCategories((prev) => {
+        const next = prev.filter((x) => x.id !== c.id);
+        if (category === c.name && next.length > 0) setCategory(next[0].name);
+        return next;
+      });
+      setConfirmDeleteCategoryId(null);
+    } catch (e) {
+      setConfirmDeleteCategoryId(null);
+      onError(e instanceof Error ? e.message : "カテゴリの削除に失敗しました");
+    }
+  };
 
   const addEntry = async () => {
     if (!form.service.trim() || !form.password) return;
@@ -78,22 +143,65 @@ export default function PasswordsView({ onError }: Props) {
           パスワードは保存時に暗号化されますが、閲覧できるメンバーは共通です。取り扱いに注意してください。
         </div>
 
-        <div className="flex gap-1.5 flex-wrap mb-5">
-          {PASSWORD_CATEGORIES.map((c) => (
+        <div className="flex gap-1.5 flex-wrap items-center mb-3">
+          {categories.map((c) => (
             <button
-              key={c}
-              onClick={() => setCategory(c)}
+              key={c.id}
+              onClick={() => setCategory(c.name)}
               className="text-xs font-bold px-3 py-1.5 rounded-full"
               style={{
-                backgroundColor: category === c ? COLORS.navy : "transparent",
-                color: category === c ? "#fff" : COLORS.navy,
+                backgroundColor: category === c.name ? COLORS.navy : "transparent",
+                color: category === c.name ? "#fff" : COLORS.navy,
                 border: `1px solid ${COLORS.navy}`,
               }}
             >
-              {c}
+              {c.name}
             </button>
           ))}
+          {categoriesLoaded && (
+            <button onClick={() => setShowCategoryManager((v) => !v)} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full hover:opacity-70" style={{ color: COLORS.slate, border: `1px dashed ${COLORS.brass}` }} title="カテゴリの追加・名前変更・削除">
+              <Settings size={12} /> カテゴリを管理
+            </button>
+          )}
         </div>
+
+        {showCategoryManager && (
+          <div className="rounded p-4 mb-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+            <h3 className="text-sm font-bold mb-2" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>カテゴリの管理</h3>
+            <p className="text-xs mb-3" style={{ color: COLORS.slate }}>追加・名前の変更・削除ができます。パスワードが登録されているカテゴリは、削除できません（先に別のカテゴリへ移動するか、削除してください）。</p>
+            <div className="flex flex-col gap-1.5 mb-3">
+              {categories.map((c) => (
+                <div key={c.id} className="flex items-center gap-2 p-2 rounded text-sm" style={{ backgroundColor: COLORS.paper }}>
+                  {renamingCategoryId === c.id ? (
+                    <>
+                      <TextInput type="text" value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && renameCategory(c)} autoFocus className="flex-1" />
+                      <button onClick={() => renameCategory(c)} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
+                      <button onClick={() => setRenamingCategoryId(null)} className="text-xs px-2 py-1.5" style={{ color: COLORS.slate }}>キャンセル</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 min-w-0 truncate">{c.name}<span className="text-xs ml-2" style={{ color: COLORS.slate }}>{entries.filter((e) => e.category === c.name).length}件</span></span>
+                      <button onClick={() => { setRenamingCategoryId(c.id); setRenameDraft(c.name); }} className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.navy }} title="名前を変更"><Pencil size={15} /></button>
+                      {confirmDeleteCategoryId === c.id ? (
+                        <span className="flex items-center gap-2 text-xs">
+                          <button onClick={() => removeCategory(c)} className="underline font-bold" style={{ color: COLORS.vermillion }}>削除確定</button>
+                          <button onClick={() => setConfirmDeleteCategoryId(null)} className="underline" style={{ color: COLORS.slate }}>取消</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteCategoryId(c.id)} className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.vermillion }} title="カテゴリを削除"><X size={16} /></button>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <TextInput type="text" placeholder="新しいカテゴリ名（例：イガワ）" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCategory()} className="flex-1" />
+              <button onClick={addCategory} disabled={!newCategoryName.trim()} className="flex items-center gap-1 text-sm font-bold px-3 py-2 rounded disabled:opacity-40 flex-shrink-0" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Plus size={14} /> 追加</button>
+            </div>
+          </div>
+        )}
+        <div className="mb-2" />
 
         <div className="rounded p-5 mb-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>新規登録（{category}）</h3>
@@ -121,6 +229,13 @@ export default function PasswordsView({ onError }: Props) {
                 return (
                   <div key={entry.id} className="rounded p-4" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.navy}` }}>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                      <label className="text-xs sm:col-span-2" style={{ color: COLORS.slate }}>
+                        カテゴリ
+                        <select value={editDraft.category} onChange={(e) => setEditDraft({ ...editDraft, category: e.target.value })} className="mt-1 w-full text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}`, backgroundColor: COLORS.card }}>
+                          {categories.some((c) => c.name === editDraft.category) ? null : <option value={editDraft.category}>{editDraft.category}</option>}
+                          {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </select>
+                      </label>
                       <TextInput type="text" placeholder="サービス名" value={editDraft.service} onChange={(e) => setEditDraft({ ...editDraft, service: e.target.value })} />
                       <TextInput type="text" placeholder="URL" value={editDraft.url} onChange={(e) => setEditDraft({ ...editDraft, url: e.target.value })} />
                       <div className="flex gap-2">

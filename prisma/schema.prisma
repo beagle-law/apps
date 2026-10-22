@@ -323,6 +323,14 @@ model AttendanceExtraSegment {
 // パスワード管理
 // ─────────────────────────────────────────────────────────
 
+// パスワード管理のカテゴリ（v36）。追加・名前変更・削除を画面から自由にできる。
+model PasswordCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 model PasswordEntry {
   id            String   @id @default(cuid())
   category      String

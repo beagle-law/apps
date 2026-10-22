@@ -177,7 +177,7 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
               const rows = showPaid ? monthInvoices : monthInvoices.filter((i) => !i.paid);
               if (rows.length === 0) return null;
               return (
-                <div key={ym} className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+                <div key={ym} className="rounded p-3 sm:p-5 min-w-0" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
                   <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
                     <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{ym}<span className="text-xs font-normal ml-1.5" style={{ color: COLORS.slate }}>請求対象月</span></h3>
                     <span className="text-xs" style={{ color: COLORS.slate }}>
@@ -188,9 +188,9 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
                   </div>
                   <div className="flex flex-col gap-2">
                     {rows.map((inv) => (
-                      <div key={inv.id} className="flex items-center justify-between gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                        <button onClick={() => (inv.clientId ? onOpenClient(inv.clientId) : inv.caseId ? onOpenCase(inv.caseId) : undefined)} className="flex-1 text-left">
-                          <p>{inv.clientName}{inv.caseTitle ? `　${inv.caseTitle}` : ""}</p>
+                      <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm p-2.5 rounded min-w-0" style={{ backgroundColor: COLORS.paper }}>
+                        <button onClick={() => (inv.clientId ? onOpenClient(inv.clientId) : inv.caseId ? onOpenCase(inv.caseId) : undefined)} className="w-full sm:flex-1 min-w-0 text-left break-words">
+                          <p>{inv.clientName}{inv.caseTitle ? `　${inv.caseTitle}` : ""}{inv.isExternal && <span className="text-xs px-1.5 py-0.5 rounded ml-2 align-middle" style={{ border: `1px solid ${COLORS.brass}`, color: COLORS.brass }}>外部作成</span>}</p>
                           <p className="text-xs" style={{ color: COLORS.slate }}>
                             {formatDate(inv.issueDate)}
                             {inv.dueDate && `　支払期限：${formatDate(inv.dueDate)}`}
@@ -198,8 +198,8 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
                           </p>
                           {inv.isExternal && inv.notes && <p className="text-xs" style={{ color: COLORS.slate }}>{inv.notes}</p>}
                         </button>
-                        <span className="font-bold flex-shrink-0">{formatYen(invoiceTotal(inv.sections).total)}</span>
-                        {inv.isExternal && <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ border: `1px solid ${COLORS.brass}`, color: COLORS.brass }}>外部作成</span>}
+                        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
+                        <span className="font-bold flex-shrink-0 mr-auto sm:mr-0">{formatYen(invoiceTotal(inv.sections).total)}</span>
                         <span className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: inv.paid ? COLORS.moss : COLORS.slate, color: "#fff" }}>
                           {inv.paid ? "入金済み" : "未入金"}
                         </span>
@@ -209,7 +209,8 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
                           <button onClick={() => togglePaid(inv)} className="text-xs font-bold px-3 py-1 rounded flex-shrink-0 hover:opacity-80" style={{ backgroundColor: COLORS.navy, color: "#fff" }} title="入金を確認したら押します（入金済みになり、一覧から消えます）">消込み</button>
                         )}
                         {!inv.isExternal && <button onClick={() => downloadPdf(inv)} className="flex-shrink-0" style={{ color: COLORS.navy }} title="PDFをダウンロード"><Download size={14} /></button>}
-                        <button onClick={() => removeInvoice(inv.id)} className="flex-shrink-0" style={{ color: COLORS.slate }} title="削除"><X size={14} /></button>
+                        <button onClick={() => removeInvoice(inv.id)} className="flex-shrink-0 p-1" style={{ color: COLORS.slate }} title="削除"><X size={16} /></button>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -6,6 +6,7 @@ import type {
   DepositWithCase,
   MoneyCard,
   PasswordEntry,
+  PasswordCategory,
   TimeCharge,
   DailyReport,
   AttendanceRecord,
@@ -381,3 +382,11 @@ export const deleteMoneyCard = (id: string) => request<{ ok: true }>(`/api/money
 // v29：アプリ外（別のExcel等）で作成した請求書を、請求額のみで登録する
 export const createExternalInvoice = (payload: { clientId: string; issueDate: string; billingMonth: string; amount: number; notes?: string; dueDate?: string }) =>
   request<Invoice>("/api/invoices", { method: "POST", body: JSON.stringify({ ...payload, external: true }) });
+
+// ── パスワード管理のカテゴリ（v36）──
+export const fetchPasswordCategories = () => request<PasswordCategory[]>("/api/password-categories");
+export const createPasswordCategory = (name: string) =>
+  request<PasswordCategory>("/api/password-categories", { method: "POST", body: JSON.stringify({ name }) });
+export const renamePasswordCategory = (id: string, name: string) =>
+  request<PasswordCategory>(`/api/password-categories/${id}`, { method: "PATCH", body: JSON.stringify({ name }) });
+export const deletePasswordCategory = (id: string) => request<{ ok: true }>(`/api/password-categories/${id}`, { method: "DELETE" });
