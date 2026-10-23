@@ -21,8 +21,8 @@ export async function runBackup(trigger: "cron" | "manual"): Promise<BackupResul
     const { data, counts } = await buildFullBackup();
     const buf = Buffer.from(JSON.stringify(data), "utf-8");
     sizeBytes = buf.length;
-    await uploadBackupToBox(fileName, buf);
-    let message = `保存しました（案件${counts.cases}件・顧客${counts.clients}件・請求書${counts.invoices}件など）`;
+    const { folderName } = await uploadBackupToBox(fileName, buf);
+    let message = `保存しました${folderName ? `［保存先：${folderName}］` : ""}（案件${counts.cases}件・顧客${counts.clients}件・請求書${counts.invoices}件など）`;
     try {
       const deleted = await pruneOldBackups(KEEP_DAYS);
       if (deleted > 0) message += `。${KEEP_DAYS}日より古いバックアップを${deleted}件削除しました`;

@@ -38,7 +38,7 @@ async function getAccessToken(cfg: NonNullable<ReturnType<typeof boxConfig>>): P
 }
 
 /** バックアップのファイルをBoxのフォルダへ保存する。同じ名前が既にある場合（同じ日に再実行した場合）は、新しい版として上書きする。 */
-export async function uploadBackupToBox(fileName: string, data: Buffer): Promise<{ fileId: string }> {
+export async function uploadBackupToBox(fileName: string, data: Buffer): Promise<{ fileId: string; folderName: string }> {
   const cfg = boxConfig();
   if (!cfg) throw new Error("Boxの連携が未設定です（環境変数 BOX_CLIENT_ID などを設定してください）。");
   const token = await getAccessToken(cfg);
@@ -63,8 +63,9 @@ export async function uploadBackupToBox(fileName: string, data: Buffer): Promise
     const text = await res.text().catch(() => "");
     throw new Error(`Boxへの保存に失敗しました（${res.status}）。保存先フォルダの権限（編集者）を確認してください。${text.slice(0, 120)}`);
   }
-  const json = (await res.json()) as { entries?: { id: string }[] };
-  return { fileId: json.entries?.[0]?.id ?? "" };
+  const json = (await res.json()) as { entries?: { id: string; parent?: { id?: string; name?: string } }[] };
+  const entry = json.entries?.[0];
+  return { fileId: entry?.id ?? "", folderName: entry?.parent?.name ?? "" };
 }
 
 /** 保存期間（日数）より古いバックアップを削除する。名前が「beagle-backup_日付.json」のファイルだけが対象。 */
@@ -73,7 +74,10 @@ export async function pruneOldBackups(keepDays: number): Promise<number> {
   if (!cfg) return 0;
   const token = await getAccessToken(cfg);
   const res = await fetch(`${API()}/api/2.0/folders/${cfg.folderId}/items?limit=1000&fields=id,name,type`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`Boxのフォルダの一覧を取得できませんでした（${res.status}）。`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Boxのフォルダの一覧を取得できませんでした（${res.status}）。${text.slice(0, 160)}`);
+  }
   const json = (await res.json()) as { entries?: { id: string; name: string; type: string }[] };
 
   const cutoff = jstDate(new Date(Date.now() - keepDays * 24 * 60 * 60 * 1000));
