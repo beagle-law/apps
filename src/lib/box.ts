@@ -73,7 +73,7 @@ export async function pruneOldBackups(keepDays: number): Promise<number> {
   const cfg = boxConfig();
   if (!cfg) return 0;
   const token = await getAccessToken(cfg);
-  const res = await fetch(`${API()}/api/2.0/folders/${cfg.folderId}/items?limit=1000&fields=id,name,type`, { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetch(`${API()}/2.0/folders/${cfg.folderId}/items?limit=1000&fields=id,name,type`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Boxのフォルダの一覧を取得できませんでした（${res.status}）。${text.slice(0, 160)}`);
@@ -87,7 +87,7 @@ export async function pruneOldBackups(keepDays: number): Promise<number> {
     if (e.type !== "file") continue;
     const m = pattern.exec(e.name);
     if (!m || m[1] >= cutoff) continue;
-    const del = await fetch(`${API()}/api/2.0/files/${e.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    const del = await fetch(`${API()}/2.0/files/${e.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
     if (del.ok || del.status === 404) deleted += 1;
   }
   return deleted;
