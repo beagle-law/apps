@@ -492,6 +492,19 @@ model MonthlyNote {
 }
 
 // v21：経費入力ボードに案件と無関係に追加できる「お金に関する情報」カード（月ごと）
+// 自動バックアップの実行記録（v37）。管理者が設定画面で結果を確認できる。
+model BackupLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  trigger   String   @default("cron") // "cron"（毎日の自動実行）| "manual"（今すぐバックアップ）
+  ok        Boolean
+  fileName  String   @default("")
+  sizeBytes Int      @default(0)
+  message   String   @default("")
+
+  @@index([createdAt])
+}
+
 model MoneyCard {
   id        String   @id @default(cuid())
   content   String   @default("") // フリー入力（月に紐づかない）

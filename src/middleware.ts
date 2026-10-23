@@ -10,6 +10,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     pathname === "/logo-mark.png" ||
+    pathname === "/api/cron/backup" || // 自動バックアップ（Vercelから呼ばれる。ルート側で CRON_SECRET を検証する）
     pathname === "/manifest.webmanifest" ||
     pathname === "/icon-192.png" ||
     pathname === "/icon-512.png" ||

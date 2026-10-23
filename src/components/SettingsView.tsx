@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { COLORS, FONT_MINCHO, STAFF_MEMBERS } from "@/lib/constants";
 import { TextInput } from "@/components/ui";
+import BackupCard from "@/components/BackupCard";
 import * as api from "@/lib/api-client";
 import type { User } from "@/lib/types";
 
@@ -105,6 +106,8 @@ export default function SettingsView({ currentUser, onError }: Props) {
             {pwMessage && <p className="text-xs" style={{ color: COLORS.moss }}>{pwMessage}</p>}
           </div>
         </div>
+
+        {currentUser.role === "admin" && <BackupCard onError={onError} />}
 
         {currentUser.role === "admin" && (
           <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>

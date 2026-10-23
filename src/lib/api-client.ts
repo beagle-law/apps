@@ -390,3 +390,16 @@ export const createPasswordCategory = (name: string) =>
 export const renamePasswordCategory = (id: string, name: string) =>
   request<PasswordCategory>(`/api/password-categories/${id}`, { method: "PATCH", body: JSON.stringify({ name }) });
 export const deletePasswordCategory = (id: string) => request<{ ok: true }>(`/api/password-categories/${id}`, { method: "DELETE" });
+
+// ── 自動バックアップ（v37。管理者のみ）──
+export interface BackupLogRow {
+  id: string;
+  createdAt: string;
+  trigger: string;
+  ok: boolean;
+  fileName: string;
+  sizeBytes: number;
+  message: string;
+}
+export const fetchBackupStatus = () => request<{ boxConfigured: boolean; cronConfigured: boolean; logs: BackupLogRow[] }>("/api/backup/status");
+export const runBackupNow = () => request<{ ok: boolean; fileName: string; sizeBytes: number; message: string }>("/api/backup/run", { method: "POST" });
