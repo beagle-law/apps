@@ -56,6 +56,7 @@ export default function CaseListSidebar({
           <input
             type="text"
             value={searchQuery}
+            placeholder="案件名・顧客名・案件番号・事件番号"
             onChange={(e) => onSearchChange(e.target.value)}
             className="text-sm outline-none flex-1 bg-transparent"
           />
@@ -129,6 +130,9 @@ export default function CaseListSidebar({
               <p className="text-sm font-semibold leading-snug truncate" style={{ fontFamily: FONT_MINCHO }}>
                 {c.isPrivate ? "個人メモ" : c.title}
               </p>
+              {!c.isPrivate && c.courtCaseNumber && (
+                <p className="text-xs truncate" style={{ color: COLORS.slate }}>{c.courtCaseNumber}</p>
+              )}
             </button>
             <button
               onClick={(e) => {

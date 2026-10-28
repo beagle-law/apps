@@ -22,6 +22,7 @@ import {
 import { COLORS, FONT_MINCHO, FONT_GOTHIC, PERSONAL_TASK_TABS } from "@/lib/constants";
 import { suggestedCaseNumber } from "@/lib/business/caseNumber";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
+import { caseMatchesQuery } from "@/lib/business/caseSearch";
 import type { Case, User, CaseClassification } from "@/lib/types";
 import * as api from "@/lib/api-client";
 import { getPendingMemos, removePendingMemo, subscribePending, isNetworkFailure } from "@/lib/offline-queue";
@@ -293,13 +294,7 @@ export default function CaseTrackerApp() {
     let list = showHiddenCases ? cases.filter((c) => c.hidden) : cases.filter((c) => !c.hidden);
     if (ballFilter) list = list.filter((c) => c.ballOwner === ballFilter);
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(
-        (c) =>
-          c.title.toLowerCase().includes(q) ||
-          c.clientName.toLowerCase().includes(q) ||
-          c.caseNumber.toLowerCase().includes(q)
-      );
+      list = list.filter((c) => caseMatchesQuery(c, searchQuery));
     }
     const sorted = sortCasesByCaseNumber(list);
     // v14：自分の個人メモはよく使うため、一覧の先頭に固定表示する
