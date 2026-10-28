@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { normalizeTimeInput } from "@/lib/business/timecharge";
 
-// v26：同じユーザーのタイムチャージは、案件が同じでも別でも時間帯の重複を許さない。
+// v26：同じユーザーのタイムチャージは、時間帯の重複を許さない。
+// v38：ただし対象は「同じ案件」だけ。同じユーザーが別の案件に、重なる時間帯で登録することは許可する。
 
 const DAY = 24 * 60;
 
@@ -32,12 +33,14 @@ function absoluteRange(date: string, startTime: string, endTime: string): { star
 }
 
 /**
- * 同じ人の既存タイムチャージと時間帯が重なるものを探す。重なりがなければnull。
+ * 同じ人・同じ案件の既存タイムチャージと時間帯が重なるものを探す。重なりがなければnull。
+ * 別の案件のタイムチャージとは、時間帯が重なっていてもよい。
  * 開始・終了時刻が入っていない過去データ（時間のみ登録）は比較できないため対象外。
  * 境界が接するだけ（10:00〜11:00と11:00〜12:00）は重複としない。
  */
 export async function findTimeChargeOverlap(params: {
   personName: string;
+  caseId: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -51,6 +54,7 @@ export async function findTimeChargeOverlap(params: {
   const others = await prisma.timeCharge.findMany({
     where: {
       personName: params.personName,
+      caseId: params.caseId,
       date: { in: around },
       startTime: { not: "" },
       endTime: { not: "" },
@@ -63,7 +67,7 @@ export async function findTimeChargeOverlap(params: {
     const theirs = absoluteRange(o.date, o.startTime, o.endTime);
     if (theirs && mine.start < theirs.end && theirs.start < mine.end) {
       const md = o.date.slice(5).replace("-", "/").replace(/^0/, "").replace("/0", "/");
-      return `同じ時間帯に登録済みのタイムチャージがあります（${md} ${o.startTime}〜${o.endTime}　No.${o.case.caseNumber} ${o.case.title}）。時間が重複しないように入力してください。`;
+      return `この案件には、同じ時間帯に登録済みのタイムチャージがあります（${md} ${o.startTime}〜${o.endTime}　No.${o.case.caseNumber} ${o.case.title}）。同じ案件では、時間が重複しないように入力してください。`;
     }
   }
   return null;

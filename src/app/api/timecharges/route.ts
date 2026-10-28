@@ -60,9 +60,10 @@ export async function POST(req: NextRequest) {
     personName = requested;
   }
 
-  // 同じ人の時間帯が重なる登録はエラーにする（案件が同じでも別でも対象）
+  // 同じ人が同じ案件に、時間帯が重なる登録をしようとした場合はエラーにする（別の案件との重複は可）
   const overlap = await findTimeChargeOverlap({
     personName,
+    caseId: body.caseId,
     date: body.date,
     startTime: body.startTime?.trim() || "",
     endTime: body.endTime?.trim() || "",

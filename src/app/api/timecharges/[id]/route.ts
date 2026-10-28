@@ -62,10 +62,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (body.content !== undefined) data.content = body.content.trim();
 
-  // 日付・時刻を変える場合は、同じ人の他のタイムチャージと時間帯が重ならないか確認する
-  if (data.date !== undefined || data.startTime !== undefined || data.endTime !== undefined) {
+  // 日付・時刻・案件を変える場合は、同じ人の同じ案件の他のタイムチャージと時間帯が重ならないか確認する
+  if (data.date !== undefined || data.startTime !== undefined || data.endTime !== undefined || data.caseId !== undefined) {
     const overlap = await findTimeChargeOverlap({
       personName: existing.personName,
+      caseId: data.caseId ?? existing.caseId,
       date: data.date ?? existing.date,
       startTime: data.startTime ?? existing.startTime,
       endTime: data.endTime ?? existing.endTime,
