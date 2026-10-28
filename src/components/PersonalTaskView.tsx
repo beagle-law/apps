@@ -9,6 +9,7 @@ import { calcWorkedHoursWithLeave, calcOvertimeMinutes } from "@/lib/business/at
 import { isLeaveEligible, computeLeaveBalance } from "@/lib/business/paidLeave";
 import { TextInput, Pill } from "@/components/ui";
 import TimeChargeForm from "@/components/TimeChargeForm";
+import { caseOptionLabel, sortCaseOptions } from "@/components/TimeChargeRow";
 import { compareCaseNumbers } from "@/lib/business/caseSort";
 import UpcomingHearingsView from "@/components/UpcomingHearingsView";
 import * as api from "@/lib/api-client";
@@ -584,6 +585,7 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
                 if (/^\d{4}-\d{2}/.test(date)) setTcViewMonth(date.slice(0, 7)); // 追加した記録がすぐ見えるよう、一覧もその月に合わせる
                 refreshSummary();
               }}
+              onChanged={refreshSummary}
               onError={onError}
             />
           </div>
@@ -640,7 +642,7 @@ export default function PersonalTaskView({ personName, cases, onError, onOpenCas
                         <TextInput type="date" value={tcEdit.date} onChange={(e) => setTcEdit({ ...tcEdit, date: e.target.value })} />
                         <select value={tcEdit.caseId} onChange={(e) => setTcEdit({ ...tcEdit, caseId: e.target.value })} className="text-sm p-2 rounded outline-none flex-1" style={{ border: `1px solid ${COLORS.brassLight}` }}>
                           {!timeChargeCases.some((c) => c.id === t.case.id) && <option value={t.case.id}>No.{t.case.caseNumber}　{t.case.title}</option>}
-                          {timeChargeCases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
+                          {sortCaseOptions(timeChargeCases).map((c) => <option key={c.id} value={c.id}>{caseOptionLabel(c)}</option>)}
                         </select>
                         <TextInput type="text" placeholder="開始" value={tcEdit.startTime} onChange={(e) => setTcEdit({ ...tcEdit, startTime: e.target.value })} onBlur={(e) => setTcEdit((p) => ({ ...p, startTime: normalizeTimeInput(e.target.value) }))} className="sm:w-24" />
                         <TextInput type="text" placeholder="終了" value={tcEdit.endTime} onChange={(e) => setTcEdit({ ...tcEdit, endTime: e.target.value })} onBlur={(e) => setTcEdit((p) => ({ ...p, endTime: normalizeTimeInput(e.target.value) }))} className="sm:w-24" />

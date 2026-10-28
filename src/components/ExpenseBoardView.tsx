@@ -8,6 +8,7 @@ import { compareCaseNumbers, sortCasesByCaseNumber } from "@/lib/business/caseSo
 import { formatDuration, formatTotalDuration } from "@/lib/business/timecharge";
 import { TextInput, Pill } from "@/components/ui";
 import TimeChargeForm from "@/components/TimeChargeForm";
+import TimeChargeRow from "@/components/TimeChargeRow";
 import DepositEditor from "@/components/DepositEditor";
 import * as api from "@/lib/api-client";
 import { isExpenseBilled } from "@/lib/types";
@@ -486,6 +487,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                   if (date.startsWith(month)) setTcReload((n) => n + 1);
                   else if (/^\d{4}-\d{2}/.test(date)) setMonth(date.slice(0, 7));
                 }}
+                onChanged={() => setTcReload((n) => n + 1)}
                 onError={onError}
               />
             </div>
@@ -510,13 +512,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                   ) : (
                     <div className="flex flex-col gap-1 mt-2">
                       {rows.map((t) => (
-                        <div key={t.id} className="text-xs flex items-baseline gap-2 flex-wrap" style={{ color: COLORS.ink }}>
-                          <span style={{ color: COLORS.slate }}>{formatDateShort(t.date)}</span>
-                          <span className="font-bold">{t.startTime && t.endTime ? `${t.startTime}〜${t.endTime}` : "時刻なし"}</span>
-                          <span>{formatDuration(t.hours)}</span>
-                          <span style={{ color: COLORS.slate }}>{t.personName}</span>
-                          {t.content && <span className="w-full" style={{ color: COLORS.slate }}>{t.content}</span>}
-                        </div>
+                        <TimeChargeRow key={t.id} t={t} cases={tcCases} currentUserName={currentUserName} isAdmin={isAdmin} onChanged={() => setTcReload((n) => n + 1)} onError={onError} />
                       ))}
                       <p className="text-xs font-bold text-right pt-1" style={{ color: COLORS.navy, borderTop: `1px solid ${COLORS.paper}` }}>合計 {formatTotalDuration(rows.map((t) => t.hours))}</p>
                     </div>
@@ -527,13 +523,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                         過去月の未請求　{pastRows.length}件　{formatTotalDuration(pastRows.map((t) => t.hours))}
                       </p>
                       {pastRows.map((t) => (
-                        <div key={t.id} className="text-xs flex items-baseline gap-2 flex-wrap" style={{ color: COLORS.ink }}>
-                          <span style={{ color: COLORS.slate }}>{t.date.replace(/-/g, "/")}</span>
-                          <span className="font-bold">{t.startTime && t.endTime ? `${t.startTime}〜${t.endTime}` : "時刻なし"}</span>
-                          <span>{formatDuration(t.hours)}</span>
-                          <span style={{ color: COLORS.slate }}>{t.personName}</span>
-                          {t.content && <span className="w-full" style={{ color: COLORS.slate }}>{t.content}</span>}
-                        </div>
+                        <TimeChargeRow key={t.id} t={t} cases={tcCases} currentUserName={currentUserName} isAdmin={isAdmin} fullDate onChanged={() => setTcReload((n) => n + 1)} onError={onError} />
                       ))}
                     </div>
                   )}

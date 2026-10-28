@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { COLORS } from "@/lib/constants";
 import { todayStr } from "@/lib/dates";
 import { normalizeTimeInput, calcHoursFromTimes, formatDuration, formatTotalDuration } from "@/lib/business/timecharge";
 import { TextInput } from "@/components/ui";
+import TimeChargeRow, { caseOptionLabel, sortCaseOptions } from "@/components/TimeChargeRow";
 import * as api from "@/lib/api-client";
 import { formatDateShort } from "@/lib/dates";
 import type { Case, TimeCharge } from "@/lib/types";
@@ -20,6 +21,8 @@ interface Props {
   refreshToken?: string | number;
   /** 追加できたあとに、入力した日付を渡して呼ばれる */
   onAdded: (date: string) => void;
+  /** 入力済み履歴から、訂正・削除したあとに呼ばれる（親側で一覧を取り直す） */
+  onChanged?: () => void;
   onError: (msg: string) => void;
   compact?: boolean;
   /** 稼働者を選べる場合（管理者のみ）の選択肢と、初期値（ログイン中の本人） */
@@ -29,7 +32,7 @@ interface Props {
 
 // v24：個人画面と経費入力画面で共通のタイムチャージ入力フォーム。
 // 稼働時間は入力欄を設けず、開始・終了時刻から自動算出する。追加後も日付は残し、同じ日に続けて入力できる。
-export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refreshToken, onAdded, onError, compact, workerChoices, defaultWorker }: Props) {
+export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refreshToken, onAdded, onChanged, onError, compact, workerChoices, defaultWorker }: Props) {
   const [worker, setWorker] = useState(defaultWorker || "");
   const [form, setForm] = useState({ date: todayStr(), caseId: "", startTime: "", endTime: "", content: "" });
 
@@ -55,6 +58,9 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refre
       cancelled = true;
     };
   }, [form.caseId, form.date, refreshToken, localReload]);
+
+  // 案件プルダウンは、案件番号の若い順（顧客名つき）
+  const caseOptions = useMemo(() => sortCaseOptions(cases), [cases]);
 
   const hours = Number(calcHoursFromTimes(normalizeTimeInput(form.startTime), normalizeTimeInput(form.endTime))) || 0;
 
@@ -97,7 +103,7 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refre
         <TextInput type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className={compact ? "w-full min-w-0" : ""} />
         <select value={form.caseId} onChange={(e) => setForm({ ...form, caseId: e.target.value })} className={`text-sm p-2 rounded outline-none min-w-0 ${compact ? "w-full" : "flex-1"}`} style={{ border: `1px solid ${COLORS.brassLight}` }}>
           <option value="">案件を選択</option>
-          {cases.map((c) => <option key={c.id} value={c.id}>No.{c.caseNumber}　{c.title}</option>)}
+          {caseOptions.map((c) => <option key={c.id} value={c.id}>{caseOptionLabel(c)}</option>)}
         </select>
         <div className="flex gap-2 min-w-0">
           <TextInput type="text" placeholder={compact ? "開始 1004" : "開始（例：1004）"} value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} onBlur={(e) => setForm((p) => ({ ...p, startTime: normalizeTimeInput(e.target.value) }))} className="w-0 flex-1 min-w-0 sm:w-28 sm:flex-none" />
@@ -127,12 +133,18 @@ export default function TimeChargeForm({ cases, presetCaseId, presetNonce, refre
           ) : (
             <>
               {existing.map((t) => (
-                <div key={t.id} className="flex items-baseline gap-2 flex-wrap" style={{ color: COLORS.ink }}>
-                  <span className="font-bold">{t.startTime && t.endTime ? `${t.startTime}〜${t.endTime}` : "時刻なし"}</span>
-                  <span>{formatDuration(t.hours)}</span>
-                  <span style={{ color: COLORS.slate }}>{t.personName}</span>
-                  {t.content && <span className="w-full" style={{ color: COLORS.slate }}>{t.content}</span>}
-                </div>
+                <TimeChargeRow
+                  key={t.id}
+                  t={t}
+                  cases={cases}
+                  currentUserName={defaultWorker || ""}
+                  isAdmin={!!workerChoices}
+                  onChanged={() => {
+                    setLocalReload((n) => n + 1);
+                    onChanged?.();
+                  }}
+                  onError={onError}
+                />
               ))}
               <p className="text-right font-bold" style={{ color: COLORS.navy }}>合計 {formatTotalDuration(existing.map((t) => t.hours))}</p>
             </>
