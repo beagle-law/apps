@@ -123,6 +123,7 @@ export default function CaseListSidebar({
                   {c.clientNumber !== null ? `顧客No.${c.clientNumber}　` : ""}案件No.{c.caseNumber}
                 </span>
                 <span className="font-bold flex-shrink-0" style={{ color: BALL_COLOR[c.ballOwner] }}>{c.ballOwner}{c.ballAssignee ? `：${c.ballAssignee}` : ""}</span>
+                {c.hidden && <span className="flex-shrink-0 px-1.5 rounded-full" style={{ border: `1px solid ${COLORS.slate}`, color: COLORS.slate }}>非表示</span>}
               </div>
               {!c.isPrivate && c.clientName && (
                 <p className="text-xs truncate" style={{ color: COLORS.slate }}>{c.clientName}</p>

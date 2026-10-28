@@ -291,9 +291,11 @@ export default function CaseTrackerApp() {
   };
 
   const filteredCases = useMemo(() => {
-    let list = showHiddenCases ? cases.filter((c) => c.hidden) : cases.filter((c) => !c.hidden);
+    // 検索中は、非表示にしている案件も対象にする（一覧には「非表示」と表示）
+    const searching = !!searchQuery.trim();
+    let list = searching ? cases : showHiddenCases ? cases.filter((c) => c.hidden) : cases.filter((c) => !c.hidden);
     if (ballFilter) list = list.filter((c) => c.ballOwner === ballFilter);
-    if (searchQuery.trim()) {
+    if (searching) {
       list = list.filter((c) => caseMatchesQuery(c, searchQuery));
     }
     const sorted = sortCasesByCaseNumber(list);
