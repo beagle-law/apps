@@ -48,7 +48,7 @@ import DepositEditor from "@/components/DepositEditor";
 import { enqueueMemo, getPendingMemos, removePendingMemo, subscribePending, isNetworkFailure, type PendingMemo } from "@/lib/offline-queue";
 import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
 import { formatYen } from "@/lib/business/invoice";
-import { summarizeByPerson } from "@/lib/business/timecharge";
+import { summarizeByPerson, formatTotalDuration, formatDuration } from "@/lib/business/timecharge";
 import * as api from "@/lib/api-client";
 
 interface Props {
@@ -873,11 +873,11 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
               <button onClick={() => setTcMonth((m) => shiftYearMonth(m, 1))} style={{ color: COLORS.slate }}><ChevronRight size={16} /></button>
             </div>
             <p className="text-sm font-bold mb-1">
-              当月合計：{monthHours}時間
+              当月合計：{formatTotalDuration(monthCharges.map((t) => t.hours))}
               <span className="font-normal text-xs" style={{ color: COLORS.slate }}>（{monthCharges.length}件）</span>
             </p>
             <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
-              全期間合計：{caseTimeCharges.reduce((s, t) => s + t.hours, 0)}時間（{caseTimeCharges.length}件）
+              全期間合計：{formatTotalDuration(caseTimeCharges.map((t) => t.hours))}（{caseTimeCharges.length}件）
             </p>
             <label className="text-xs flex items-center gap-2 mb-3" style={{ color: COLORS.slate }}>
               時間単価（円）
@@ -886,10 +886,28 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             </label>
             <div className="flex flex-col gap-1.5">
               {summarizeByPerson(monthCharges).map((p) => (
-                <div key={p.name} className="flex items-center justify-between text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                  <span>{p.name}</span>
-                  <span style={{ color: COLORS.slate }}>{p.hours}時間　<span className="text-xs">（{p.count}件）</span></span>
-                </div>
+                <details key={p.name} className="rounded" style={{ backgroundColor: COLORS.paper }}>
+                  <summary className="flex items-center justify-between text-sm p-2 cursor-pointer select-none">
+                    <span>{p.name}</span>
+                    <span style={{ color: COLORS.slate }}>{formatTotalDuration(monthCharges.filter((t) => t.personName === p.name).map((t) => t.hours))}　<span className="text-xs">（{p.count}件）</span></span>
+                  </summary>
+                  <div className="flex flex-col gap-1.5 px-2 pb-2 pt-1" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
+                    {monthCharges
+                      .filter((t) => t.personName === p.name)
+                      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+                      .map((t) => (
+                        <div key={t.id} className="text-xs" style={{ color: COLORS.ink }}>
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span style={{ color: COLORS.slate }}>{formatDateShort(t.date)}</span>
+                            <span className="font-bold">{t.startTime && t.endTime ? `${t.startTime}〜${t.endTime}` : "時刻なし"}</span>
+                            <span>{formatDuration(t.hours)}</span>
+                            {t.billed && <span className="px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>請求済み</span>}
+                          </div>
+                          {t.content && <p className="mt-0.5 whitespace-pre-wrap" style={{ color: COLORS.slate }}>{t.content}</p>}
+                        </div>
+                      ))}
+                  </div>
+                </details>
               ))}
             </div>
           </div>
