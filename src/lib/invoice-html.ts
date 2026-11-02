@@ -34,6 +34,7 @@ export interface InvoiceExpenseRowForHtml {
   origin: string;
   destination: string;
   route: string;
+  notes?: string;
 }
 
 export interface InvoiceForHtml {
@@ -211,23 +212,23 @@ export function buildTimeChargeAttachment(rows: InvoiceTimeChargeRowForHtml[]): 
 ${pageWrapperClose()}`;
 }
 
-/** 別紙「実費一覧」（v10 3.2、v12 3.3で列を「日付／金額／目的／経路」に変更）。案件No.・依頼者名などは含めない。 */
+/** 別紙「実費一覧」（v10 3.2、v12 3.3で列を「日付／金額／目的／経路」に変更、v38で「備考」列を追加）。案件No.・依頼者名などは含めない。 */
 export function buildExpenseAttachment(rows: InvoiceExpenseRowForHtml[]): string {
   const routeDisplay = (r: InvoiceExpenseRowForHtml) => r.route || (r.origin && r.destination ? `${r.origin}→${r.destination}` : r.origin || r.destination || "");
   const bodyRows = rows
     .map(
       (r) =>
-        `<tr><td class="date-cell">${escapeHtml(formatDate(r.date))}</td><td class="amount-cell">${yen(r.amount)}</td><td class="desc-cell">${escapeHtml(r.category)}</td><td class="desc-cell">${escapeHtml(routeDisplay(r))}</td></tr>`
+        `<tr><td class="date-cell">${escapeHtml(formatDate(r.date))}</td><td class="amount-cell">${yen(r.amount)}</td><td class="desc-cell">${escapeHtml(r.category)}</td><td class="desc-cell">${escapeHtml(routeDisplay(r))}</td><td class="desc-cell" style="white-space:pre-line;">${escapeHtml((r.notes || "").trim())}</td></tr>`
     )
     .join("");
   const total = rows.reduce((s, r) => s + r.amount, 0);
   return `${pageWrapperOpen()}
     ${topHeader('<h2 class="inv-attachment-title">別紙　実費一覧</h2>', "ATTACHMENT")}
     <table class="inv-table">
-      <thead><tr><th class="date-cell">日付</th><th class="amount-cell">金額</th><th class="desc-cell" style="text-align:center;">目的</th><th class="desc-cell" style="text-align:center;">経路</th></tr></thead>
+      <thead><tr><th class="date-cell" style="width:19%;">日付</th><th class="amount-cell" style="width:14%;">金額</th><th class="desc-cell" style="text-align:center;width:19%;">目的</th><th class="desc-cell" style="text-align:center;width:16%;">経路</th><th class="desc-cell" style="text-align:center;width:32%;">備考</th></tr></thead>
       <tbody>
         ${bodyRows}
-        <tr class="inv-total-row"><td class="total-label">合計</td><td class="amount-cell">${yen(total)}</td><td colspan="2"></td></tr>
+        <tr class="inv-total-row"><td class="total-label">合計</td><td class="amount-cell">${yen(total)}</td><td colspan="3"></td></tr>
       </tbody>
     </table>
 ${pageWrapperClose()}`;

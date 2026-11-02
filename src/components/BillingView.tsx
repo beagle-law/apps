@@ -200,9 +200,9 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
                         </button>
                         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                         <span className="font-bold flex-shrink-0 mr-auto sm:mr-0">{formatYen(invoiceTotal(inv.sections).total)}</span>
-                        <span className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: inv.paid ? COLORS.moss : COLORS.slate, color: "#fff" }}>
-                          {inv.paid ? "入金済み" : "未入金"}
-                        </span>
+                        {inv.paid && (
+                          <span className="text-xs font-bold px-2 py-1 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>入金済み</span>
+                        )}
                         {inv.paid ? (
                           <button onClick={() => togglePaid(inv)} className="text-xs px-2 py-1 rounded flex-shrink-0 hover:opacity-70" style={{ border: `1px solid ${COLORS.brassLight}`, color: COLORS.slate }} title="入金済みを未入金に戻す">消込取消</button>
                         ) : (

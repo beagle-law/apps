@@ -176,6 +176,12 @@ export const addExpense = (
   payload: { date: string; amount: number; category: string; origin?: string; destination?: string; route?: string; notes?: string }
 ) => request<Case>(`/api/cases/${id}/expenses`, { method: "POST", body: JSON.stringify(payload) });
 
+export const updateExpense = (
+  caseId: string,
+  expenseId: string,
+  payload: { date?: string; amount?: number; category?: string; origin?: string; destination?: string; route?: string; notes?: string }
+) => request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "PATCH", body: JSON.stringify(payload) });
+
 export const deleteExpense = (caseId: string, expenseId: string) =>
   request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "DELETE" });
 

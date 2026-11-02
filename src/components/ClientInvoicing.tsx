@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Download, Receipt, FileText, History } from "lucide-react";
-import { COLORS, FONT_MINCHO, INVOICE_SECTION_TYPES } from "@/lib/constants";
+import { X, Download, Receipt, FileText, History, Pencil } from "lucide-react";
+import { COLORS, FONT_MINCHO, INVOICE_SECTION_TYPES, EXPENSE_CATEGORIES } from "@/lib/constants";
 import { formatDate, formatDateShort, formatYearMonth, todayStr } from "@/lib/dates";
 import { TextInput } from "@/components/ui";
 import { invoiceTotal, buildTimeChargeItem, formatYen, DEFAULT_INVOICE_NOTES } from "@/lib/business/invoice";
@@ -40,6 +40,92 @@ function newSectionDraft(applyWithholdingDefault: boolean): SectionDraft {
     applyWithholding: applyWithholdingDefault,
     items: [],
   };
+}
+
+/** 実費の経路の表示：経路の自由入力があればそれ、なければ「出発地→目的地」（片方だけのときはその一方） */
+const expenseRouteLabel = (e: { route: string; origin: string; destination: string }) =>
+  e.route || (e.origin && e.destination ? `${e.origin}→${e.destination}` : e.origin || e.destination || "");
+
+// v38：請求書にあげる実費の内容を、請求書を作る前にこの画面から訂正できる（請求書に反映済みのものは訂正できない）
+function ExpenseHistoryRow({ e, onToggleChecked, onChanged, onError }: {
+  e: ExpenseWithCase;
+  onToggleChecked: (e: ExpenseWithCase, checked: boolean) => void;
+  onChanged: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const billed = isExpenseBilled(e);
+  const initialRoute = expenseRouteLabel(e);
+  const [draft, setDraft] = useState({ date: e.date, category: e.category, amount: String(e.amount), route: initialRoute, notes: e.notes });
+
+  const startEdit = () => {
+    setDraft({ date: e.date, category: e.category, amount: String(e.amount), route: initialRoute, notes: e.notes });
+    setEditing(true);
+  };
+  const save = async () => {
+    const amount = Math.round(Number(draft.amount));
+    if (!draft.date || !draft.category.trim() || !amount || saving) return;
+    setSaving(true);
+    try {
+      await api.updateExpense(e.caseId, e.id, {
+        date: draft.date,
+        category: draft.category,
+        amount,
+        notes: draft.notes,
+        // 経路は、書き換えたときだけ保存する（出発地・目的地の形で登録されたものは、そのまま残す）
+        ...(draft.route.trim() !== initialRoute ? { route: draft.route, origin: "", destination: "" } : {}),
+      });
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "実費の訂正に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brass}` }}>
+        <p className="text-xs" style={{ color: COLORS.slate }}>{e.caseNumber && `No.${e.caseNumber}　`}{e.caseTitle}</p>
+        <div className="flex gap-2 flex-wrap">
+          <TextInput type="date" value={draft.date} onChange={(ev) => setDraft({ ...draft, date: ev.target.value })} className="flex-1" style={{ minWidth: 140 }} />
+          <TextInput type="text" list="client-expense-categories" placeholder="内訳" value={draft.category} onChange={(ev) => setDraft({ ...draft, category: ev.target.value })} className="flex-1" style={{ minWidth: 120 }} />
+          <TextInput type="number" placeholder="金額" value={draft.amount} onChange={(ev) => setDraft({ ...draft, amount: ev.target.value })} style={{ width: 110 }} />
+        </div>
+        <TextInput type="text" placeholder="経路（任意）" value={draft.route} onChange={(ev) => setDraft({ ...draft, route: ev.target.value })} className="w-full" />
+        <textarea placeholder="備考（別紙の実費一覧に出力されます）" value={draft.notes} onChange={(ev) => setDraft({ ...draft, notes: ev.target.value })} rows={2} className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+        <datalist id="client-expense-categories">{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setEditing(false)} className="text-xs px-2 py-1" style={{ color: COLORS.slate }}>キャンセル</button>
+          <button onClick={save} disabled={saving || !draft.date || !draft.category.trim() || !Math.round(Number(draft.amount))} className="text-xs font-bold px-3 py-1.5 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
+            {saving ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
+      <input type="checkbox" className="mt-1" checked={e.checkedForBilling} disabled={billed} onChange={(ev) => onToggleChecked(e, ev.target.checked)} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>{formatDateShort(e.date)}</span>
+          <span className="flex-1 font-semibold">{e.category}</span>
+          <span className="font-bold flex-shrink-0">¥{e.amount.toLocaleString("ja-JP")}</span>
+          {billed && <span className="text-xs flex-shrink-0" style={{ color: COLORS.moss }}>請求済</span>}
+          {!billed && (
+            <button onClick={startEdit} title="訂正" aria-label="訂正" className="p-1.5 -my-1 rounded hover:opacity-70 flex-shrink-0" style={{ color: COLORS.navy }}><Pencil size={14} /></button>
+          )}
+        </div>
+        <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{e.caseNumber && `No.${e.caseNumber}　`}{e.caseTitle}</p>
+        {initialRoute && <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>経路：{initialRoute}</p>}
+        {e.notes && <p className="text-xs mt-0.5 whitespace-pre-wrap" style={{ color: COLORS.slate }}>備考：{e.notes}</p>}
+      </div>
+    </div>
+  );
 }
 
 // v12 4.1：請求書機能を案件から顧客に紐づけ直した中核コンポーネント。実費履歴・請求書作成・請求書履歴の3カード。
@@ -228,28 +314,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
             </label>
             <div className="flex flex-col gap-1.5 mb-3">
               {expenseHistory.map((e) => (
-                <div key={e.id} className="flex items-start gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={e.checkedForBilling}
-                    disabled={isExpenseBilled(e)}
-                    onChange={(ev) => toggleExpenseChecked(e, ev.target.checked)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>{formatDateShort(e.date)}</span>
-                      <span className="flex-1 font-semibold">{e.category}</span>
-                      <span className="font-bold flex-shrink-0">¥{e.amount.toLocaleString("ja-JP")}</span>
-                      {isExpenseBilled(e) && <span className="text-xs flex-shrink-0" style={{ color: COLORS.moss }}>請求済</span>}
-                    </div>
-                    <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{e.caseNumber && `No.${e.caseNumber}　`}{e.caseTitle}</p>
-                    {(e.route || e.origin || e.destination) && (
-                      <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>経路：{e.route || `${e.origin}→${e.destination}`}</p>
-                    )}
-                    {e.notes && <p className="text-xs mt-0.5 whitespace-pre-wrap" style={{ color: COLORS.slate }}>備考：{e.notes}</p>}
-                  </div>
-                </div>
+                <ExpenseHistoryRow key={e.id} e={e} onToggleChecked={toggleExpenseChecked} onChanged={refreshExpenses} onError={onError} />
               ))}
             </div>
             <div className="flex items-center justify-between text-sm">
