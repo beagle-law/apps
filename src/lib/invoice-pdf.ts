@@ -55,8 +55,8 @@ async function renderBlockToCanvas(
 ): Promise<HTMLCanvasElement> {
   const container = document.createElement("div");
   container.style.cssText = foreignObject
-    ? "position:absolute;left:0;top:0;width:780px;z-index:-1;background:#fff;pointer-events:none"
-    : "position:fixed;left:-10000px;top:0;width:780px";
+    ? "position:absolute;left:0;top:0;width:780px;min-width:780px;z-index:-1;background:#fff;pointer-events:none"
+    : "position:fixed;left:-10000px;top:0;width:780px;min-width:780px";
   container.innerHTML = html;
   document.body.appendChild(container);
   try {
@@ -75,7 +75,7 @@ async function renderBlockToCanvas(
     // レイアウト確定を待つ。requestAnimationFrameはバックグラウンドタブで発火が
     // 止まることがあるため使わず、setTimeoutで待つ（バックグラウンドでも必ず進む）。
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
-    return await html2canvas(container, { scale: 2, backgroundColor: "#ffffff", useCORS: true, foreignObjectRendering: foreignObject });
+    return await html2canvas(container, { scale: 2, backgroundColor: "#ffffff", useCORS: true, foreignObjectRendering: foreignObject, windowWidth: 780 });
   } finally {
     document.body.removeChild(container);
   }

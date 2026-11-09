@@ -59,16 +59,17 @@ const COMMON_STYLE = `
     .inv-root * { box-sizing: border-box; }
     .inv-root { color:#2B2A33; }
     .inv-top { display:flex; justify-content:space-between; align-items:center; padding-bottom:16px; margin-bottom:26px; border-bottom:3px solid #3F3A6B; }
-    .inv-logo { width:92px; height:auto; display:block; }
-    .inv-title-block { text-align:right; }
+    .inv-logo { width:92px; height:auto; display:block; flex-shrink:0; }
+    .inv-title-block { text-align:right; flex-shrink:0; white-space:nowrap; }
     .inv-title { font-size:32px; font-weight:700; letter-spacing:0.3em; margin:0; padding-left:0.3em; color:#3F3A6B; line-height:1.2; }
     .inv-title-en { font-size:12px; letter-spacing:0.55em; color:#8A86B8; margin-top:6px; }
     .inv-header-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; gap:24px; }
     .inv-client-block { flex:1; min-width:0; padding-top:6px; }
     .inv-client-name { font-size:23px; font-weight:700; display:inline-block; color:#1F1D2B; }
+    .inv-honorific { white-space:nowrap; }
     .inv-meta { margin-top:14px; font-size:15px; color:#4A4860; line-height:1.9; }
     .inv-meta b { display:inline-block; width:7.5em; font-weight:600; color:#3F3A6B; }
-    .inv-firm-block { text-align:right; white-space:pre-line; font-size:14px; color:#4A4860; line-height:1.75; flex-shrink:0; }
+    .inv-firm-block { text-align:right; white-space:pre; font-size:14px; color:#4A4860; line-height:1.75; flex-shrink:0; }
     .inv-firm-name { font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.05em; }
     .inv-amount-box { width:100%; background:#F3F2FB; border-left:5px solid #3F3A6B; padding:3px 20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; }
     .inv-amount-box .inv-label { font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.08em; line-height:1.2; }
@@ -164,7 +165,7 @@ export function buildInvoiceElement(inv: InvoiceForHtml): string {
     ${topHeader('<h1 class="inv-title">ご請求書</h1>', "INVOICE")}
     <div class="inv-header-row">
       <div class="inv-client-block">
-        <span class="inv-client-name">${escapeHtml(inv.clientName)}　${escapeHtml(inv.honorific || "御中")}</span>
+        <span class="inv-client-name">${escapeHtml(inv.clientName)}<span class="inv-honorific">　${escapeHtml(inv.honorific || "御中")}</span></span>
         <div class="inv-meta">${metaLines}</div>
       </div>
       <div class="inv-firm-block"><div class="inv-firm-name">${FIRM_NAME}</div>${FIRM_LAWYER}
