@@ -65,9 +65,9 @@ const COMMON_STYLE = `
     .inv-title-en { font-size:12px; letter-spacing:0.55em; color:#8A86B8; margin-top:6px; }
     .inv-header-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; gap:24px; }
     .inv-client-block { flex:1; min-width:0; padding-top:6px; }
-    .inv-client-name { font-size:23px; font-weight:700; display:inline-block; color:#1F1D2B; }
-    .inv-honorific { white-space:nowrap; }
-    .inv-meta { margin-top:14px; font-size:15px; color:#4A4860; line-height:1.9; }
+    .inv-client-line { white-space:nowrap; margin-bottom:6px; }
+    .inv-client-name { font-size:23px; font-weight:700; color:#1F1D2B; }
+    .inv-meta { margin-top:8px; font-size:15px; color:#4A4860; line-height:1.9; }
     .inv-meta b { display:inline-block; width:7.5em; font-weight:600; color:#3F3A6B; }
     .inv-firm-block { text-align:right; white-space:pre; font-size:14px; color:#4A4860; line-height:1.75; flex-shrink:0; }
     .inv-firm-name { font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.05em; }
@@ -108,6 +108,17 @@ function topHeader(titleHtml: string, subtitleEn: string): string {
       <img class="inv-logo" src="${LOGO_SRC}" alt="Beagle Law" />
       <div class="inv-title-block">${titleHtml}<div class="inv-title-en">${subtitleEn}</div></div>
     </div>`;
+}
+
+/** 文字列の幅を、全角を1・半角を約0.55として概算し、maxWidthPxに1行で収まるフォントサイズ（baseSize以下、minSize以上）を返す。 */
+function fitFontSize(text: string, baseSize: number, maxWidthPx: number, minSize: number): number {
+  let units = 0;
+  for (const ch of text) {
+    const code = ch.codePointAt(0) ?? 0;
+    units += code < 0x250 || (code >= 0xff61 && code <= 0xff9f) ? 0.6 : 1;
+  }
+  if (units * baseSize <= maxWidthPx) return baseSize;
+  return Math.max(minSize, Math.floor((maxWidthPx / units) * 10) / 10);
 }
 
 /** 請求書の中身（style込みの1つの&lt;div&gt;フラグメント）。PDF化に使う。区分が2つ以上のときのみ「項目」列（第N）を表示する（v9 3.8）。
@@ -161,11 +172,15 @@ export function buildInvoiceElement(inv: InvoiceForHtml): string {
     inv.dueDate ? `<div><b>お支払期限</b>${escapeHtml(formatDate(inv.dueDate))}</div>` : "",
   ].join("");
 
+  // 宛名は、ページ幅いっぱいを使って1行で表示する。長い場合は、収まるようにフォントサイズを自動で小さくする。
+  const addresseeText = `${inv.clientName}　${inv.honorific || "御中"}`;
+  const addresseeSize = fitFontSize(addresseeText, 23, 680, 12);
+
   return `${pageWrapperOpen()}
     ${topHeader('<h1 class="inv-title">ご請求書</h1>', "INVOICE")}
+    <div class="inv-client-line"><span class="inv-client-name" style="font-size:${addresseeSize}px;">${escapeHtml(addresseeText)}</span></div>
     <div class="inv-header-row">
       <div class="inv-client-block">
-        <span class="inv-client-name">${escapeHtml(inv.clientName)}<span class="inv-honorific">　${escapeHtml(inv.honorific || "御中")}</span></span>
         <div class="inv-meta">${metaLines}</div>
       </div>
       <div class="inv-firm-block"><div class="inv-firm-name">${FIRM_NAME}</div>${FIRM_LAWYER}
