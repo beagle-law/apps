@@ -109,6 +109,7 @@ function ExternalInvoiceCard({ onCreated, onError }: { onCreated: (inv: Invoice)
 export default function BillingView({ onOpenCase, onOpenClient, onError }: Props) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [showPaid, setShowPaid] = useState(false);
+  const [showCurrentMonthAll, setShowCurrentMonthAll] = useState(false); // 当月の請求だけ、消込済みも含めて全て表示する（二重請求の確認用）
 
   useEffect(() => {
     api.fetchInvoices().then(setInvoices).catch((e) => onError(e instanceof Error ? e.message : "取得に失敗しました"));
@@ -151,16 +152,30 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
     allGroups.get(ym)!.push(inv);
   });
   const sortedMonths = Array.from(allGroups.keys()).sort((a, b) => (a < b ? 1 : -1));
+  const currentYm = currentYearMonth();
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>請求管理</h2>
-          <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
-            <input type="checkbox" checked={showPaid} onChange={(e) => setShowPaid(e.target.checked)} /> 入金済みのものも表示する
-          </label>
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <button
+              onClick={() => setShowCurrentMonthAll((v) => !v)}
+              className="text-xs font-bold px-3 py-1.5 rounded hover:opacity-80"
+              style={showCurrentMonthAll ? { backgroundColor: COLORS.navy, color: "#fff" } : { border: `1px solid ${COLORS.navy}`, color: COLORS.navy }}
+              title="当月の請求書を、消込済みのものも含めて全て表示します"
+            >
+              {showCurrentMonthAll ? "当月の全表示を解除" : "当月の請求を全表示"}
+            </button>
+            <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
+              <input type="checkbox" checked={showPaid} onChange={(e) => setShowPaid(e.target.checked)} /> 入金済みのものも表示する
+            </label>
+          </div>
         </div>
+        {showCurrentMonthAll && !showPaid && !allGroups.has(currentYm) && (
+          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>当月（{currentYm}）が請求対象月の請求書は、まだありません。</p>
+        )}
 
         <MonthlyNoteCard onError={onError} />
 
@@ -174,7 +189,7 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
               const monthInvoices = allGroups.get(ym)!;
               const unpaidTotal = monthInvoices.filter((i) => !i.paid).reduce((s, inv) => s + invoiceTotal(inv.sections).total, 0);
               const paidTotal = monthInvoices.filter((i) => i.paid).reduce((s, inv) => s + invoiceTotal(inv.sections).total, 0);
-              const rows = showPaid ? monthInvoices : monthInvoices.filter((i) => !i.paid);
+              const rows = showPaid || (showCurrentMonthAll && ym === currentYm) ? monthInvoices : monthInvoices.filter((i) => !i.paid);
               if (rows.length === 0) return null;
               return (
                 <div key={ym} className="rounded p-3 sm:p-5 min-w-0" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
