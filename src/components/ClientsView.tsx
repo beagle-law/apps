@@ -50,15 +50,33 @@ export default function ClientsView({ cases, onOpenCase, onNewCaseForClient, onE
   }, [initialClientId]);
   useEffect(() => {
     if (!scrollToInvoiceNonce) return;
+    // 実費履歴などが後から読み込まれて高さが変わるため、少し間をおいて何度か位置を合わせ直す（利用者が操作したら中止）
     let tries = 0;
-    const timer = setInterval(() => {
-      const el = document.getElementById("client-invoice-create");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        clearInterval(timer);
-      } else if (++tries > 40) clearInterval(timer);
-    }, 100);
-    return () => clearInterval(timer);
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const cancel = () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
+    const scrollOnce = (smooth: boolean) => {
+      if (cancelled) return;
+      document.getElementById("client-invoice-create")?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+    };
+    const find = () => {
+      if (cancelled) return;
+      if (document.getElementById("client-invoice-create")) {
+        scrollOnce(true);
+        [600, 1400, 2600].forEach((ms) => timers.push(setTimeout(() => scrollOnce(false), ms)));
+      } else if (++tries <= 40) timers.push(setTimeout(find, 100));
+    };
+    find();
+    window.addEventListener("wheel", cancel, { passive: true });
+    window.addEventListener("touchstart", cancel, { passive: true });
+    return () => {
+      cancel();
+      window.removeEventListener("wheel", cancel);
+      window.removeEventListener("touchstart", cancel);
+    };
   }, [scrollToInvoiceNonce]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
