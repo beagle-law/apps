@@ -358,7 +358,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
       </div>
 
       {/* 請求書作成 */}
-      <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+      <div id="client-invoice-create" className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
         <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}><FileText size={15} /> 請求書作成</h3>
 
         <div className="flex flex-wrap gap-3 mb-3">
@@ -409,7 +409,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
         {unbilledTimeCharges.length > 0 && (
           <div className="rounded p-3 mb-3" style={{ backgroundColor: COLORS.paper, border: `1px dashed ${COLORS.brassLight}` }}>
             <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.navy }}>タイムチャージから計算して追加（任意）</p>
-            <p className="text-xs mb-2" style={{ color: COLORS.slate }}>この顧客の全案件の未請求タイムチャージ：{unbilledTimeCharges.reduce((s, t) => s + t.hours, 0)}時間</p>
+            <p className="text-xs mb-2" style={{ color: COLORS.slate }}>この顧客の全案件の未請求タイムチャージ：{Math.round(unbilledTimeCharges.reduce((s, t) => s + t.hours, 0) * 10) / 10}時間</p>
             <div className="flex gap-2">
               <TextInput type="number" placeholder="時間単価（円）" value={timeChargeRateDraft} onChange={(e) => setTimeChargeRateDraft(e.target.value)} className="flex-1" />
               <button onClick={addTimeChargeSectionItem} disabled={!timeChargeRateDraft} className="text-sm font-bold px-3 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>計算して追加</button>

@@ -4,6 +4,30 @@ import { getCurrentUser } from "@/lib/auth";
 import { caseInclude, serializeCase } from "@/lib/case-query";
 import { getAccessibleCaseOrNull } from "@/lib/case-access";
 
+// v38：経費入力ボードの「請求済みに変更」ボタン用。指定した実費をまとめて請求済み（手動）にする／戻す。
+// 請求書に反映済みの実費は対象外。
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+
+  const { id } = await params;
+  const existing = await getAccessibleCaseOrNull(id, user.id);
+  if (!existing) return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
+
+  const body = (await req.json()) as { expenseIds?: string[]; billedManually?: boolean };
+  if (!Array.isArray(body.expenseIds) || body.expenseIds.length === 0 || typeof body.billedManually !== "boolean") {
+    return NextResponse.json({ error: "expenseIdsとbilledManuallyは必須です" }, { status: 400 });
+  }
+
+  await prisma.expense.updateMany({
+    where: { id: { in: body.expenseIds }, caseId: id, billedInInvoiceId: null },
+    // 請求済みにした経費は、請求書作成用の「請求チェック」からは外す
+    data: { billedManually: body.billedManually, ...(body.billedManually && { checkedForBilling: false }) },
+  });
+  const c = await prisma.case.findUnique({ where: { id }, include: caseInclude });
+  return NextResponse.json(serializeCase(c!));
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });

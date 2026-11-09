@@ -14,6 +14,8 @@ interface Props {
   onNewCaseForClient: (clientId: string) => void;
   onError: (msg: string) => void;
   initialClientId?: string | null;
+  /** 値が変わるたびに、請求書作成カードの位置までスクロールする（案件カード・経費入力から「請求書を作成」で開いたとき） */
+  scrollToInvoiceNonce?: number;
 }
 
 const emptyForm = { companyName: "", clientType: "法人", address: "", contactName: "", phone: "", email: "", contactMethod: "", source: "", referrerName: "", notes: "" };
@@ -38,7 +40,7 @@ const RadioGroup = ({ options, value, onChange }: { options: string[]; value: st
   </div>
 );
 
-export default function ClientsView({ cases, onOpenCase, onNewCaseForClient, onError, initialClientId }: Props) {
+export default function ClientsView({ cases, onOpenCase, onNewCaseForClient, onError, initialClientId, scrollToInvoiceNonce }: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(initialClientId ?? null);
@@ -46,6 +48,18 @@ export default function ClientsView({ cases, onOpenCase, onNewCaseForClient, onE
   useEffect(() => {
     if (initialClientId) setSelectedId(initialClientId);
   }, [initialClientId]);
+  useEffect(() => {
+    if (!scrollToInvoiceNonce) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      const el = document.getElementById("client-invoice-create");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        clearInterval(timer);
+      } else if (++tries > 40) clearInterval(timer);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [scrollToInvoiceNonce]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
   const [newForm, setNewForm] = useState(emptyForm);

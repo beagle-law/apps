@@ -70,6 +70,15 @@ export default function TimeChargeRow({ t, cases, currentUserName, isAdmin, onCh
     }
   };
 
+  const unbill = async () => {
+    try {
+      await api.setTimeChargesBilled([t.id], false);
+      onChanged();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "更新に失敗しました");
+    }
+  };
+
   const remove = async () => {
     const label = `${formatDateShort(t.date)} ${t.startTime && t.endTime ? `${t.startTime}〜${t.endTime}` : ""} ${formatDuration(t.hours)}`.replace(/\s+/g, " ").trim();
     if (!window.confirm(`このタイムチャージを削除します。よろしいですか？\n${label}${t.billed ? "\n※請求済みのタイムチャージです" : ""}`)) return;
@@ -120,6 +129,9 @@ export default function TimeChargeRow({ t, cases, currentUserName, isAdmin, onCh
         <span>{formatDuration(t.hours)}</span>
         <span style={{ color: COLORS.slate }}>{t.personName}</span>
         {t.billed && <span className="px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.moss, color: "#fff" }}>請求済み</span>}
+        {t.billed && !t.invoiceId && canEdit && (
+          <button onClick={unbill} title="請求書に反映されていない請求済みを、未請求に戻します" className="underline hover:opacity-70" style={{ color: COLORS.slate }}>未請求に戻す</button>
+        )}
         {caseInfo && <span className="w-full" style={{ color: COLORS.slate }}>{caseOptionLabel(caseInfo)}</span>}
         {t.content && <span className="w-full" style={{ color: COLORS.slate }}>{t.content}</span>}
       </div>

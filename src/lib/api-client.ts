@@ -182,6 +182,9 @@ export const updateExpense = (
   payload: { date?: string; amount?: number; category?: string; origin?: string; destination?: string; route?: string; notes?: string }
 ) => request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "PATCH", body: JSON.stringify(payload) });
 
+export const setExpensesBilled = (caseId: string, expenseIds: string[], billedManually: boolean) =>
+  request<Case>(`/api/cases/${caseId}/expenses`, { method: "PATCH", body: JSON.stringify({ expenseIds, billedManually }) });
+
 export const deleteExpense = (caseId: string, expenseId: string) =>
   request<Case>(`/api/cases/${caseId}/expenses/${expenseId}`, { method: "DELETE" });
 
@@ -246,6 +249,8 @@ export const addTimeCharge = (payload: { date: string; caseId: string; startTime
   request<TimeCharge>("/api/timecharges", { method: "POST", body: JSON.stringify(payload) });
 export const updateTimeCharge = (id: string, payload: { date?: string; caseId?: string; startTime?: string; endTime?: string; hours?: number; content?: string }) =>
   request<TimeCharge>(`/api/timecharges/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+export const setTimeChargesBilled = (ids: string[], billed: boolean) =>
+  request<{ updated: number }>(`/api/timecharges`, { method: "PATCH", body: JSON.stringify({ ids, billed }) });
 export const deleteTimeCharge = (id: string) => request<{ ok: true }>(`/api/timecharges/${id}`, { method: "DELETE" });
 
 export const addDailyReport = (payload: {

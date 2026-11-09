@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   FileSpreadsheet,
+  FileText,
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -56,6 +57,7 @@ interface Props {
   onCaseUpdated: (c: Case) => void;
   onCaseDeleted: (id: string) => void;
   onOpenClient: (clientId: string) => void;
+  onCreateInvoice?: (clientId: string) => void;
   classifications: CaseClassification[];
   onAddClassification: (name: string) => Promise<CaseClassification>;
   onError: (msg: string) => void;
@@ -108,7 +110,7 @@ function financeDraftFromCase(c: Case) {
   };
 }
 
-export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDeleted, onOpenClient, classifications, onAddClassification, onError }: Props) {
+export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDeleted, onOpenClient, onCreateInvoice, classifications, onAddClassification, onError }: Props) {
   const [newUpdateText, setNewUpdateText] = useState("");
   const [titleDraft, setTitleDraft] = useState(selectedCase.title);
   const [caseNumberDraft, setCaseNumberDraft] = useState(selectedCase.caseNumber);
@@ -977,6 +979,21 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             </>
           );
         })()}
+
+        {onCreateInvoice && (
+          selectedCase.clientId ? (
+            <button
+              onClick={() => onCreateInvoice(selectedCase.clientId!)}
+              title="この案件の顧客の、請求書作成画面を開きます"
+              className="w-full mt-3 flex items-center justify-center gap-1.5 text-sm font-bold py-2 rounded hover:opacity-90"
+              style={{ backgroundColor: COLORS.navy, color: "#fff" }}
+            >
+              <FileText size={14} /> 請求書を作成する
+            </button>
+          ) : (
+            <p className="mt-3 text-xs" style={{ color: COLORS.slate }}>顧客が設定されていないため、請求書は作成できません（案件情報で顧客を設定してください）。</p>
+          )
+        )}
 
         {/* 預り金の入金履歴（経費とは別枠） */}
         {(() => {

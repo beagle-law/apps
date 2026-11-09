@@ -71,7 +71,8 @@ export function buildTimeChargeItem(unbilledHoursTotal: number, hourlyRate: numb
   const rate = Number(hourlyRate) || 0;
   const amount = Math.round(unbilledHoursTotal * rate);
   return {
-    description: `稼働報酬（${unbilledHoursTotal}時間 × ¥${rate.toLocaleString("ja-JP")}/時間）`,
+    // 浮動小数点の誤差（1.8399999…）が出ないよう、表記は小数第2位までに丸める（金額は丸める前の時間で計算）
+    description: `稼働報酬（${Math.round(unbilledHoursTotal * 100) / 100}時間 × ¥${rate.toLocaleString("ja-JP")}/時間）`,
     amount,
   };
 }

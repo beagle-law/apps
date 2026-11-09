@@ -31,6 +31,27 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })));
 }
 
+// v38：経費入力ボードの「請求済みに変更」ボタン用。指定したタイムチャージをまとめて請求済み（手動）にする／戻す。
+// 請求書に反映済み（invoiceIdあり）のものは、戻せない。
+export async function PATCH(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+
+  const body = (await req.json()) as { ids?: string[]; billed?: boolean };
+  if (!Array.isArray(body.ids) || body.ids.length === 0 || typeof body.billed !== "boolean") {
+    return NextResponse.json({ error: "idsとbilledは必須です" }, { status: 400 });
+  }
+  const result = await prisma.timeCharge.updateMany({
+    where: {
+      id: { in: body.ids },
+      case: caseVisibilityFilter(user.id),
+      ...(body.billed ? { billed: false } : { billed: true, invoiceId: null }),
+    },
+    data: { billed: body.billed },
+  });
+  return NextResponse.json({ updated: result.count });
+}
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });

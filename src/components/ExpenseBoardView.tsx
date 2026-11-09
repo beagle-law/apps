@@ -19,6 +19,8 @@ interface Props {
   onOpenCase: (id: string) => void;
   onCaseUpdated: (c: Case) => void;
   onError: (msg: string) => void;
+  /** 顧客の請求書作成画面を開く（案件の顧客のID） */
+  onCreateInvoice?: (clientId: string) => void;
   /** ログイン中のユーザー。管理者（宮村）は、タイムチャージの稼働者を選べる */
   currentUserName: string;
   isAdmin: boolean;
@@ -142,7 +144,7 @@ const emptyExpenseForm = { date: "", caseId: "", category: "", amount: "", notes
 
 // v21：Trello風のカード形式で、タイムチャージ案件（開始〜終了時刻）・経費・お金の情報（フリー入力）を表示／入力する。
 // v24：経費に「請求済み」チェックを追加。月の一覧（請求済み・未請求すべて）と、案件／顧客を選んだときの全期間表示（請求済みの表示／非表示を切替）を持つ。
-export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onError, currentUserName, isAdmin }: Props) {
+export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onError, onCreateInvoice, currentUserName, isAdmin }: Props) {
   const [month, setMonth] = useState(currentYearMonth());
   const [timeCharges, setTimeCharges] = useState<TimeCharge[]>([]);
   const [tcReload, setTcReload] = useState(0);
@@ -359,6 +361,38 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
     }
   };
 
+  // v38：表示中の未請求の経費・タイムチャージを、まとめて請求済み（手動）にする
+  const billExpenses = async (items: Item[]) => {
+    const targets = items.filter((i) => !isExpenseBilled(i.e));
+    if (targets.length === 0) return;
+    if (!window.confirm(`未請求の経費 ${targets.length}件（${yen(targets.reduce((s, i) => s + i.e.amount, 0))}）を、まとめて請求済みにします。よろしいですか？`)) return;
+    try {
+      const byCase = new Map<string, Item[]>();
+      for (const it of targets) byCase.set(it.c.id, [...(byCase.get(it.c.id) ?? []), it]);
+      for (const [caseId, list] of byCase) onCaseUpdated(await api.setExpensesBilled(caseId, list.map((i) => i.e.id), true));
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "更新に失敗しました");
+    }
+  };
+  const billTimeCharges = async (rows: TimeCharge[]) => {
+    const targets = rows.filter((t) => !t.billed);
+    if (targets.length === 0) return;
+    if (!window.confirm(`未請求のタイムチャージ ${targets.length}件（${formatTotalDuration(targets.map((t) => t.hours))}）を、まとめて請求済みにします。よろしいですか？`)) return;
+    try {
+      await api.setTimeChargesBilled(targets.map((t) => t.id), true);
+      setTcReload((n) => n + 1);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "更新に失敗しました");
+    }
+  };
+  const billAllButton = (onClick: () => void, label = "請求済みに変更") => (
+    <button onClick={onClick} title="未請求のものを、まとめて請求済みにします" className="text-xs font-bold px-2 py-1 rounded hover:opacity-80 flex-shrink-0" style={{ border: `1px solid ${COLORS.navy}`, color: COLORS.navy, backgroundColor: COLORS.card }}>{label}</button>
+  );
+  const clientLine = (c: Case) =>
+    !c.isPrivate && c.clientName ? (
+      <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{c.clientNumber !== null ? `顧客No.${c.clientNumber}　` : "顧客："}{c.clientName}</p>
+    ) : null;
+
   const select = (kind: GroupBy, id: string) => {
     setSelected({ kind, id });
     setShowBilled(false);
@@ -502,9 +536,15 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
               return (
                 <div key={c.id} className="rounded p-3" style={cardStyle}>
                   <div className="flex items-start justify-between gap-2">
-                    <button onClick={() => onOpenCase(c.id)} className="text-left text-sm font-semibold hover:opacity-70" style={{ fontFamily: FONT_MINCHO }}>
-                      {c.caseNumber}.{c.title}
-                    </button>
+                    <div className="min-w-0">
+                      <button onClick={() => onOpenCase(c.id)} className="text-left text-sm font-semibold hover:opacity-70" style={{ fontFamily: FONT_MINCHO }}>
+                        {c.caseNumber}.{c.title}
+                      </button>
+                      {clientLine(c)}
+                    </div>
+                    {onCreateInvoice && c.clientId && (
+                      <button onClick={() => onCreateInvoice(c.clientId!)} title="この顧客の請求書作成画面を開く" className="text-xs font-bold px-2 py-1 rounded hover:opacity-80 flex-shrink-0 ml-auto" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>請求書を作成</button>
+                    )}
                     <button onClick={() => setTcPreset((p) => ({ id: c.id, nonce: p.nonce + 1 }))} title="この案件で入力" className="flex-shrink-0 hover:opacity-70" style={{ color: COLORS.navy }}><Plus size={15} /></button>
                   </div>
                   {rows.length === 0 ? (
@@ -514,14 +554,20 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                       {rows.map((t) => (
                         <TimeChargeRow key={t.id} t={t} cases={tcCases} currentUserName={currentUserName} isAdmin={isAdmin} onChanged={() => setTcReload((n) => n + 1)} onError={onError} />
                       ))}
-                      <p className="text-xs font-bold text-right pt-1" style={{ color: COLORS.navy, borderTop: `1px solid ${COLORS.paper}` }}>合計 {formatTotalDuration(rows.map((t) => t.hours))}</p>
+                      <div className="flex items-center justify-between gap-2 pt-1" style={{ borderTop: `1px solid ${COLORS.paper}` }}>
+                        {rows.some((t) => !t.billed) ? billAllButton(() => billTimeCharges(rows), "この月を請求済みに変更") : <span />}
+                        <p className="text-xs font-bold text-right" style={{ color: COLORS.navy }}>合計 {formatTotalDuration(rows.map((t) => t.hours))}</p>
+                      </div>
                     </div>
                   )}
                   {pastRows.length > 0 && (
                     <div className="mt-2 pt-2 flex flex-col gap-1" style={{ borderTop: `1px dashed ${COLORS.brassLight}` }}>
-                      <p className="text-xs font-bold" style={{ color: COLORS.vermillion }}>
-                        過去月の未請求　{pastRows.length}件　{formatTotalDuration(pastRows.map((t) => t.hours))}
-                      </p>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-xs font-bold" style={{ color: COLORS.vermillion }}>
+                          過去月の未請求　{pastRows.length}件　{formatTotalDuration(pastRows.map((t) => t.hours))}
+                        </p>
+                        {billAllButton(() => billTimeCharges(pastRows))}
+                      </div>
                       {pastRows.map((t) => (
                         <TimeChargeRow key={t.id} t={t} cases={tcCases} currentUserName={currentUserName} isAdmin={isAdmin} fullDate onChanged={() => setTcReload((n) => n + 1)} onError={onError} />
                       ))}
@@ -575,7 +621,10 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
               <div className="rounded p-3 flex flex-col gap-1.5" style={cardStyle}>
                 <button onClick={() => setSelected(null)} className="text-xs self-start underline hover:opacity-70" style={{ color: COLORS.navy }}>← {formatYearMonth(month)}の一覧に戻る</button>
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold" style={{ fontFamily: FONT_MINCHO }}>{selectedLabel || "（経費なし）"}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold" style={{ fontFamily: FONT_MINCHO }}>{selectedLabel || "（経費なし）"}</p>
+                    {selected.kind === "case" && selectedItems.length > 0 && clientLine(selectedItems[0].c)}
+                  </div>
                   {selectedCase && <button onClick={() => onOpenCase(selectedCase.id)} className="text-xs underline flex-shrink-0 hover:opacity-70" style={{ color: COLORS.navy }}>案件を開く</button>}
                 </div>
                 <p className="text-xs">{totalsLine(selectedTotals)}<span style={{ color: COLORS.slate }}>（全期間）</span></p>
@@ -638,6 +687,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                   <div key={ym} className="rounded p-3" style={cardStyle}>
                     <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
                       <p className="text-xs font-bold" style={{ color: COLORS.navy }}>{formatYearMonth(ym)}</p>
+                      {v.items.some((i) => !isExpenseBilled(i.e)) && <span className="ml-auto">{billAllButton(() => billExpenses(v.items), "この月を請求済みに変更")}</span>}
                       <p className="text-xs">
                         {totalsLine(sumOf(v.items))}
                         {v.deposits.length > 0 && <span style={{ color: COLORS.navy }}>　預り金入金 +{yen(sumDeposits(v.deposits))}</span>}
@@ -656,9 +706,13 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                 {groups.map((g) => (
                   <div key={g.key} className="rounded p-3" style={cardStyle}>
                     <div className="flex items-start justify-between gap-2">
-                      <button onClick={() => select(groupBy, g.key)} title="この一覧の過去分もすべて表示" className="text-left text-sm font-semibold hover:opacity-70 underline decoration-dotted" style={{ fontFamily: FONT_MINCHO }}>
-                        {g.label}
-                      </button>
+                      <div className="min-w-0">
+                        <button onClick={() => select(groupBy, g.key)} title="この一覧の過去分もすべて表示" className="text-left text-sm font-semibold hover:opacity-70 underline decoration-dotted" style={{ fontFamily: FONT_MINCHO }}>
+                          {g.label}
+                        </button>
+                        {groupBy === "case" && clientLine(g.first)}
+                      </div>
+                      {g.items.some((i) => !isExpenseBilled(i.e)) && <span className="ml-auto">{billAllButton(() => billExpenses(g.items))}</span>}
                       {groupBy === "case" && <button onClick={() => openForm(g.first.id)} title="この案件の経費を追加" className="flex-shrink-0 hover:opacity-70" style={{ color: COLORS.navy }}><Plus size={15} /></button>}
                     </div>
                     <div className="flex flex-col gap-1.5 mt-2">

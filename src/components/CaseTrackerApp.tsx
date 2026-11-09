@@ -81,6 +81,7 @@ export default function CaseTrackerApp() {
   const [showNewCaseModal, setShowNewCaseModal] = useState(false);
   const [newCaseClientId, setNewCaseClientId] = useState<string | null>(null);
   const [pendingClientId, setPendingClientId] = useState<string | null>(null);
+  const [invoiceScrollNonce, setInvoiceScrollNonce] = useState(0);
   const [classifications, setClassifications] = useState<CaseClassification[]>([]);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isDesktopLayout, setIsDesktopLayout] = useState(false);
@@ -318,6 +319,12 @@ export default function CaseTrackerApp() {
     setPendingClientId(clientId);
     setView("clients");
   };
+  // 案件カード・経費入力から、その顧客の請求書作成の位置を開く
+  const openClientInvoice = (clientId: string) => {
+    setPendingClientId(clientId);
+    setInvoiceScrollNonce((n) => n + 1);
+    setView("clients");
+  };
 
   const addClassification = async (name: string) => {
     const created = await api.addCaseClassification(name);
@@ -541,6 +548,7 @@ export default function CaseTrackerApp() {
                 onCaseUpdated={updateCaseInState}
                 onCaseDeleted={removeCaseFromState}
                 onOpenClient={openClientFromCase}
+                onCreateInvoice={openClientInvoice}
                 classifications={classifications}
                 onAddClassification={addClassification}
                 onError={setError}
@@ -560,6 +568,7 @@ export default function CaseTrackerApp() {
           }}
           onError={setError}
           initialClientId={pendingClientId}
+          scrollToInvoiceNonce={invoiceScrollNonce}
         />
       )}
 
@@ -595,7 +604,7 @@ export default function CaseTrackerApp() {
       {view === "billing" && <BillingView onOpenCase={openCaseFromElsewhere} onOpenClient={openClientFromCase} onError={setError} />}
 
       {view === "expenses" && (
-        <ExpenseBoardView cases={cases} onOpenCase={openCaseFromElsewhere} onCaseUpdated={updateCaseInState} onError={setError} currentUserName={currentUser.displayName} isAdmin={isAdmin} />
+        <ExpenseBoardView cases={cases} onOpenCase={openCaseFromElsewhere} onCaseUpdated={updateCaseInState} onError={setError} onCreateInvoice={openClientInvoice} currentUserName={currentUser.displayName} isAdmin={isAdmin} />
       )}
 
       {view === "settings" && <SettingsView currentUser={currentUser} onError={setError} />}
