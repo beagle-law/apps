@@ -5,6 +5,7 @@ import { X, Download, Receipt, FileText, History, Pencil } from "lucide-react";
 import { COLORS, FONT_MINCHO, INVOICE_SECTION_TYPES, EXPENSE_CATEGORIES } from "@/lib/constants";
 import { formatDate, formatDateShort, formatYearMonth, todayStr } from "@/lib/dates";
 import { TextInput } from "@/components/ui";
+import DepositEditor from "@/components/DepositEditor";
 import { invoiceTotal, buildTimeChargeItem, formatYen, DEFAULT_INVOICE_NOTES } from "@/lib/business/invoice";
 import { downloadInvoicePdf } from "@/lib/invoice-pdf";
 import * as api from "@/lib/api-client";
@@ -139,6 +140,7 @@ export default function ClientInvoicing({ client, onError }: Props) {
   const [invoiceForm, setInvoiceForm] = useState({ issueDate: todayStr(), billingMonth: "", dueDate: "", addressee: client.companyName, honorific: "", notes: DEFAULT_INVOICE_NOTES });
   const [invoiceSections, setInvoiceSections] = useState<SectionDraft[]>([newSectionDraft(client.clientType === "法人")]);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
 
   const refreshExpenses = () => {
     api.fetchClientDeposits(client.id).then(setDeposits).catch(() => setDeposits([]));
@@ -175,6 +177,26 @@ export default function ClientInvoicing({ client, onError }: Props) {
       refreshExpenses();
     } catch (err) {
       onError(err instanceof Error ? err.message : "更新に失敗しました");
+    }
+  };
+
+  // 預り金の入金の訂正・削除（v38：顧客画面の実費履歴からも直せる）
+  const saveDeposit = async (d: DepositWithCase, patch: { date: string; amount: number; notes: string }) => {
+    try {
+      await api.updateDeposit(d.caseId, d.id, patch);
+      setEditingDepositId(null);
+      refreshExpenses();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "預り金の訂正に失敗しました");
+    }
+  };
+  const removeDeposit = async (d: DepositWithCase) => {
+    if (!window.confirm(`預り金の入金を削除します。よろしいですか？\n${formatDateShort(d.date)}　+¥${d.amount.toLocaleString("ja-JP")}`)) return;
+    try {
+      await api.deleteDeposit(d.caseId, d.id);
+      refreshExpenses();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "削除に失敗しました");
     }
   };
 
@@ -329,19 +351,25 @@ export default function ClientInvoicing({ client, onError }: Props) {
           <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${COLORS.brassLight}` }}>
             <p className="text-xs font-bold mb-2" style={{ color: COLORS.navy }}>預り金の入金履歴</p>
             <div className="flex flex-col gap-1.5 mb-2">
-              {deposits.map((d) => (
+              {deposits.map((d) =>
+                editingDepositId === d.id ? (
+                  <DepositEditor key={d.id} deposit={d} onSave={(patch) => saveDeposit(d, patch)} onCancel={() => setEditingDepositId(null)} />
+                ) : (
                 <div key={d.id} className="flex items-start gap-2 text-sm p-2 rounded" style={{ backgroundColor: COLORS.paper }}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs flex-shrink-0" style={{ color: COLORS.slate }}>{formatDateShort(d.date)}</span>
                       <span className="flex-1 font-semibold">預り金入金</span>
                       <span className="font-bold flex-shrink-0" style={{ color: COLORS.navy }}>+¥{d.amount.toLocaleString("ja-JP")}</span>
+                      <button onClick={() => setEditingDepositId(d.id)} title="訂正" aria-label="訂正" className="p-1.5 -my-1 rounded hover:opacity-70 flex-shrink-0" style={{ color: COLORS.navy }}><Pencil size={14} /></button>
+                      <button onClick={() => removeDeposit(d)} title="削除" aria-label="削除" className="p-1.5 -my-1 rounded hover:opacity-70 flex-shrink-0" style={{ color: COLORS.slate }}><X size={14} /></button>
                     </div>
                     <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>No.{d.caseNumber}　{d.caseTitle}</p>
                     {d.notes && <p className="text-xs mt-0.5 whitespace-pre-wrap" style={{ color: COLORS.slate }}>備考：{d.notes}</p>}
                   </div>
                 </div>
-              ))}
+                )
+              )}
             </div>
             {(() => {
               const depositTotal = deposits.reduce((s, d) => s + d.amount, 0);

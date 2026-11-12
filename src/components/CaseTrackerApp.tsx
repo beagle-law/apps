@@ -18,6 +18,7 @@ import {
   Wallet,
   User as UserIcon,
   Settings as SettingsIcon,
+  ChevronLeft,
 } from "lucide-react";
 import { COLORS, FONT_MINCHO, FONT_GOTHIC, PERSONAL_TASK_TABS } from "@/lib/constants";
 import { suggestedCaseNumber } from "@/lib/business/caseNumber";
@@ -506,8 +507,8 @@ export default function CaseTrackerApp() {
 
       {view === "list" && (
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden" style={resizingSidebar ? { cursor: "col-resize", userSelect: "none" } : undefined}>
-          {/* スマホで個人メモを開いているときは、上半分の案件一覧は出さず個人メモだけを表示する */}
-          {(isDesktopLayout || !isMemoActive) && (
+          {/* スマホでは、個人メモを開いているとき、または案件を選んだあとは、案件一覧を出さず詳細だけを表示する（「案件一覧に戻る」で一覧へ） */}
+          {(isDesktopLayout || (!isMemoActive && !selectedCase)) && (
             <CaseListSidebar
               allCases={cases}
               cases={filteredCases}
@@ -537,6 +538,11 @@ export default function CaseTrackerApp() {
             />
           )}
           <main className="flex-1 overflow-y-auto p-6">
+            {!isDesktopLayout && selectedCase && !isMemoActive && (
+              <button onClick={() => setSelectedId(null)} className="flex items-center gap-1 text-sm font-bold mb-3 hover:opacity-70" style={{ color: COLORS.navy }}>
+                <ChevronLeft size={16} /> 案件一覧に戻る
+              </button>
+            )}
             {!selectedCase ? (
               <div className="h-full flex flex-col items-center justify-center gap-4 text-center py-20">
                 <img src="/logo-mark.png" alt="" style={{ width: 96, height: 96, opacity: 0.9 }} />

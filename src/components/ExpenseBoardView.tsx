@@ -28,12 +28,21 @@ interface Props {
 
 const LANE_BG = "#EAE4D6";
 
-function Lane({ id, title, count, children }: { id?: string; title: string; count?: string; children: React.ReactNode }) {
+function Lane({ id, title, count, jumpTo, children }: { id?: string; title: string; count?: string; jumpTo?: { label: string; targetId: string }; children: React.ReactNode }) {
   return (
     <div id={id} className="rounded p-3 flex flex-col gap-2 min-w-0 scroll-mt-28 lg:scroll-mt-0" style={{ backgroundColor: LANE_BG }}>
       <div className="flex items-center justify-between px-1 gap-2 flex-wrap">
         <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>{title}</h3>
         {count && <span className="text-xs" style={{ color: COLORS.slate }}>{count}</span>}
+        {jumpTo && (
+          <button
+            onClick={() => document.getElementById(jumpTo.targetId)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="lg:hidden ml-auto flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded"
+            style={{ border: `1px solid ${COLORS.navy}`, color: COLORS.navy, backgroundColor: COLORS.card }}
+          >
+            {jumpTo.label} <ChevronDown size={13} />
+          </button>
+        )}
       </div>
       {children}
     </div>
@@ -420,7 +429,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             <span className="flex-1 font-semibold truncate">{e.category}</span>
             <span className="font-bold flex-shrink-0">{yen(e.amount)}</span>
             {billed && <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: COLORS.moss, color: "#fff", fontSize: 10 }}>請求済</span>}
-            <button onClick={() => removeExpense(c.id, e.id)} title="削除" className="opacity-0 group-hover:opacity-100 flex-shrink-0" style={{ color: COLORS.slate }}><X size={12} /></button>
+            <button onClick={() => removeExpense(c.id, e.id)} title="削除" className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 flex-shrink-0" style={{ color: COLORS.slate }}><X size={12} /></button>
           </div>
           {opts.showCase && <p style={{ color: COLORS.slate }}>No.{c.caseNumber}　{c.title}</p>}
           {(e.route || e.origin || e.destination) && <p style={{ color: COLORS.slate }}>経路：{e.route || `${e.origin}→${e.destination}`}</p>}
@@ -448,7 +457,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             <span className="flex-1 font-semibold truncate">入金</span>
             <span className="font-bold flex-shrink-0" style={{ color: COLORS.navy }}>+{yen(d.amount)}</span>
             <button onClick={() => setEditingDepositId(d.id)} title="編集" className="flex-shrink-0 hover:opacity-70" style={{ color: COLORS.navy }}><Pencil size={12} /></button>
-            <button onClick={() => removeDeposit(c.id, d.id)} title="削除" className="opacity-0 group-hover:opacity-100 flex-shrink-0" style={{ color: COLORS.slate }}><X size={12} /></button>
+            <button onClick={() => removeDeposit(c.id, d.id)} title="削除" className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 flex-shrink-0" style={{ color: COLORS.slate }}><X size={12} /></button>
           </div>
           {opts.showCase && <p style={{ color: COLORS.slate }}>No.{c.caseNumber}　{c.title}</p>}
           {d.notes && <p className="whitespace-pre-wrap" style={{ color: COLORS.slate }}>{d.notes}</p>}
@@ -506,7 +515,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
           {/* タイムチャージ案件：入力フォームと、開始〜終了時刻をカードに表示 */}
-          <Lane id="board-lane-tc" title="タイムチャージ案件" count={`${tcCases.length}件`}>
+          <Lane id="board-lane-tc" title="タイムチャージ案件" count={`${tcCases.length}件`} jumpTo={{ label: "経費・預り金へ", targetId: "board-lane-expense" }}>
             <div className="rounded p-3" style={cardStyle}>
               <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.navy }}>タイムチャージを入力</p>
               <TimeChargeForm
