@@ -67,15 +67,15 @@ const COMMON_STYLE = `
     .inv-client-block { flex:1; min-width:0; padding-top:6px; }
     .inv-client-line { white-space:nowrap; margin-bottom:6px; }
     .inv-client-name { font-size:23px; font-weight:700; color:#1F1D2B; }
-    .inv-meta { margin-top:8px; font-size:15px; color:#4A4860; line-height:1.9; }
+    .inv-meta { white-space:nowrap; margin-top:8px; font-size:15px; color:#4A4860; line-height:1.9; }
     .inv-meta b { display:inline-block; width:7.5em; font-weight:600; color:#3F3A6B; }
     .inv-firm-block { text-align:right; white-space:pre; font-size:14px; color:#4A4860; line-height:1.75; flex-shrink:0; }
     .inv-firm-name { font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.05em; }
     .inv-amount-box { width:100%; background:#F3F2FB; border-left:5px solid #3F3A6B; padding:3px 20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; }
-    .inv-amount-box .inv-label { font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.08em; line-height:1.2; }
-    .inv-amount-box .inv-value { font-size:26px; font-weight:700; color:#3F3A6B; line-height:1.2; }
+    .inv-amount-box .inv-label { white-space:nowrap; flex-shrink:0; font-size:17px; font-weight:700; color:#3F3A6B; letter-spacing:0.08em; line-height:1.2; }
+    .inv-amount-box .inv-value { white-space:nowrap; flex-shrink:0; font-size:26px; font-weight:700; color:#3F3A6B; line-height:1.2; }
     table.inv-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:22px; }
-    table.inv-table th { background:#3F3A6B; color:#ffffff; font-weight:600; font-size:15px; letter-spacing:0.12em; padding:6px 12px; text-align:center; vertical-align:middle; }
+    table.inv-table th { white-space:nowrap; background:#3F3A6B; color:#ffffff; font-weight:600; font-size:15px; letter-spacing:0.12em; padding:6px 12px; text-align:center; vertical-align:middle; }
     table.inv-table td { border-bottom:1px solid #DAD8EE; padding:5px 12px; font-size:17px; line-height:1.5; vertical-align:middle; overflow-wrap:break-word; }
     .section-cell { text-align:center; white-space:nowrap; width:7%; }
     td.section-cell { background:#F8F7FD; color:#3F3A6B; font-weight:700; border-right:1px solid #DAD8EE; }
@@ -85,7 +85,7 @@ const COMMON_STYLE = `
     .amount-cell { text-align:center; white-space:nowrap; width:16%; font-weight:600; }
     .date-cell { text-align:center; white-space:nowrap; width:23%; }
     .inv-total-row td { font-weight:700; font-size:18px; color:#3F3A6B; background:#F3F2FB; border-top:2px solid #3F3A6B; border-bottom:2px solid #3F3A6B; }
-    .inv-total-row .total-label { text-align:right; letter-spacing:0.08em; }
+    .inv-total-row .total-label { white-space:nowrap; text-align:right; letter-spacing:0.08em; }
     .inv-footer { white-space:pre-line; font-size:14px; line-height:1.8; color:#4A4860; border-top:1px solid #DAD8EE; padding-top:14px; }
     .inv-bottom-line { margin-top:22px; border-top:3px solid #3F3A6B; height:0; }
     .inv-attachment-title { text-align:left; font-size:22px; font-weight:700; letter-spacing:0.18em; margin:0; color:#3F3A6B; }
