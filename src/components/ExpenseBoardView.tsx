@@ -731,6 +731,19 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                       {totalsLine(sumOf(g.items))}
                       {g.deposits.length > 0 && <span style={{ color: COLORS.navy }}>　預り金入金 +{yen(sumDeposits(g.deposits))}</span>}
                     </p>
+                    {(() => {
+                      // 預り金の残高（全期間）＝預り金の入金計 − 経費計。預り金の入金が1件でもある案件・顧客にだけ表示する
+                      const keyOf = (c: Case) => (groupBy === "case" ? c.id : clientKeyOf(c));
+                      const dep = allDeposits.filter((i) => keyOf(i.c) === g.key);
+                      if (dep.length === 0) return null;
+                      const exp = sumOf(allItems.filter((i) => keyOf(i.c) === g.key));
+                      const balance = sumDeposits(dep) - (exp.unbilled + exp.billed);
+                      return (
+                        <p className="text-xs font-bold text-right mt-0.5" style={{ color: balance < 0 ? COLORS.vermillion : COLORS.navy }}>
+                          預り金の残高（全期間）　{balance < 0 ? `−${yen(Math.abs(balance))}（不足）` : yen(balance)}
+                        </p>
+                      );
+                    })()}
                   </div>
                 ))}
 
