@@ -21,7 +21,7 @@ interface Props {
 function MonthlyNoteCard({ onError }: { onError: (msg: string) => void }) {
   const [month, setMonth] = useState(currentYearMonth());
   return (
-    <div className="rounded p-5 mb-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+    <div className="rounded p-5 min-w-0" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>予定請求・支出メモ</h3>
         <div className="flex items-center gap-2">
@@ -158,11 +158,18 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
     if (!allGroups.has(ym)) allGroups.set(ym, []);
     allGroups.get(ym)!.push(inv);
   });
-  const sortedMonths = Array.from(allGroups.keys()).sort((a, b) => (a < b ? 1 : -1));
+  // 今月に近い月から順に並べる（先々の月に分割払いの予定が並んでも、直近の月が一番上に来る）。同じ近さなら、過去の月を先にする。
+  const monthIndex = (ym: string) => Number(ym.slice(0, 4)) * 12 + Number(ym.slice(5, 7));
+  const nowIndex = monthIndex(currentYearMonth());
+  const sortedMonths = Array.from(allGroups.keys()).sort((a, b) => {
+    const da = Math.abs(monthIndex(a) - nowIndex);
+    const db = Math.abs(monthIndex(b) - nowIndex);
+    return da - db || (a < b ? -1 : 1);
+  });
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>請求管理</h2>
           <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
@@ -170,7 +177,13 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
           </label>
         </div>
 
-        <MonthlyNoteCard onError={onError} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5 items-start">
+          <MonthlyNoteCard onError={onError} />
+          <div className="rounded p-5 min-w-0" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
+            <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>入金管理メモ</h3>
+            <AutoSaveNote noteKey="payment" rows={12} placeholder="入金の確認状況・入金予定などを自由に記入できます" onError={onError} />
+          </div>
+        </div>
 
         <ExternalInvoiceCard onCreated={(inv) => setInvoices((prev) => [inv, ...prev])} onError={onError} />
 
@@ -241,10 +254,6 @@ export default function BillingView({ onOpenCase, onOpenClient, onError }: Props
           </div>
         )}
 
-        <div className="rounded p-5 mt-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>入金管理メモ</h3>
-          <AutoSaveNote noteKey="payment" rows={8} placeholder="入金の確認状況・入金予定などを自由に記入できます" onError={onError} />
-        </div>
       </div>
     </div>
   );

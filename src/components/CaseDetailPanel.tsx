@@ -47,7 +47,7 @@ import type { Case, Contact, TimeCharge, CustomField, CaseClassification } from 
 import { emptyContact, isExpenseBilled } from "@/lib/types";
 import DepositEditor from "@/components/DepositEditor";
 import { enqueueMemo, getPendingMemos, removePendingMemo, subscribePending, isNetworkFailure, type PendingMemo } from "@/lib/offline-queue";
-import { Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
+import { AutoGrowTextarea, Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
 import { formatYen } from "@/lib/business/invoice";
 import { summarizeByPerson, formatTotalDuration, formatDuration } from "@/lib/business/timecharge";
 import * as api from "@/lib/api-client";
@@ -382,8 +382,9 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const removeUpdateEntry = (updateId: string) => run(() => api.deleteUpdate(selectedCase.id, updateId));
 
   const addHearingEntry = () => {
-    if (!newHearing.date || !newHearing.content.trim()) return;
-    run(() => api.addHearing(selectedCase.id, newHearing));
+    if (!newHearing.content.trim()) return;
+    // 初回期日などで「期日」（記録日）が空のときは、今日の日付で記録する
+    run(() => api.addHearing(selectedCase.id, { ...newHearing, date: newHearing.date || todayStr() }));
     setNewHearing({ date: "", content: "", docDeadline: "", nextHearingDate: "" });
   };
   const removeHearing = (hearingId: string) => run(() => api.deleteHearing(selectedCase.id, hearingId));
@@ -486,7 +487,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const renderClaimMemoItem = (m: Case["claimMemos"][number], moveTo?: "task" | "memo") => (
             editingClaimMemoId === m.id ? (
               <div key={m.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
-                <textarea value={claimMemoEditDraft} onChange={(e) => setClaimMemoEditDraft(e.target.value)} rows={3} className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+                <AutoGrowTextarea value={claimMemoEditDraft} onChange={(e) => setClaimMemoEditDraft(e.target.value)} rows={3} className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 <div className="flex justify-end gap-2">
                   <button onClick={cancelEditClaimMemo} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
                   <button onClick={saveClaimMemoEdit} disabled={!claimMemoEditDraft.trim()} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}><Save size={12} /> 保存</button>
@@ -564,7 +565,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
       <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>主張予定メモ</h3>
       <div className="flex flex-col gap-2 mb-4">
-        <textarea value={newClaimMemoText} onChange={(e) => setNewClaimMemoText(e.target.value)} placeholder="主張予定のメモを自由に記入..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
+        <AutoGrowTextarea value={newClaimMemoText} onChange={(e) => setNewClaimMemoText(e.target.value)} placeholder="主張予定のメモを自由に記入..." rows={3} className="text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
         <button onClick={addClaimMemoEntry} disabled={!newClaimMemoText.trim()} className="self-end flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded transition disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>
           <Send size={13} /> メモを追加
         </button>
@@ -598,7 +599,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
                   {lane === "task" ? "近日中に処理するタスク" : "長期的なメモ"}
                 </h3>
                 <div className="flex flex-col gap-2 mb-4">
-                  <textarea
+                  <AutoGrowTextarea
                     value={newLaneText[lane]}
                     onChange={(e) => setNewLaneText((prev) => ({ ...prev, [lane]: e.target.value }))}
                     placeholder={lane === "task" ? "タスクを記入..." : "メモを記入..."}
@@ -1212,7 +1213,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
           <label className="text-xs" style={{ color: COLORS.slate }}>
-            期日
+            期日（空欄なら今日の日付で記録）
             <TextInput type="date" value={newHearing.date} onChange={(e) => setNewHearing({ ...newHearing, date: e.target.value })} className="mt-1 w-full" />
           </label>
           <label className="text-xs" style={{ color: COLORS.slate }}>
@@ -1229,7 +1230,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
           <textarea value={newHearing.content} onChange={(e) => setNewHearing({ ...newHearing, content: e.target.value })} placeholder="内容（例：第2回口頭弁論期日）" rows={5} className="mt-1 w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
         </label>
         <div className="flex gap-2 my-3">
-          <button onClick={addHearingEntry} disabled={!newHearing.date || !newHearing.content.trim()} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>期日を追加</button>
+          <button onClick={addHearingEntry} disabled={!newHearing.content.trim()} className="text-sm font-bold px-3 py-2 rounded disabled:opacity-40" style={{ backgroundColor: COLORS.navy, color: "#fff" }}>期日を追加</button>
         </div>
 
         {selectedCase.hearings.length === 0 ? (

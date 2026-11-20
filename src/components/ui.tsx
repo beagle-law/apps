@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef } from "react";
 import { COLORS, FONT_MINCHO, FONT_GOTHIC, STAGE_COLOR, STAGE_SEAL_TEXT } from "@/lib/constants";
 
 export function Seal({ stage, size = "md" }: { stage: string; size?: "sm" | "md" }) {
@@ -127,6 +128,18 @@ export function YearMonthNav({
       </div>
     </div>
   );
+}
+
+/** 入力した文字の行数に合わせて、高さが自動で広がる複数行入力欄（rowsは最小の行数） */
+export function AutoGrowTextarea({ rows = 3, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [props.value]);
+  return <textarea ref={ref} rows={rows} {...props} style={{ overflow: "hidden", ...props.style }} />;
 }
 
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {

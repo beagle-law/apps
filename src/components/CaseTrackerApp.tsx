@@ -283,15 +283,6 @@ export default function CaseTrackerApp() {
     }
   };
 
-  const unhideAllCases = async () => {
-    try {
-      await api.unhideAllCases();
-      setCases((prev) => prev.map((c) => (c.hidden ? { ...c, hidden: false } : c)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "更新に失敗しました");
-    }
-  };
-
   const filteredCases = useMemo(() => {
     // 検索中は、非表示にしている案件も対象にする（一覧には「非表示」と表示）
     const searching = !!searchQuery.trim();
@@ -521,7 +512,6 @@ export default function CaseTrackerApp() {
               onToggleShowHidden={() => setShowHiddenCases((v) => !v)}
               onSelect={setSelectedId}
               onToggleHidden={toggleCaseHidden}
-              onUnhideAll={unhideAllCases}
               onNewCase={() => {
                 setNewCaseClientId(null);
                 setShowNewCaseModal(true);

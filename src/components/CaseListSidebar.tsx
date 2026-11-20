@@ -16,7 +16,6 @@ interface Props {
   onToggleShowHidden: () => void;
   onSelect: (id: string) => void;
   onToggleHidden: (id: string) => void;
-  onUnhideAll: () => void;
   onNewCase: () => void;
   widthPx?: number;
 }
@@ -33,17 +32,10 @@ export default function CaseListSidebar({
   onToggleShowHidden,
   onSelect,
   onToggleHidden,
-  onUnhideAll,
   onNewCase,
   widthPx,
 }: Props) {
   const hiddenCount = allCases.filter((c) => c.hidden).length;
-
-  const handleUnhideAll = () => {
-    if (hiddenCount === 0) return;
-    if (!window.confirm(`非表示にしている${hiddenCount}件をすべて一覧に戻します。よろしいですか？`)) return;
-    onUnhideAll();
-  };
 
   return (
     <aside
@@ -81,11 +73,6 @@ export default function CaseListSidebar({
           <button onClick={onToggleShowHidden} className="text-xs underline" style={{ color: showHiddenCases ? COLORS.vermillion : COLORS.slate }}>
             {showHiddenCases ? "通常の一覧に戻る" : `非表示の案件を表示（${hiddenCount}件）`}
           </button>
-          {hiddenCount > 0 && (
-            <button onClick={handleUnhideAll} className="text-xs underline" style={{ color: COLORS.navy }}>
-              全て表示にする（{hiddenCount}件）
-            </button>
-          )}
         </div>
         {!showHiddenCases && (
           <button
