@@ -487,6 +487,15 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const renderClaimMemoItem = (m: Case["claimMemos"][number], moveTo?: "task" | "memo") => (
             editingClaimMemoId === m.id ? (
               <div key={m.id} className="text-sm p-2.5 rounded flex flex-col gap-2" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+                {/* 編集中も、どの顧客・案件のメモかが分かるように顧客名・案件名と日時・作成者を表示する */}
+                <div className="text-xs flex flex-col gap-0.5" style={{ color: COLORS.slate }}>
+                  {!selectedCase.isPrivate && (selectedCase.clientName || selectedCase.title) && (
+                    <p className="font-bold" style={{ color: COLORS.navy }}>
+                      {selectedCase.clientNumber !== null ? `顧客No.${selectedCase.clientNumber}　` : ""}{selectedCase.title.includes(selectedCase.clientName) ? selectedCase.title : `${selectedCase.clientName}${selectedCase.title ? `　${selectedCase.title}` : ""}`}
+                    </p>
+                  )}
+                  <p>{formatDateTime(m.createdAt)}{m.author && <>　<span className="font-bold">{m.author}</span></>}</p>
+                </div>
                 <AutoGrowTextarea value={claimMemoEditDraft} onChange={(e) => setClaimMemoEditDraft(e.target.value)} rows={3} className="w-full text-sm p-2 rounded outline-none resize-none" style={{ border: `1px solid ${COLORS.brassLight}` }} />
                 <div className="flex justify-end gap-2">
                   <button onClick={cancelEditClaimMemo} className="text-xs px-2.5 py-1 rounded" style={{ color: COLORS.slate }}>キャンセル</button>
