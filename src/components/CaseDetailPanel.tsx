@@ -48,6 +48,7 @@ import { emptyContact, isExpenseBilled } from "@/lib/types";
 import DepositEditor from "@/components/DepositEditor";
 import { enqueueMemo, getPendingMemos, removePendingMemo, subscribePending, isNetworkFailure, type PendingMemo } from "@/lib/offline-queue";
 import { AutoGrowTextarea, Badge, FieldLabel, Pill, TextInput } from "@/components/ui";
+import TimeChargeForm from "@/components/TimeChargeForm";
 import { formatYen } from "@/lib/business/invoice";
 import { summarizeByPerson, formatTotalDuration, formatDuration } from "@/lib/business/timecharge";
 import * as api from "@/lib/api-client";
@@ -61,6 +62,8 @@ interface Props {
   classifications: CaseClassification[];
   onAddClassification: (name: string) => Promise<CaseClassification>;
   onError: (msg: string) => void;
+  currentUserName?: string;
+  isAdmin?: boolean;
 }
 
 // v14：案件詳細の各カードは個別に非表示にでき、表示状態は端末ごとの表示設定として保持する（データではないためlocalStorage）。
@@ -110,7 +113,7 @@ function financeDraftFromCase(c: Case) {
   };
 }
 
-export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDeleted, onOpenClient, onCreateInvoice, classifications, onAddClassification, onError }: Props) {
+export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDeleted, onOpenClient, onCreateInvoice, classifications, onAddClassification, onError, currentUserName, isAdmin }: Props) {
   const [newUpdateText, setNewUpdateText] = useState("");
   const [titleDraft, setTitleDraft] = useState(selectedCase.title);
   const [caseNumberDraft, setCaseNumberDraft] = useState(selectedCase.caseNumber);
@@ -142,6 +145,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [caseTimeCharges, setCaseTimeCharges] = useState<TimeCharge[]>([]);
   const [tcMonth, setTcMonth] = useState(currentYearMonth());
+  const [tcReload, setTcReload] = useState(0);
   const [expMonth, setExpMonth] = useState(currentYearMonth());
   const [timeChargeRateSaved, setTimeChargeRateSaved] = useState(String(selectedCase.timeChargeRate ?? ""));
   const [courtInfoDraft, setCourtInfoDraft] = useState<{ courtCaseNumber: string; courtClerk: Contact }>({
@@ -195,6 +199,13 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
     api.fetchCaseTimeCharges(selectedCase.id).then(setCaseTimeCharges).catch(() => setCaseTimeCharges([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCase.id]);
+
+  // タイムチャージを、この画面から追加・訂正・削除したときに、集計を取り直す
+  useEffect(() => {
+    if (tcReload === 0) return;
+    api.fetchCaseTimeCharges(selectedCase.id).then(setCaseTimeCharges).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tcReload]);
 
   const run = async (fn: () => Promise<Case>) => {
     try {
@@ -870,7 +881,7 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
 
     <div className="flex flex-col gap-5">
       {/* タイムチャージ集計 */}
-      {!hiddenSections.has("timecharge") && caseTimeCharges.length > 0 && (() => {
+      {!hiddenSections.has("timecharge") && (caseTimeCharges.length > 0 || selectedCase.isTimeChargeCase) && (() => {
         const monthCharges = caseTimeCharges.filter((t) => t.date.startsWith(tcMonth));
         const monthHours = monthCharges.reduce((s, t) => s + t.hours, 0);
         const rateNum = Number(timeChargeRateSaved) || 0;
@@ -879,6 +890,22 @@ export default function CaseDetailPanel({ selectedCase, onCaseUpdated, onCaseDel
             <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy, letterSpacing: "0.05em" }}>
               <Clock size={15} /> タイムチャージ集計
             </h3>
+            {/* この案件のタイムチャージを、この画面から入力する（案件はこの案件に固定） */}
+            <div className="rounded p-3 mb-4" style={{ backgroundColor: COLORS.paper, border: `1px solid ${COLORS.brassLight}` }}>
+              <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.navy }}>タイムチャージを入力</p>
+              <TimeChargeForm
+                compact
+                workerChoices={isAdmin ? STAFF_MEMBERS : undefined}
+                defaultWorker={currentUserName}
+                cases={[selectedCase]}
+                presetCaseId={selectedCase.id}
+                presetNonce={0}
+                refreshToken={caseTimeCharges.map((t) => `${t.id}${t.date}${t.startTime}${t.endTime}${t.hours}${t.content}`).join("|")}
+                onAdded={() => setTcReload((n) => n + 1)}
+                onChanged={() => setTcReload((n) => n + 1)}
+                onError={onError}
+              />
+            </div>
             <div className="flex items-center justify-between mb-3">
               <button onClick={() => setTcMonth((m) => shiftYearMonth(m, -1))} style={{ color: COLORS.slate }}><ChevronLeft size={16} /></button>
               <span className="text-sm font-bold">{formatYearMonth(tcMonth)}</span>

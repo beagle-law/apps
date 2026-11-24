@@ -507,7 +507,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
             style={{ border: `1px solid ${COLORS.brass}`, backgroundColor: COLORS.card, color: COLORS.navy }}
           >
             <option value="">▼ 項目へ移動</option>
-            <option value="board-lane-tc">タイムチャージ案件</option>
+            <option value="board-lane-tc">タイムチャージ入力</option>
             <option value="board-lane-expense">経費・預り金</option>
             <option value="board-lane-money">お金の情報</option>
           </select>
@@ -515,7 +515,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
           {/* タイムチャージ案件：入力フォームと、開始〜終了時刻をカードに表示 */}
-          <Lane id="board-lane-tc" title="タイムチャージ案件" count={`${tcCases.length}件`} jumpTo={{ label: "経費・預り金へ", targetId: "board-lane-expense" }}>
+          <Lane id="board-lane-tc" title="タイムチャージ入力" count={`${tcCases.length}件`} jumpTo={{ label: "経費・預り金へ", targetId: "board-lane-expense" }}>
             <div className="rounded p-3" style={cardStyle}>
               <p className="text-xs font-bold mb-1.5" style={{ color: COLORS.navy }}>タイムチャージを入力</p>
               <TimeChargeForm
@@ -588,7 +588,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
           </Lane>
 
           {/* 経費：月の一覧（請求済み・未請求すべて）／案件・顧客を選んだ全期間表示 */}
-          <Lane id="board-lane-expense" title={selected ? `${selected.kind === "case" ? "案件" : "顧客"}の経費（全期間）` : "経費"} count={selected ? undefined : `${includePast ? "表示中" : formatYearMonth(month)}の合計 ${yen(listTotals.unbilled + listTotals.billed)}`}>
+          <Lane id="board-lane-expense" title={selected ? `${selected.kind === "case" ? "案件" : "顧客"}の経費（全期間）` : "経費入力"} count={selected ? undefined : `${includePast ? "表示中" : formatYearMonth(month)}の合計 ${yen(listTotals.unbilled + listTotals.billed)}`}>
             {!selected && (
               <>
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -621,7 +621,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
               {pickOptions.map((g) => {
                 const unbilled = sumOf(g.items).unbilled;
                 return (
-                  <option key={g.key} value={g.key}>{g.label}{unbilled > 0 ? `（未請求 ${yen(unbilled)}）` : ""}</option>
+                  <option key={g.key} value={g.key}>{g.label}{pickKind === "case" && g.first.clientName ? `（${g.first.clientName}）` : ""}{unbilled > 0 ? `（未請求 ${yen(unbilled)}）` : ""}</option>
                 );
               })}
             </select>
@@ -663,7 +663,7 @@ export default function ExpenseBoardView({ cases, onOpenCase, onCaseUpdated, onE
                 </div>
                 <select value={expenseForm.caseId} onChange={(e) => setExpenseForm({ ...expenseForm, caseId: e.target.value })} className="text-sm p-2 rounded outline-none" style={{ border: `1px solid ${COLORS.brassLight}` }}>
                   <option value="">案件を選択</option>
-                  {formCaseOptions.map((c) => <option key={c.id} value={c.id}>{c.caseNumber}.{c.title}</option>)}
+                  {formCaseOptions.map((c) => <option key={c.id} value={c.id}>{c.caseNumber}.{c.title}{c.clientName ? `（${c.clientName}）` : ""}</option>)}
                 </select>
                 <div className="flex gap-1.5">
                   <TextInput type="date" value={expenseForm.date} onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })} className="flex-1 min-w-0" />

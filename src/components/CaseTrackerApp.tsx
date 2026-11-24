@@ -548,6 +548,8 @@ export default function CaseTrackerApp() {
                 classifications={classifications}
                 onAddClassification={addClassification}
                 onError={setError}
+                currentUserName={currentUser.displayName}
+                isAdmin={isAdmin}
               />
             )}
           </main>

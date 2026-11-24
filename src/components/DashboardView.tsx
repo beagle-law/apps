@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
-import { COLORS, FONT_MINCHO, STAGES, STAGE_COLOR } from "@/lib/constants";
+import { COLORS, FONT_MINCHO } from "@/lib/constants";
 import { todayStr, formatDateShort } from "@/lib/dates";
 import { getPeriodRange, getPeriodLabel, shiftAnchor, isWithinPeriod, type DashboardGranularity } from "@/lib/business/dashboard";
 import { sortCasesByCaseNumber } from "@/lib/business/caseSort";
@@ -93,11 +93,14 @@ function PeriodCountRow({
       {cases.length > 0 && (
         <div
           className="hidden group-hover:block absolute left-0 top-full mt-1 z-10 rounded p-3 text-xs shadow-lg"
-          style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, width: 280, maxHeight: 260, overflowY: "auto" }}
+          style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, width: 320, maxHeight: 320, overflowY: "auto" }}
         >
           {cases.map((c) => (
-            <button key={c.id} onClick={() => onOpenCase(c.id)} className="flex items-center justify-between gap-2 py-0.5 w-full text-left hover:opacity-70">
-              <span className="truncate">{c.title}</span>
+            <button key={c.id} onClick={() => onOpenCase(c.id)} className="flex items-start justify-between gap-2 py-1 w-full text-left hover:opacity-70">
+              <span className="min-w-0 break-words">
+                {c.clientName && <span className="block" style={{ color: COLORS.slate }}>{c.clientName}</span>}
+                {c.title}
+              </span>
               <span className="flex-shrink-0 ml-2" style={{ color: COLORS.slate }}>No.{c.caseNumber}</span>
             </button>
           ))}
@@ -119,6 +122,7 @@ function SummaryCard({ title, children }: { title: string; children: React.React
 type ColumnKey =
   | "caseNumber"
   | "title"
+  | "clientName"
   | "caseClassification"
   | "opposingParty"
   | "engagementDate"
@@ -131,21 +135,34 @@ type ColumnKey =
   | "expectedFeeDate"
   | "closedDate";
 
-const COLUMNS: { key: ColumnKey; label: string; numeric?: boolean }[] = [
-  { key: "caseNumber", label: "No." },
-  { key: "title", label: "案件名" },
-  { key: "caseClassification", label: "案件分類" },
-  { key: "opposingParty", label: "相手方" },
-  { key: "engagementDate", label: "受任日" },
-  { key: "noticeSentDate", label: "通知書発送日" },
-  { key: "filingDate", label: "提訴日" },
-  { key: "claimAmount", label: "請求額(税込)", numeric: true },
-  { key: "recoveredAmount", label: "回収額(税込)", numeric: true },
-  { key: "retainerFee", label: "着手金(税込)", numeric: true },
-  { key: "expectedFee", label: "見込報酬額(税込)", numeric: true },
-  { key: "expectedFeeDate", label: "報酬見込日" },
-  { key: "closedDate", label: "終結日" },
+const COLUMNS: { w: number; key: ColumnKey; label: string; numeric?: boolean }[] = [
+  { w: 4, key: "caseNumber", label: "No." },
+  { w: 14, key: "title", label: "案件名" },
+  { w: 9, key: "clientName", label: "顧客名" },
+  { w: 6, key: "caseClassification", label: "案件分類" },
+  { w: 7, key: "opposingParty", label: "相手方" },
+  { w: 8, key: "engagementDate", label: "受任日" },
+  { w: 8, key: "noticeSentDate", label: "通知書発送日" },
+  { w: 8, key: "filingDate", label: "提訴日" },
+  { w: 7, key: "claimAmount", label: "請求額(税込)", numeric: true },
+  { w: 7, key: "recoveredAmount", label: "回収額(税込)", numeric: true },
+  { w: 7, key: "retainerFee", label: "着手金(税込)", numeric: true },
+  { w: 7, key: "expectedFee", label: "見込報酬額(税込)", numeric: true },
+  { w: 8, key: "expectedFeeDate", label: "報酬見込日" },
+  { w: 8, key: "closedDate", label: "終結日" },
 ];
+
+// 案件一覧表で「非表示にする」にチェックした案件は、端末ごとの表示設定として保持する（顧問業務など、一覧表に出したくない案件用）。案件そのものは非表示にならない。
+const TABLE_HIDDEN_KEY = "beagle_analysis_table_hidden_cases";
+function loadTableHidden(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(TABLE_HIDDEN_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
 
 function cellValue(c: Case, key: ColumnKey): string | number {
   switch (key) {
@@ -169,6 +186,23 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   // 終結日を入力した案件は案件一覧では非表示になるが、分析の集計には含める（個人メモは除く）
   const visibleCases = cases.filter((c) => !c.isPrivate && (!c.hidden || c.stage === "終結"));
   const [showClosedInTable, setShowClosedInTable] = useState(false); // 案件一覧表に終結した案件も表示するか
+  const [tableHidden, setTableHidden] = useState<Set<string>>(new Set()); // 案件一覧表で「非表示にする」にチェックした案件
+  const [showTableHidden, setShowTableHidden] = useState(false); // 非表示にした案件も一覧表に表示するか
+  useEffect(() => {
+    setTableHidden(loadTableHidden());
+  }, []);
+  const toggleTableHidden = (id: string) =>
+    setTableHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        window.localStorage.setItem(TABLE_HIDDEN_KEY, JSON.stringify([...next]));
+      } catch {
+        // 保存できない環境でも、この画面の間は反映する
+      }
+      return next;
+    });
   const [clients, setClients] = useState<Client[]>([]);
   useEffect(() => {
     api.fetchClients().then(setClients).catch(() => setClients([]));
@@ -190,13 +224,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
     }
   };
 
-  const stageCounts: Record<string, number> = {};
-  STAGES.forEach((s) => (stageCounts[s] = 0));
-  let activeCount = 0;
-  periodCases.forEach((c) => {
-    stageCounts[c.stage]++;
-    if (c.stage === "受任・対応中") activeCount++;
-  });
+  const activeCount = periodCases.filter((c) => c.stage === "受任・対応中").length;
 
   // 「今後の期日」：次回裁判期日が本日以降の件数（v21で「今後1か月間」から全期間に変更）。ホバーで一覧を表示。
   const t = todayStr();
@@ -204,10 +232,9 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
     .flatMap((c) => (c.hearings || []).filter((h) => h.nextHearingDate && h.nextHearingDate >= t).map((h) => ({ case: c, hearing: h })))
     .sort((a, b) => (a.hearing.nextHearingDate < b.hearing.nextHearingDate ? -1 : 1));
 
-  const stageMax = Math.max(1, ...Object.values(stageCounts));
-
   // 案件一覧表に出す案件：終結した案件は既定では出さない（切り替えで表示）
-  const tableCases = periodCases.filter((c) => showClosedInTable || c.stage !== "終結");
+  const tableCases = periodCases.filter((c) => (showClosedInTable || c.stage !== "終結") && (showTableHidden || !tableHidden.has(c.id)));
+  const tableHiddenCount = periodCases.filter((c) => (showClosedInTable || c.stage !== "終結") && tableHidden.has(c.id)).length;
 
   const financeTotals = tableCases.reduce(
     (acc, c) => ({
@@ -222,6 +249,10 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
   // v16：「データ」タブの集計（案件横断・期間フィルターの影響を受けない全案件ベース）
   const engagementToNotice = average(
     visibleCases.map((c) => daysBetween(c.engagementDate, c.noticeSentDate)).filter((v): v is number => v !== null && v >= 0)
+  );
+
+  const noticeToFiling = average(
+    visibleCases.map((c) => daysBetween(c.noticeSentDate, c.filingDate)).filter((v): v is number => v !== null && v >= 0)
   );
 
   const expectedFeeByMonth = new Map<string, number>();
@@ -360,8 +391,8 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
                 style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, width: 280, maxHeight: 260, overflowY: "auto" }}
               >
                 {upcoming.map(({ case: c, hearing: h }) => (
-                  <div key={h.id} className="flex items-center justify-between gap-2 py-0.5">
-                    <span className="truncate">{c.title}</span>
+                  <div key={h.id} className="flex items-start justify-between gap-2 py-0.5">
+                    <span className="min-w-0 break-words">{c.clientName ? `${c.clientName}　` : ""}{c.title}</span>
                     <span className="flex-shrink-0" style={{ color: COLORS.slate }}>{formatDateShort(h.nextHearingDate)}</span>
                   </div>
                 ))}
@@ -370,28 +401,16 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 mb-6">
-          <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
-            <h3 className="text-sm font-bold mb-3" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>ステータス</h3>
-            <div className="flex flex-col gap-2">
-              {STAGES.map((s) => (
-                <div key={s} className="flex items-center gap-2">
-                  <span className="text-xs w-28 flex-shrink-0" style={{ color: COLORS.slate }}>{s}</span>
-                  <div className="flex-1 rounded-full overflow-hidden" style={{ backgroundColor: COLORS.paper, height: 8 }}>
-                    <div style={{ width: `${(stageCounts[s] / stageMax) * 100}%`, backgroundColor: STAGE_COLOR[s], height: 8 }} />
-                  </div>
-                  <span className="text-xs font-bold w-4 text-right">{stageCounts[s]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
         {/* v16：「データ」タブと統合。案件横断の集計・傾向を表示する（期間フィルターの影響を受けない）。 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
           <SummaryCard title="受任日 → 通知書発送日（平均日数）">
             <p className="text-3xl font-bold" style={{ color: COLORS.navy }}>
               {engagementToNotice !== null ? `${engagementToNotice}日` : "—"}
+            </p>
+          </SummaryCard>
+          <SummaryCard title="通知書発送日 → 提訴日（平均日数）">
+            <p className="text-3xl font-bold" style={{ color: COLORS.navy }}>
+              {noticeToFiling !== null ? `${noticeToFiling}日` : "—"}
             </p>
           </SummaryCard>
         </div>
@@ -411,8 +430,8 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
                       style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}`, width: 320, maxHeight: 260, overflowY: "auto" }}
                     >
                       {(expectedFeeCasesByMonth.get(ym) || []).map((c) => (
-                        <div key={c.id} className="flex items-center justify-between gap-2 py-0.5">
-                          <span className="truncate">{c.caseNumber}.{c.title}</span>
+                        <div key={c.id} className="flex items-start justify-between gap-2 py-0.5">
+                          <span className="min-w-0 break-words">{c.caseNumber}.{c.clientName ? `${c.clientName}　` : ""}{c.title}</span>
                           <span className="flex-shrink-0 font-bold">¥{Number(c.expectedFee).toLocaleString("ja-JP")}</span>
                         </div>
                       ))}
@@ -519,37 +538,45 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
         <div className="rounded p-5" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.brassLight}` }}>
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <h3 className="text-sm font-bold" style={{ fontFamily: FONT_MINCHO, color: COLORS.navy }}>案件一覧表</h3>
-            <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
-              <input type="checkbox" checked={showClosedInTable} onChange={(e) => setShowClosedInTable(e.target.checked)} /> 終結した案件も表示する
-            </label>
+            <div className="flex items-center gap-4 flex-wrap">
+              <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
+                <input type="checkbox" checked={showClosedInTable} onChange={(e) => setShowClosedInTable(e.target.checked)} /> 終結した案件も表示する
+              </label>
+              <label className="flex items-center gap-1.5 text-xs" style={{ color: COLORS.slate }}>
+                <input type="checkbox" checked={showTableHidden} onChange={(e) => setShowTableHidden(e.target.checked)} /> 非表示にした案件も表示する（{tableHiddenCount}件）
+              </label>
+            </div>
           </div>
           <table className="text-xs w-full table-fixed">
             <thead>
               <tr style={{ color: COLORS.slate, borderBottom: `1px solid ${COLORS.brassLight}` }}>
                 {COLUMNS.map((col) => (
-                  <th key={col.key} className="text-left py-1.5 pr-2 font-normal cursor-pointer select-none" onClick={() => toggleSort(col.key)}>
+                  <th key={col.key} className="text-left py-1.5 pr-2 font-normal cursor-pointer select-none" style={{ width: `${col.w}%` }} onClick={() => toggleSort(col.key)}>
                     <span className="flex items-center gap-0.5">
                       {col.label}
                       {sortKey === col.key && (sortDir === 1 ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
                     </span>
                   </th>
                 ))}
+                <th className="text-left py-1.5 pr-2 font-normal" style={{ width: "4%" }}>非表示</th>
               </tr>
             </thead>
             <tbody>
               <tr className="font-bold" style={{ borderBottom: `2px solid ${COLORS.brassLight}` }}>
-                <td className="py-1.5 pr-2" colSpan={7}>合計</td>
+                <td className="py-1.5 pr-2" colSpan={8}>合計</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.claimAmount)}</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.recoveredAmount)}</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.retainerFee)}</td>
                 <td className="py-1.5 pr-2 text-right">{yen(financeTotals.expectedFee)}</td>
                 <td></td>
                 <td></td>
+                <td></td>
               </tr>
               {sortedCases.map((c) => (
                 <tr key={c.id} className="hover:opacity-90" style={{ borderBottom: `1px solid ${COLORS.paper}` }}>
                   <td className="py-1.5 pr-2 truncate cursor-pointer" onClick={() => onOpenCase(c.id)}>{c.caseNumber}</td>
-                  <td className="py-1.5 pr-2 truncate cursor-pointer" onClick={() => onOpenCase(c.id)}>{c.title}</td>
+                  <td className="py-1.5 pr-2 break-words cursor-pointer" onClick={() => onOpenCase(c.id)}>{c.title}</td>
+                  <td className="py-1.5 pr-2 break-words">{c.clientName}</td>
                   <td className="py-1.5 pr-2 truncate">
                     <EditableCell value={c.caseClassification} onSave={(v) => saveFinanceField(c.id, { caseClassification: v })} />
                   </td>
@@ -583,6 +610,9 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
                   </td>
                   <td className="py-1.5 pr-2 truncate">
                     <EditableCell type="date" value={c.closedDate} onSave={(v) => saveFinanceField(c.id, { closedDate: v })} />
+                  </td>
+                  <td className="py-1.5 pr-2">
+                    <input type="checkbox" checked={tableHidden.has(c.id)} onChange={() => toggleTableHidden(c.id)} title="この案件を案件一覧表に表示しない（この端末の表示設定）" aria-label="非表示にする" />
                   </td>
                 </tr>
               ))}
