@@ -144,10 +144,10 @@ const COLUMNS: { w: number; key: ColumnKey; label: string; numeric?: boolean }[]
   { w: 8, key: "engagementDate", label: "受任日" },
   { w: 8, key: "noticeSentDate", label: "通知書発送日" },
   { w: 8, key: "filingDate", label: "提訴日" },
-  { w: 7, key: "claimAmount", label: "請求額(税込)", numeric: true },
-  { w: 7, key: "recoveredAmount", label: "回収額(税込)", numeric: true },
-  { w: 7, key: "retainerFee", label: "着手金(税込)", numeric: true },
-  { w: 7, key: "expectedFee", label: "見込報酬額(税込)", numeric: true },
+  { w: 8, key: "claimAmount", label: "請求額(税込)", numeric: true },
+  { w: 8, key: "recoveredAmount", label: "回収額(税込)", numeric: true },
+  { w: 8, key: "retainerFee", label: "着手金(税込)", numeric: true },
+  { w: 8, key: "expectedFee", label: "見込報酬額(税込)", numeric: true },
   { w: 8, key: "expectedFeeDate", label: "報酬見込日" },
   { w: 8, key: "closedDate", label: "終結日" },
 ];
@@ -547,7 +547,9 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
               </label>
             </div>
           </div>
-          <table className="text-xs w-full table-fixed">
+          {/* スマホなど幅の狭い画面では、列を押し潰さずに横スクロールで表示する */}
+          <div className="overflow-x-auto -mx-1 px-1">
+          <table className="text-xs w-full table-fixed" style={{ minWidth: 1100 }}>
             <thead>
               <tr style={{ color: COLORS.slate, borderBottom: `1px solid ${COLORS.brassLight}` }}>
                 {COLUMNS.map((col) => (
@@ -618,6 +620,7 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>
