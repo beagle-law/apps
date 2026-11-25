@@ -317,6 +317,31 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
     }
   };
 
+  // 案件一覧表の各項目の編集セル（パソコンの表とスマホのカードで共通）
+  const fieldCell = (c: Case, key: ColumnKey) => {
+    switch (key) {
+      case "caseClassification":
+      case "opposingParty":
+        return <EditableCell value={c[key]} onSave={(v) => saveFinanceField(c.id, { [key]: v })} />;
+      case "engagementDate":
+      case "noticeSentDate":
+      case "filingDate":
+      case "expectedFeeDate":
+      case "closedDate":
+        return <EditableCell type="date" value={c[key]} onSave={(v) => saveFinanceField(c.id, { [key]: v })} />;
+      case "claimAmount":
+      case "recoveredAmount":
+      case "retainerFee":
+      case "expectedFee":
+        return (
+          <EditableCell type="number" align="right" value={c[key] === "" ? "" : String(c[key])} display={yen(c[key])} onSave={(v) => saveFinanceField(c.id, { [key]: v === "" ? "" : Number(v) })} />
+        );
+      default:
+        return <span>{c[key]}</span>;
+    }
+  };
+  const labelOf = (key: ColumnKey) => COLUMNS.find((col) => col.key === key)?.label ?? key;
+
   const sortedCases = [...tableCases].sort((a, b) => {
     const av = cellValue(a, sortKey);
     const bv = cellValue(b, sortKey);
@@ -547,8 +572,62 @@ export default function DashboardView({ cases, onGoToActiveCases, onOpenCase, on
               </label>
             </div>
           </div>
-          {/* スマホなど幅の狭い画面では、列を押し潰さずに横スクロールで表示する */}
-          <div className="overflow-x-auto -mx-1 px-1">
+          {/* スマホ：表ではなく、案件ごとのカードで表示する（主な項目を表示し、残りは「詳細」で開く） */}
+          <div className="md:hidden flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-xs" style={{ color: COLORS.slate }}>
+              並び順
+              <select value={sortKey} onChange={(e) => setSortKey(e.target.value as ColumnKey)} className="text-xs p-1.5 rounded outline-none flex-1 min-w-0" style={{ border: `1px solid ${COLORS.brassLight}`, backgroundColor: COLORS.card }}>
+                {COLUMNS.map((col) => <option key={col.key} value={col.key}>{col.label}</option>)}
+              </select>
+              <button onClick={() => setSortDir((d) => (d === 1 ? -1 : 1))} className="flex items-center gap-0.5 px-2 py-1.5 rounded" style={{ border: `1px solid ${COLORS.brassLight}`, color: COLORS.navy }}>
+                {sortDir === 1 ? <><ChevronUp size={12} /> 昇順</> : <><ChevronDown size={12} /> 降順</>}
+              </button>
+            </div>
+            <div className="rounded p-3 text-xs font-bold grid grid-cols-2 gap-x-3 gap-y-1" style={{ backgroundColor: COLORS.paper, color: COLORS.navy }}>
+              <p className="col-span-2">合計（{sortedCases.length}件）</p>
+              <p>請求額 {yen(financeTotals.claimAmount)}</p>
+              <p>回収額 {yen(financeTotals.recoveredAmount)}</p>
+              <p>着手金 {yen(financeTotals.retainerFee)}</p>
+              <p>見込報酬 {yen(financeTotals.expectedFee)}</p>
+            </div>
+            {sortedCases.map((c) => (
+              <div key={c.id} className="rounded p-3 text-xs" style={{ border: `1px solid ${COLORS.brassLight}`, opacity: tableHidden.has(c.id) ? 0.6 : 1 }}>
+                <div className="flex items-start gap-2">
+                  <button onClick={() => onOpenCase(c.id)} className="flex-1 min-w-0 text-left hover:opacity-70">
+                    <span style={{ color: COLORS.slate }}>No.{c.caseNumber}</span>
+                    <span className="block text-sm font-semibold break-words" style={{ fontFamily: FONT_MINCHO }}>{c.title}</span>
+                    {c.clientName && <span className="block break-words" style={{ color: COLORS.slate }}>{c.clientName}</span>}
+                  </button>
+                  <label className="flex items-center gap-1 flex-shrink-0" style={{ color: COLORS.slate }}>
+                    <input type="checkbox" checked={tableHidden.has(c.id)} onChange={() => toggleTableHidden(c.id)} /> 非表示
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
+                  {(["engagementDate", "filingDate", "claimAmount", "retainerFee", "expectedFee", "expectedFeeDate"] as ColumnKey[]).map((key) => (
+                    <div key={key} className="min-w-0">
+                      <span className="block" style={{ color: COLORS.slate, fontSize: 10 }}>{labelOf(key)}</span>
+                      {fieldCell(c, key)}
+                    </div>
+                  ))}
+                </div>
+                <details className="mt-2">
+                  <summary className="cursor-pointer select-none" style={{ color: COLORS.navy }}>詳細</summary>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1.5">
+                    {(["caseClassification", "opposingParty", "noticeSentDate", "recoveredAmount", "closedDate"] as ColumnKey[]).map((key) => (
+                      <div key={key} className="min-w-0">
+                        <span className="block" style={{ color: COLORS.slate, fontSize: 10 }}>{labelOf(key)}</span>
+                        {fieldCell(c, key)}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            ))}
+            {sortedCases.length === 0 && <p className="text-xs" style={{ color: COLORS.slate }}>表示する案件はありません。</p>}
+          </div>
+
+          {/* パソコン：表で表示する */}
+          <div className="hidden md:block overflow-x-auto -mx-1 px-1">
           <table className="text-xs w-full table-fixed" style={{ minWidth: 1100 }}>
             <thead>
               <tr style={{ color: COLORS.slate, borderBottom: `1px solid ${COLORS.brassLight}` }}>
